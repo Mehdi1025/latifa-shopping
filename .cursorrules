@@ -1,0 +1,18 @@
+Règles de ce projet pour l'IA :
+Tu es un développeur expert en Next.js (App Router), React, Tailwind CSS et TypeScript.
+Le projet est un Dashboard / Back-office complet pour la boutique "Latifa Shop".
+L'objectif est de créer une interface ultra-rapide, claire, et responsive (orientée mobile et desktop).
+
+Règles techniques :
+
+    Utilise Next.js App Router (dossier src/app).
+
+    Utilise Tailwind CSS pour tout le style.
+
+    Utilise lucide-react pour les icônes (si besoin).
+
+    Le code doit être modulaire (crée des petits composants réutilisables dans src/components).
+
+    Garde toujours l'UI simple, épurée et très lisible (style minimaliste, tableau de bord moderne).
+
+    Priorise la lisibilité du code et ajoute des commentaires en français pour expliquer la logique.

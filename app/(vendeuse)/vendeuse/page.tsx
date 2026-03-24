@@ -1,0 +1,885 @@
+"use client";
+
+import { useState, useEffect, useMemo } from "react";
+import { useRouter } from "next/navigation";
+import { AnimatePresence, motion } from "framer-motion";
+import { Plus, Minus, ShoppingBag, ChevronDown, Trash2, X, CheckCircle, AlertCircle, Search, History, Percent, RotateCcw } from "lucide-react";
+import { createSupabaseBrowserClient } from "@/utils/supabase/client";
+
+type Produit = {
+  id: string;
+  nom: string;
+  description: string | null;
+  prix: number;
+  stock: number;
+  categorie: string | null;
+};
+
+type LignePanier = {
+  produit: Produit;
+  quantite: number;
+};
+
+type VenteItem = {
+  produit_id: string;
+  quantite: number;
+};
+
+type VenteHistorique = {
+  id: string;
+  total: number;
+  remise?: number;
+  created_at: string;
+  ventes_items?: VenteItem[];
+};
+
+function formatPrix(prix: number): string {
+  return new Intl.NumberFormat("fr-FR", {
+    style: "currency",
+    currency: "EUR",
+    minimumFractionDigits: 2,
+  }).format(prix);
+}
+
+type ToastType = "success" | "error" | null;
+
+export default function VendeusePage() {
+  const [produits, setProduits] = useState<Produit[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [panier, setPanier] = useState<LignePanier[]>([]);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedCategorie, setSelectedCategorie] = useState<string>("Tous");
+  const [encaissementLoading, setEncaissementLoading] = useState(false);
+  const [toast, setToast] = useState<{ type: ToastType; message: string } | null>(null);
+  const [ventesDuJour, setVentesDuJour] = useState<VenteHistorique[]>([]);
+  const [loadingHistorique, setLoadingHistorique] = useState(false);
+  const [remiseModalOpen, setRemiseModalOpen] = useState(false);
+  const [remiseType, setRemiseType] = useState<"percent" | "fixed">("percent");
+  const [remiseValue, setRemiseValue] = useState<number>(0);
+
+  const supabase = createSupabaseBrowserClient();
+  const router = useRouter();
+
+  const fetchProduits = async () => {
+    setLoading(true);
+    const { data } = await supabase
+      .from("produits")
+      .select("id, nom, description, prix, stock, categorie")
+      .gt("stock", 0)
+      .order("nom");
+    setProduits((data as Produit[]) ?? []);
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    fetchProduits();
+  }, []);
+
+  const fetchVentesDuJour = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    setLoadingHistorique(true);
+    const { data: ventes } = await supabase
+      .from("ventes")
+      .select("id, total, created_at")
+      .eq("vendeur_id", user.id)
+      .order("created_at", { ascending: false })
+      .limit(20);
+    if (ventes?.length) {
+      const ids = ventes.map((v) => v.id);
+      const { data: items } = await supabase
+        .from("ventes_items")
+        .select("vente_id, produit_id, quantite")
+        .in("vente_id", ids);
+      const itemsByVente = (items ?? []).reduce<Record<string, VenteItem[]>>((acc, it) => {
+        const v = it as { vente_id: string; produit_id: string; quantite: number };
+        if (!acc[v.vente_id]) acc[v.vente_id] = [];
+        acc[v.vente_id].push({ produit_id: v.produit_id, quantite: v.quantite });
+        return acc;
+      }, {});
+      setVentesDuJour(
+        (ventes as VenteHistorique[]).map((v) => ({
+          ...v,
+          ventes_items: itemsByVente[v.id] ?? [],
+        }))
+      );
+    } else {
+      setVentesDuJour([]);
+    }
+    setLoadingHistorique(false);
+  };
+
+  useEffect(() => {
+    fetchVentesDuJour();
+    const interval = setInterval(fetchVentesDuJour, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const categories = useMemo(() => {
+    const cats = new Set<string>();
+    produits.forEach((p) => {
+      if (p.categorie && p.categorie.trim()) cats.add(p.categorie.trim());
+    });
+    const arr = Array.from(cats).sort();
+    if (arr.length === 0) return ["Tous", "Abayas", "Robes", "Accessoires"];
+    return ["Tous", ...arr];
+  }, [produits]);
+
+  const filteredProduits = useMemo(() => {
+    let list = produits;
+    if (selectedCategorie !== "Tous") {
+      list = list.filter((p) => (p.categorie ?? "").trim() === selectedCategorie);
+    }
+    if (searchQuery.trim()) {
+      const q = searchQuery.trim().toLowerCase();
+      list = list.filter(
+        (p) =>
+          (p.nom ?? "").toLowerCase().includes(q) ||
+          (p.categorie ?? "").toLowerCase().includes(q)
+      );
+    }
+    return list;
+  }, [produits, searchQuery, selectedCategorie]);
+
+  const addToPanier = (produit: Produit) => {
+    setPanier((prev) => {
+      const existing = prev.find((l) => l.produit.id === produit.id);
+      if (existing) {
+        if (existing.quantite >= produit.stock) return prev;
+        return prev.map((l) =>
+          l.produit.id === produit.id
+            ? { ...l, quantite: l.quantite + 1 }
+            : l
+        );
+      }
+      return [...prev, { produit, quantite: 1 }];
+    });
+  };
+
+  const removeFromPanier = (produitId: string) => {
+    setPanier((prev) => {
+      const ligne = prev.find((l) => l.produit.id === produitId);
+      if (!ligne) return prev;
+      if (ligne.quantite <= 1) return prev.filter((l) => l.produit.id !== produitId);
+      return prev.map((l) =>
+        l.produit.id === produitId ? { ...l, quantite: l.quantite - 1 } : l
+      );
+    });
+  };
+
+  const removeItemCompletely = (produitId: string) => {
+    setPanier((prev) => prev.filter((l) => l.produit.id !== produitId));
+  };
+
+  const viderPanier = () => {
+    setPanier([]);
+    setRemiseValue(0);
+    setRemiseType("percent");
+  };
+
+  const sousTotal = panier.reduce((acc, l) => acc + l.produit.prix * l.quantite, 0);
+  const nbArticles = panier.reduce((acc, l) => acc + l.quantite, 0);
+
+  const remiseAmount = useMemo(() => {
+    if (remiseType === "percent") {
+      return Math.round((sousTotal * (remiseValue / 100)) * 100) / 100;
+    }
+    return Math.min(remiseValue, sousTotal);
+  }, [remiseType, remiseValue, sousTotal]);
+
+  const total = Math.max(0, Math.round((sousTotal - remiseAmount) * 100) / 100);
+
+  const showToast = (type: "success" | "error", message: string) => {
+    setToast({ type, message });
+    setTimeout(() => setToast(null), 4000);
+  };
+
+  const handleAnnulerVente = async (vente: VenteHistorique) => {
+    if (!vente.ventes_items?.length) return;
+    try {
+      for (const item of vente.ventes_items) {
+        const { data: prod } = await supabase
+          .from("produits")
+          .select("stock")
+          .eq("id", item.produit_id)
+          .single();
+        const currentStock = (prod as { stock: number } | null)?.stock ?? 0;
+        const { error: stockError } = await supabase
+          .from("produits")
+          .update({ stock: currentStock + item.quantite })
+          .eq("id", item.produit_id);
+        if (stockError) throw new Error(stockError.message);
+      }
+      await supabase.from("ventes_items").delete().eq("vente_id", vente.id);
+      const { error: delError } = await supabase
+        .from("ventes")
+        .delete()
+        .eq("id", vente.id);
+      if (delError) throw new Error(delError.message);
+      await fetchVentesDuJour();
+      await fetchProduits();
+      showToast("success", "Vente annulée. Stock restauré.");
+    } catch (err) {
+      showToast("error", err instanceof Error ? err.message : "Erreur lors de l'annulation.");
+    }
+  };
+
+  const handleEncaisser = async () => {
+    if (panier.length === 0 || encaissementLoading) return;
+    setEncaissementLoading(true);
+    setToast(null);
+
+    try {
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      if (authError || !user) {
+        showToast("error", "Session expirée. Veuillez vous reconnecter.");
+        return;
+      }
+
+      const { data: vente, error: venteError } = await supabase
+        .from("ventes")
+        .insert({
+          vendeur_id: user.id,
+          total,
+          remise: remiseAmount,
+        })
+        .select("id")
+        .single();
+
+      if (venteError || !vente) {
+        showToast("error", venteError?.message ?? "Erreur lors de la création du ticket.");
+        return;
+      }
+
+      for (const ligne of panier) {
+        const { error: itemError } = await supabase.from("ventes_items").insert({
+          vente_id: vente.id,
+          produit_id: ligne.produit.id,
+          quantite: ligne.quantite,
+          prix_unitaire: ligne.produit.prix,
+        });
+        if (itemError) {
+          showToast("error", `Erreur article: ${itemError.message}`);
+          return;
+        }
+
+        const newStock = ligne.produit.stock - ligne.quantite;
+        const { error: stockError } = await supabase
+          .from("produits")
+          .update({ stock: newStock })
+          .eq("id", ligne.produit.id);
+        if (stockError) {
+          showToast("error", `Erreur stock: ${stockError.message}`);
+          return;
+        }
+      }
+
+      setPanier([]);
+      setRemiseValue(0);
+      setRemiseType("percent");
+      setDrawerOpen(false);
+      setRemiseModalOpen(false);
+      await fetchProduits();
+      await fetchVentesDuJour();
+      router.refresh();
+      showToast("success", "Vente enregistrée !");
+    } catch (err) {
+      showToast("error", err instanceof Error ? err.message : "Une erreur est survenue.");
+    } finally {
+      setEncaissementLoading(false);
+    }
+  };
+
+  return (
+    <div className="relative flex h-full min-h-[calc(100vh-3.5rem)] flex-col lg:flex-row lg:min-h-screen">
+      {/* Modal Remise */}
+      <AnimatePresence>
+        {remiseModalOpen && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setRemiseModalOpen(false)}
+              className="fixed inset-0 z-[80] bg-gray-900/50 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.2 }}
+              className="fixed left-1/2 top-1/2 z-[90] w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-white p-6 shadow-2xl ring-1 ring-gray-100"
+            >
+              <div className="mb-5 flex items-center justify-between">
+                <h3 className="text-lg font-semibold text-gray-900">Appliquer une remise</h3>
+                <button
+                  type="button"
+                  onClick={() => setRemiseModalOpen(false)}
+                  className="rounded-full p-2 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
+                  aria-label="Fermer"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+              <div className="mb-5 flex gap-2 rounded-2xl bg-gray-100 p-1">
+                <button
+                  type="button"
+                  onClick={() => setRemiseType("percent")}
+                  className={`flex-1 rounded-xl py-2.5 text-sm font-medium transition-all ${
+                    remiseType === "percent"
+                      ? "bg-white text-emerald-700 shadow-sm"
+                      : "text-gray-600 hover:text-gray-900"
+                  }`}
+                >
+                  Pourcentage
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRemiseType("fixed")}
+                  className={`flex-1 rounded-xl py-2.5 text-sm font-medium transition-all ${
+                    remiseType === "fixed"
+                      ? "bg-white text-emerald-700 shadow-sm"
+                      : "text-gray-600 hover:text-gray-900"
+                  }`}
+                >
+                  Montant fixe
+                </button>
+              </div>
+              {remiseType === "percent" ? (
+                <div className="flex flex-wrap gap-2">
+                  {[10, 20, 50].map((p) => (
+                    <button
+                      key={p}
+                      type="button"
+                      onClick={() => setRemiseValue(remiseValue === p ? 0 : p)}
+                      className={`rounded-2xl px-4 py-2.5 text-sm font-semibold transition-all ${
+                        remiseValue === p
+                          ? "bg-emerald-600 text-white"
+                          : "bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                      }`}
+                    >
+                      -{p}%
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <span className="text-gray-500">-</span>
+                  <input
+                    type="number"
+                    min={0}
+                    step={0.01}
+                    value={remiseValue || ""}
+                    onChange={(e) => setRemiseValue(Math.max(0, parseFloat(e.target.value) || 0))}
+                    placeholder="0"
+                    className="w-full rounded-2xl border border-gray-200 px-4 py-3 text-gray-900 focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-100"
+                  />
+                  <span className="text-gray-500">€</span>
+                </div>
+              )}
+              <p className="mt-4 text-center text-sm text-gray-500">
+                Sous-total : {formatPrix(sousTotal)}
+                {remiseAmount > 0 && (
+                  <> · Remise : -{formatPrix(remiseAmount)} · <strong>Total : {formatPrix(total)}</strong></>
+                )}
+              </p>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* Toast notification */}
+      <AnimatePresence>
+        {toast && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.25 }}
+            className={`fixed top-20 left-1/2 z-[100] flex -translate-x-1/2 items-center gap-3 rounded-2xl px-6 py-4 shadow-[0_10px_40px_-10px_rgba(0,0,0,0.2)] lg:top-8 ${
+              toast.type === "success"
+                ? "bg-emerald-600 text-white"
+                : "bg-red-50 text-red-700 ring-1 ring-red-100"
+            }`}
+          >
+            {toast.type === "success" ? (
+              <CheckCircle className="h-6 w-6 shrink-0" />
+            ) : (
+              <AlertCircle className="h-6 w-6 shrink-0" />
+            )}
+            <span className="font-semibold">{toast.message}</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Catalogue - Gauche (65%) - Fond ultra-léger */}
+      <section className="flex flex-1 flex-col overflow-auto bg-gray-50/50 p-6 lg:w-[65%] lg:p-10">
+        <div className="mb-6">
+          <h1 className="text-2xl font-semibold text-gray-900">
+            Catalogue
+          </h1>
+          <p className="mt-1 text-sm text-gray-400">
+            Touchez un produit pour l&apos;ajouter au panier
+          </p>
+        </div>
+
+        {/* Barre de recherche */}
+        <div className="mb-5 flex items-center gap-3 rounded-xl bg-white px-4 py-3 ring-1 ring-gray-100/80 shadow-sm">
+          <Search className="h-5 w-5 shrink-0 text-gray-400" />
+          <input
+            type="search"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Rechercher par nom ou catégorie…"
+            className="min-w-0 flex-1 bg-transparent text-gray-900 placeholder:text-gray-400 focus:outline-none"
+            aria-label="Rechercher un produit"
+          />
+        </div>
+
+        {/* Filtres par catégories */}
+        <div className="mb-6 flex flex-wrap gap-2">
+          {categories.map((cat) => (
+            <button
+              key={cat}
+              type="button"
+              onClick={() => setSelectedCategorie(cat)}
+              className={`rounded-xl px-4 py-2.5 text-sm font-medium transition-all duration-200 ${
+                selectedCategorie === cat
+                  ? "bg-gray-900 text-white shadow-md"
+                  : "bg-white text-gray-600 ring-1 ring-gray-100 hover:bg-gray-50"
+              }`}
+            >
+              {cat}
+            </button>
+          ))}
+        </div>
+
+        {loading ? (
+          <div className="flex flex-1 items-center justify-center py-24">
+            <div className="h-10 w-10 animate-spin rounded-full border-2 border-gray-300 border-t-gray-900" />
+          </div>
+        ) : produits.length === 0 ? (
+          <p className="py-16 text-center text-gray-400">Aucun produit en stock.</p>
+        ) : filteredProduits.length === 0 ? (
+          <p className="py-16 text-center text-gray-500">
+            {searchQuery.trim() ? (
+              <>Aucun article trouvé pour &quot;{searchQuery.trim()}&quot;.</>
+            ) : (
+              <>Aucune catégorie &quot;{selectedCategorie}&quot; avec des produits en stock.</>
+            )}
+          </p>
+        ) : (
+          <div className="grid grid-cols-2 gap-4 sm:gap-5 md:grid-cols-3 lg:grid-cols-4 xl:gap-6">
+            <AnimatePresence mode="popLayout">
+              {filteredProduits.map((produit) => (
+                <motion.button
+                  key={produit.id}
+                  layout
+                  initial={{ opacity: 0, scale: 0.96 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.96 }}
+                  transition={{ duration: 0.2, ease: "easeOut" }}
+                  type="button"
+                  onClick={() => addToPanier(produit)}
+                  className="group flex flex-col items-stretch rounded-3xl bg-white p-5 text-left ring-1 ring-gray-100/50 shadow-[0_2px_10px_-3px_rgba(6,81,237,0.1)] transition-all duration-300 ease-out hover:-translate-y-1 hover:shadow-xl active:scale-95 active:translate-y-0 active:shadow-[0_2px_10px_-3px_rgba(6,81,237,0.1)] md:p-6"
+                >
+                  <div className="mb-4 flex aspect-square items-center justify-center rounded-2xl bg-gray-50/80 text-gray-300 transition-colors duration-300 group-hover:bg-gray-100/80">
+                    <ShoppingBag className="h-14 w-14 md:h-16 md:w-16" />
+                  </div>
+                  <p className="mb-2 line-clamp-2 text-lg font-semibold text-gray-900">
+                    {produit.nom}
+                  </p>
+                  {produit.categorie && (
+                    <p className="mb-4 text-sm text-gray-400">{produit.categorie}</p>
+                  )}
+                  <div className="mt-auto flex items-center justify-between gap-2">
+                    <span className="text-xl font-bold text-gray-900">
+                      {formatPrix(produit.prix)}
+                    </span>
+                    <span className="flex items-center gap-1.5 text-xs text-gray-400">
+                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                      {produit.stock} en stock
+                    </span>
+                  </div>
+                </motion.button>
+              ))}
+            </AnimatePresence>
+          </div>
+        )}
+      </section>
+
+      {/* Ticket de caisse - Droite (35%) - Blanc pur, bordure subtile */}
+      <aside className="hidden flex-col border-l border-gray-100 bg-white lg:flex lg:w-[35%] lg:sticky lg:top-0 lg:h-screen lg:shadow-[0_-4px_30px_-10px_rgba(0,0,0,0.05)]">
+        <div className="flex flex-1 flex-col overflow-hidden p-8">
+          <div className="mb-2 flex items-start justify-between gap-2">
+            <h2 className="text-xl font-semibold text-gray-900">
+              Ticket de caisse
+            </h2>
+            {panier.length > 0 && (
+              <button
+                type="button"
+                onClick={viderPanier}
+                className="flex items-center gap-1.5 text-sm text-gray-400 transition-colors hover:text-red-500"
+              >
+                <Trash2 className="h-4 w-4" />
+                Vider
+              </button>
+            )}
+          </div>
+          <p className="mb-8 text-sm text-gray-400">
+            {panier.length === 0 ? "Panier vide" : `${nbArticles} article${nbArticles > 1 ? "s" : ""}`}
+          </p>
+          {panier.length === 0 ? (
+            <p className="py-12 text-center text-sm text-gray-400">
+              Cliquez sur un produit pour l&apos;ajouter.
+            </p>
+          ) : (
+            <>
+              <div className="flex-1 space-y-4 overflow-auto">
+                <AnimatePresence mode="wait">
+                  {panier.map((ligne) => (
+                    <motion.div
+                      key={ligne.produit.id}
+                      layout
+                      initial={{ opacity: 1 }}
+                      exit={{ opacity: 0, scale: 0.98 }}
+                      transition={{ duration: 0.2 }}
+                      className="flex items-center justify-between gap-4 rounded-2xl bg-gray-50/50 p-4 transition-all duration-300"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-semibold text-gray-900">
+                          {ligne.produit.nom}
+                        </p>
+                        <p className="mt-0.5 text-xs text-gray-400">
+                          {formatPrix(ligne.produit.prix)} × {ligne.quantite}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            removeFromPanier(ligne.produit.id);
+                          }}
+                          className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-gray-100 text-gray-700 transition-all duration-300 hover:bg-gray-200 active:scale-90"
+                        >
+                          <Minus className="h-4 w-4" />
+                        </button>
+                        <span className="min-w-[2.5rem] text-center text-base font-bold text-gray-900">
+                          {ligne.quantite}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            addToPanier(ligne.produit);
+                          }}
+                          disabled={ligne.quantite >= ligne.produit.stock}
+                          className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-gray-100 text-gray-700 transition-all duration-300 hover:bg-gray-200 active:scale-90 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <Plus className="h-4 w-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            removeItemCompletely(ligne.produit.id);
+                          }}
+                          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full p-2 text-gray-300 transition-all duration-300 hover:bg-red-50 hover:text-red-500 active:scale-90"
+                          aria-label="Supprimer"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </motion.div>
+                  ))}
+                </AnimatePresence>
+              </div>
+              <div className="mt-8 border-t border-gray-100 pt-8">
+                <button
+                  type="button"
+                  onClick={() => setRemiseModalOpen(true)}
+                  className="mb-4 flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-emerald-200 bg-emerald-50/50 py-3 text-sm font-semibold text-emerald-700 transition-all duration-300 hover:bg-emerald-100/80 hover:border-emerald-300"
+                >
+                  <Percent className="h-4 w-4" />
+                  Appliquer une remise
+                </button>
+                <div className="mb-4 space-y-2">
+                  <p className="flex justify-between text-sm text-gray-500">
+                    <span>Sous-total</span>
+                    <span>{formatPrix(sousTotal)}</span>
+                  </p>
+                  {remiseAmount > 0 && (
+                    <p className="flex justify-between text-sm font-medium text-emerald-600">
+                      <span>Remise</span>
+                      <span>-{formatPrix(remiseAmount)}</span>
+                    </p>
+                  )}
+                  <p className="flex justify-between text-lg font-bold text-gray-900">
+                    <span>Total à payer</span>
+                    <span>{formatPrix(total)}</span>
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleEncaisser}
+                  disabled={encaissementLoading}
+                  className="flex w-full items-center justify-center rounded-2xl bg-black py-5 text-xl font-bold text-white shadow-lg transition-all duration-300 hover:bg-gray-900 active:scale-[0.98] disabled:opacity-70 disabled:cursor-not-allowed"
+                >
+                  {encaissementLoading ? "Encaissement..." : `Encaisser ${formatPrix(total)}`}
+                </button>
+
+                {/* Historique ventes du jour */}
+                <div className="mt-8 border-t border-gray-100 pt-8">
+                  <h3 className="mb-4 flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-gray-500">
+                    <History className="h-4 w-4" />
+                    Dernières ventes
+                  </h3>
+                  {loadingHistorique ? (
+                    <div className="flex justify-center py-4">
+                      <div className="h-6 w-6 animate-spin rounded-full border-2 border-gray-200 border-t-gray-600" />
+                    </div>
+                  ) : ventesDuJour.length === 0 ? (
+                    <p className="py-4 text-center text-sm text-gray-400">Aucune vente.</p>
+                  ) : (
+                    <div className="space-y-3">
+                      <AnimatePresence mode="popLayout">
+                        {ventesDuJour.map((v) => (
+                          <motion.div
+                            key={v.id}
+                            layout
+                            initial={{ opacity: 0, y: 8 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.98 }}
+                            className="flex items-center justify-between gap-3 rounded-2xl bg-gray-50/80 px-4 py-3 ring-1 ring-gray-100"
+                          >
+                            <div className="min-w-0 flex-1">
+                              <p className="text-sm font-semibold text-gray-900">
+                                {new Date(v.created_at).toLocaleTimeString("fr-FR", {
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                })}
+                              </p>
+                              <p className="text-xs text-gray-500">
+                                {(v.ventes_items?.reduce((s, i) => s + i.quantite, 0) ?? 0)} article
+                                {(v.ventes_items?.reduce((s, i) => s + i.quantite, 0) ?? 0) > 1 ? "s" : ""}
+                              </p>
+                            </div>
+                            <span className="text-sm font-bold text-gray-900">{formatPrix(v.total)}</span>
+                            <button
+                              type="button"
+                              onClick={() => handleAnnulerVente(v)}
+                              className="flex items-center gap-1.5 rounded-2xl bg-red-50 px-3 py-2 text-xs font-semibold text-red-600 transition-all duration-200 hover:bg-red-100 active:scale-95"
+                              title="Annuler cette vente"
+                            >
+                              <RotateCcw className="h-3.5 w-3.5" />
+                              Annuler
+                            </button>
+                          </motion.div>
+                        ))}
+                      </AnimatePresence>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      </aside>
+
+      {/* Mobile: Bouton flottant panier - Noir premium */}
+      <button
+        type="button"
+        onClick={() => setDrawerOpen(true)}
+        className="fixed bottom-20 right-6 z-30 flex h-16 w-16 items-center justify-center rounded-2xl bg-black text-white shadow-[0_8px_30px_-6px_rgba(0,0,0,0.3)] transition-all duration-300 hover:bg-gray-900 active:scale-95 lg:hidden"
+        aria-label="Ouvrir le panier"
+      >
+        <ShoppingBag className="h-7 w-7" />
+        {nbArticles > 0 && (
+          <span className="absolute -right-1 -top-1 flex h-6 w-6 items-center justify-center rounded-full bg-white text-xs font-bold text-gray-900 shadow-sm">
+            {nbArticles}
+          </span>
+        )}
+      </button>
+
+      {/* Mobile: Drawer panier */}
+      {drawerOpen && (
+        <>
+          <div
+            className="fixed inset-0 z-40 bg-gray-900/50 backdrop-blur-sm lg:hidden"
+            onClick={() => setDrawerOpen(false)}
+            aria-hidden="true"
+          />
+          <div className="fixed inset-x-0 bottom-0 z-50 max-h-[85vh] rounded-t-3xl border-t border-gray-100 bg-white shadow-[0_-10px_50px_-15px_rgba(0,0,0,0.15)] lg:hidden">
+            <div className="flex flex-col" style={{ maxHeight: "85vh" }}>
+              <div className="flex items-center justify-between gap-2 border-b border-gray-100 px-6 py-5">
+                <div>
+                  <h2 className="text-xl font-semibold text-gray-900">
+                    Ticket de caisse
+                  </h2>
+                  <p className="mt-0.5 text-sm text-gray-400">
+                    {nbArticles} article{nbArticles > 1 ? "s" : ""}
+                  </p>
+                </div>
+                <div className="flex items-center gap-1">
+                  {panier.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={viderPanier}
+                      className="flex items-center gap-1.5 rounded-lg px-2 py-2 text-sm text-gray-400 transition-colors hover:text-red-500"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      Vider
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setDrawerOpen(false)}
+                    className="rounded-full p-2.5 text-gray-400 transition-all duration-300 hover:bg-gray-100"
+                    aria-label="Fermer"
+                  >
+                    <ChevronDown className="h-5 w-5" />
+                  </button>
+                </div>
+              </div>
+              <div className="flex-1 overflow-auto p-6">
+                {panier.length === 0 ? (
+                  <p className="py-12 text-center text-gray-400">
+                    Panier vide.
+                  </p>
+                ) : (
+                  <div className="space-y-4">
+                    <AnimatePresence mode="wait">
+                      {panier.map((ligne) => (
+                        <motion.div
+                          key={ligne.produit.id}
+                          layout
+                          initial={{ opacity: 1 }}
+                          exit={{ opacity: 0, scale: 0.98 }}
+                          transition={{ duration: 0.2 }}
+                          className="flex items-center justify-between gap-4 rounded-2xl bg-gray-50/50 p-4"
+                        >
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-semibold text-gray-900">
+                              {ligne.produit.nom}
+                            </p>
+                            <p className="mt-0.5 text-xs text-gray-400">
+                              {formatPrix(ligne.produit.prix)} × {ligne.quantite}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => removeFromPanier(ligne.produit.id)}
+                              className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-gray-100 text-gray-700 transition-all duration-300 hover:bg-gray-200 active:scale-90"
+                            >
+                              <Minus className="h-4 w-4" />
+                            </button>
+                            <span className="min-w-[2.5rem] text-center text-base font-bold text-gray-900">
+                              {ligne.quantite}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => addToPanier(ligne.produit)}
+                              disabled={ligne.quantite >= ligne.produit.stock}
+                              className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-gray-100 text-gray-700 transition-all duration-300 hover:bg-gray-200 active:scale-90 disabled:opacity-50"
+                            >
+                              <Plus className="h-4 w-4" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => removeItemCompletely(ligne.produit.id)}
+                              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full p-2 text-gray-300 transition-all duration-300 hover:bg-red-50 hover:text-red-500 active:scale-90"
+                              aria-label="Supprimer"
+                            >
+                              <X className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </motion.div>
+                      ))}
+                    </AnimatePresence>
+                  </div>
+                )}
+              </div>
+              <div className="border-t border-gray-100 bg-white p-6">
+                <button
+                  type="button"
+                  onClick={() => setRemiseModalOpen(true)}
+                  className="mb-4 flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-emerald-200 bg-emerald-50/50 py-3 text-sm font-semibold text-emerald-700 transition-all duration-300 hover:bg-emerald-100/80"
+                >
+                  <Percent className="h-4 w-4" />
+                  Appliquer une remise
+                </button>
+                <div className="mb-4 space-y-2">
+                  <p className="flex justify-between text-sm text-gray-500">
+                    <span>Sous-total</span>
+                    <span>{formatPrix(sousTotal)}</span>
+                  </p>
+                  {remiseAmount > 0 && (
+                    <p className="flex justify-between text-sm font-medium text-emerald-600">
+                      <span>Remise</span>
+                      <span>-{formatPrix(remiseAmount)}</span>
+                    </p>
+                  )}
+                  <p className="mb-4 flex justify-between text-xl font-bold text-gray-900">
+                    <span>Total à payer</span>
+                    <span>{formatPrix(total)}</span>
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleEncaisser}
+                  disabled={panier.length === 0 || encaissementLoading}
+                  className="flex w-full items-center justify-center rounded-2xl bg-black py-5 text-xl font-bold text-white transition-all duration-300 hover:bg-gray-900 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {encaissementLoading ? "Encaissement..." : `Encaisser ${formatPrix(total)}`}
+                </button>
+                {ventesDuJour.length > 0 && (
+                  <div className="mt-6 border-t border-gray-100 pt-4">
+                    <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-gray-500">
+                      Dernières ventes
+                    </h3>
+                    <div className="max-h-32 space-y-2 overflow-auto">
+                      <AnimatePresence mode="popLayout">
+                        {ventesDuJour.slice(0, 5).map((v) => (
+                          <motion.div
+                            key={v.id}
+                            layout
+                            initial={{ opacity: 0, y: 8 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.98 }}
+                            className="flex items-center justify-between gap-2 rounded-2xl bg-gray-50 px-3 py-2 ring-1 ring-gray-100"
+                          >
+                            <span className="text-sm text-gray-600">
+                              {new Date(v.created_at).toLocaleTimeString("fr-FR", {
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })}
+                            </span>
+                            <span className="text-xs text-gray-500">
+                              {(v.ventes_items?.reduce((s, i) => s + i.quantite, 0) ?? 0)} article
+                              {(v.ventes_items?.reduce((s, i) => s + i.quantite, 0) ?? 0) > 1 ? "s" : ""}
+                            </span>
+                            <span className="text-sm font-bold">{formatPrix(v.total)}</span>
+                            <button
+                              type="button"
+                              onClick={() => handleAnnulerVente(v)}
+                              className="rounded-xl bg-red-50 px-2 py-1.5 text-xs font-semibold text-red-600 transition-all hover:bg-red-100 active:scale-95"
+                            >
+                              Annuler
+                            </button>
+                          </motion.div>
+                        ))}
+                      </AnimatePresence>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}

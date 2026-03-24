@@ -1,0 +1,151 @@
+"use client";
+
+import { useState } from "react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { ShoppingCart, History, Target, Menu, X, User, CheckSquare, BookOpen } from "lucide-react";
+import LogoutButton from "./LogoutButton";
+
+const navItems = [
+  { href: "/vendeuse", label: "Nouvelle Vente", icon: ShoppingCart },
+  { href: "/vendeuse/taches", label: "Mes Missions", icon: CheckSquare },
+  { href: "/vendeuse/process", label: "Guide Interne", icon: BookOpen },
+  { href: "/vendeuse/historique", label: "Historique", icon: History },
+  { href: "/vendeuse/objectifs", label: "Mes Objectifs", icon: Target },
+];
+
+export default function VendeuseLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  const pathname = usePathname();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  return (
+    <div className="flex min-h-screen bg-gray-50/50">
+      {/* Sidebar - Blanc pur, bordure très subtile */}
+      <aside className="fixed left-0 top-0 z-40 hidden h-screen w-20 flex-col border-r border-gray-100 bg-white shadow-[0_4px_20px_-5px_rgba(0,0,0,0.04)] lg:flex xl:w-56">
+        <div className="flex h-16 items-center justify-between border-b border-gray-100 px-4 xl:px-5">
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gray-900 text-sm font-bold text-white">
+              L
+            </div>
+            <span className="hidden text-sm font-semibold text-gray-900 xl:inline">
+              Latifa POS
+            </span>
+          </div>
+        </div>
+        <nav className="flex-1 space-y-1 px-3 py-6 xl:px-4">
+          {navItems.map((item) => {
+            const Icon = item.icon;
+            const isActive =
+              pathname === item.href ||
+              (item.href !== "/vendeuse" && pathname.startsWith(item.href));
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium transition-all duration-300 ease-out xl:px-4 ${
+                  isActive
+                    ? "bg-gray-100 text-gray-900"
+                    : "text-gray-500 hover:bg-gray-50 hover:text-gray-900"
+                }`}
+              >
+                <Icon className="h-5 w-5 shrink-0 stroke-[1.5]" />
+                <span className="hidden xl:inline">{item.label}</span>
+              </Link>
+            );
+          })}
+        </nav>
+        <div className="border-t border-gray-100 p-4 xl:p-5">
+          <div className="mb-3 flex items-center gap-3 rounded-xl bg-gray-50/80 px-3 py-2.5 xl:px-4">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gray-200">
+              <User className="h-4 w-4 text-gray-600" />
+            </div>
+            <span className="hidden truncate text-sm font-medium text-gray-700 xl:block">
+              Vendeuse
+            </span>
+          </div>
+          <LogoutButton variant="sidebar" />
+        </div>
+      </aside>
+
+      {/* Mobile: Top Bar */}
+      <div className="fixed left-0 right-0 top-0 z-50 flex h-14 items-center justify-between border-b border-gray-100 bg-white px-5 shadow-[0_2px_10px_-3px_rgba(0,0,0,0.04)] lg:hidden">
+        <span className="flex items-center gap-2.5">
+          <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gray-900 text-xs font-bold text-white">
+            L
+          </div>
+          <span className="text-sm font-semibold text-gray-900">Latifa POS</span>
+        </span>
+        <button
+          type="button"
+          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+          className="flex h-10 w-10 items-center justify-center rounded-xl text-gray-500 transition-all duration-300 hover:bg-gray-100 active:scale-95"
+          aria-label="Menu"
+        >
+          {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+        </button>
+      </div>
+
+      {/* Mobile: Drawer Profil/Logout */}
+      {mobileMenuOpen && (
+        <>
+          <div
+            className="fixed inset-0 z-40 bg-gray-900/40 backdrop-blur-sm lg:hidden"
+            onClick={() => setMobileMenuOpen(false)}
+            aria-hidden="true"
+          />
+          <div className="fixed right-0 top-14 z-40 w-64 rounded-bl-2xl border-b border-l border-gray-100 bg-white py-4 shadow-[0_10px_40px_-10px_rgba(0,0,0,0.15)] lg:hidden">
+            <div className="flex items-center gap-3 px-5 py-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gray-100">
+                <User className="h-5 w-5 text-gray-600" />
+              </div>
+              <span className="text-sm font-medium text-gray-700">Vendeuse</span>
+            </div>
+            <div className="px-4">
+              <LogoutButton variant="sidebar" />
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Main Content */}
+      <main className="flex-1 pt-14 pb-24 lg:ml-20 lg:pb-0 lg:pt-0 xl:ml-56">
+        {children}
+      </main>
+
+      {/* Bottom Nav Mobile - Blanc pur */}
+      <nav className="fixed bottom-0 left-0 right-0 z-40 flex items-center justify-around border-t border-gray-100 bg-white/95 py-3 backdrop-blur-md lg:hidden">
+        {navItems.map((item) => {
+          const Icon = item.icon;
+          const isActive =
+            pathname === item.href ||
+            (item.href !== "/vendeuse" && pathname.startsWith(item.href));
+          const shortLabels: Record<string, string> = {
+            "Nouvelle Vente": "Vente",
+            "Mes Missions": "Missions",
+            "Guide Interne": "Guide",
+            Historique: "Historique",
+            "Mes Objectifs": "Objectifs",
+          };
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={`flex flex-col items-center gap-1 rounded-xl px-4 py-2 transition-all duration-300 active:scale-95 ${
+                isActive ? "text-gray-900" : "text-gray-400"
+              }`}
+            >
+              <Icon className="h-5 w-5 stroke-[1.5]" />
+              <span className="text-[10px] font-medium">
+                {shortLabels[item.label] ?? item.label}
+              </span>
+            </Link>
+          );
+        })}
+      </nav>
+    </div>
+  );
+}
