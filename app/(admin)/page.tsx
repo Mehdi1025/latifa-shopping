@@ -78,6 +78,14 @@ function formatDate(iso: string): string {
   }).format(d);
 }
 
+function formatHeure(iso: string): string {
+  const d = new Date(iso);
+  return new Intl.DateTimeFormat("fr-FR", {
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(d);
+}
+
 const ACCENT = "#c9a98c"; // Doré Latifa Shopping
 const CHART_COLORS = [ACCENT, "#374151", "#4b5563", "#6b7280", "#9ca3af"];
 
@@ -251,8 +259,8 @@ export default function Home() {
   }, [ventesItems, produits]);
 
   return (
-    <div className="min-h-screen bg-gray-50/50 p-6 lg:p-10">
-      <header className="mb-12">
+    <div className="min-h-screen bg-gray-50/50 p-4 md:p-6 lg:p-10">
+      <header className="mb-8 lg:mb-12">
         <h1 className="text-2xl font-semibold tracking-tight text-gray-900 lg:text-3xl">
           Dashboard
         </h1>
@@ -267,9 +275,9 @@ export default function Home() {
         </div>
       ) : (
         <>
-          {/* Cartes KPI */}
-          <div className="mb-12 grid grid-cols-1 gap-6 sm:grid-cols-3">
-            <div className="group rounded-3xl border border-gray-100 bg-white p-8 shadow-[0_2px_12px_-4px_rgba(0,0,0,0.06)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_8px_30px_-12px_rgba(0,0,0,0.12)]">
+          {/* Cartes KPI - Mobile 1 col, tablet/desktop grid-cols-12, md:col-span-4 */}
+          <div className="mb-8 grid grid-cols-1 gap-4 md:grid-cols-12 md:gap-6 lg:mb-12">
+            <div className="group rounded-3xl border border-gray-100 bg-white p-6 shadow-[0_2px_12px_-4px_rgba(0,0,0,0.06)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_8px_30px_-12px_rgba(0,0,0,0.12)] md:col-span-4 md:bg-white/80 md:backdrop-blur-xl md:p-8">
               <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-gray-100 transition-colors duration-300 group-hover:bg-[#c9a98c]">
                 <Euro className="h-6 w-6 text-gray-600 transition-colors duration-300 group-hover:text-white" />
               </div>
@@ -281,7 +289,7 @@ export default function Home() {
               </p>
             </div>
 
-            <div className="group rounded-3xl border border-gray-100 bg-white p-8 shadow-[0_2px_12px_-4px_rgba(0,0,0,0.06)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_8px_30px_-12px_rgba(0,0,0,0.12)]">
+            <div className="group rounded-3xl border border-gray-100 bg-white p-6 shadow-[0_2px_12px_-4px_rgba(0,0,0,0.06)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_8px_30px_-12px_rgba(0,0,0,0.12)] md:col-span-4 md:bg-white/80 md:backdrop-blur-xl md:p-8">
               <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-gray-100 transition-colors duration-300 group-hover:bg-[#c9a98c]">
                 <ShoppingBag className="h-6 w-6 text-gray-600 transition-colors duration-300 group-hover:text-white" />
               </div>
@@ -294,10 +302,10 @@ export default function Home() {
             </div>
 
             <div
-              className={`group rounded-3xl border p-8 shadow-[0_2px_12px_-4px_rgba(0,0,0,0.06)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_8px_30px_-12px_rgba(0,0,0,0.12)] ${
+              className={`group rounded-3xl border p-6 shadow-[0_2px_12px_-4px_rgba(0,0,0,0.06)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_8px_30px_-12px_rgba(0,0,0,0.12)] md:col-span-4 md:backdrop-blur-xl md:p-8 ${
                 alertesStock > 0
-                  ? "border-amber-200 bg-amber-50/50"
-                  : "border-gray-100 bg-white"
+                  ? "border-amber-200 bg-amber-50/50 md:bg-amber-50/80"
+                  : "border-gray-100 bg-white md:bg-white/80"
               }`}
             >
               <div
@@ -353,7 +361,7 @@ export default function Home() {
                     </div>
                     <Link
                       href="/produits"
-                      className="inline-flex items-center gap-1.5 rounded-xl bg-red-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-red-700"
+                      className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center gap-1.5 rounded-xl bg-red-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-red-700"
                     >
                       Gérer
                       <ChevronRight className="h-4 w-4" />
@@ -375,7 +383,7 @@ export default function Home() {
                     </div>
                     <Link
                       href="/taches"
-                      className="inline-flex items-center gap-1.5 rounded-xl bg-amber-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-amber-700"
+                      className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center gap-1.5 rounded-xl bg-amber-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-amber-700"
                     >
                       Gérer
                       <ChevronRight className="h-4 w-4" />
@@ -386,10 +394,10 @@ export default function Home() {
             </div>
           )}
 
-          {/* Graphiques */}
-          <div className="mb-12 grid grid-cols-1 gap-6 lg:grid-cols-3">
-            {/* Évolution du CA */}
-            <div className="overflow-hidden rounded-3xl border border-gray-100 bg-white p-6 shadow-[0_2px_12px_-4px_rgba(0,0,0,0.06)] transition-all duration-300 hover:shadow-[0_4px_20px_-8px_rgba(0,0,0,0.08)] lg:col-span-2">
+          {/* Graphiques - responsive: grid-cols-12, pleine largeur tablette */}
+          <div className="mb-8 grid grid-cols-1 gap-4 md:grid-cols-12 md:gap-6 lg:mb-12">
+            {/* Évolution du CA - 8 colonnes tablette, 2/3 desktop */}
+            <div className="min-w-0 overflow-hidden rounded-3xl border border-gray-100 bg-white p-6 shadow-[0_2px_12px_-4px_rgba(0,0,0,0.06)] transition-all duration-300 hover:shadow-[0_4px_20px_-8px_rgba(0,0,0,0.08)] md:col-span-8 md:bg-white/80 md:backdrop-blur-xl lg:col-span-8">
               <div className="mb-6 flex items-center gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gray-100">
                   <TrendingUp className="h-5 w-5 text-gray-600" />
@@ -403,7 +411,7 @@ export default function Home() {
                   </p>
                 </div>
               </div>
-              <div className="h-[280px] w-full">
+              <div className="h-[300px] min-h-[300px] w-full min-w-0">
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart
                     data={evolutionCA}
@@ -472,8 +480,8 @@ export default function Home() {
               </div>
             </div>
 
-            {/* Top 5 Produits */}
-            <div className="overflow-hidden rounded-3xl border border-gray-100 bg-white p-6 shadow-[0_2px_12px_-4px_rgba(0,0,0,0.06)] transition-all duration-300 hover:shadow-[0_4px_20px_-8px_rgba(0,0,0,0.08)]">
+            {/* Top 5 Produits - 4 colonnes tablette, 1/3 desktop */}
+            <div className="min-w-0 overflow-hidden rounded-3xl border border-gray-100 bg-white p-6 shadow-[0_2px_12px_-4px_rgba(0,0,0,0.06)] transition-all duration-300 hover:shadow-[0_4px_20px_-8px_rgba(0,0,0,0.08)] md:col-span-4 md:bg-white/80 md:backdrop-blur-xl">
               <div className="mb-6 flex items-center gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gray-100">
                   <Trophy className="h-5 w-5 text-gray-600" />
@@ -485,7 +493,7 @@ export default function Home() {
                   <p className="text-sm text-gray-400">Top 5 produits</p>
                 </div>
               </div>
-              <div className="h-[280px] w-full">
+              <div className="h-[300px] min-h-[300px] w-full min-w-0">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart
                     data={topProduits}
@@ -531,8 +539,8 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Tableau des dernières ventes */}
-          <div className="rounded-3xl border border-gray-100 bg-white p-8 shadow-[0_2px_12px_-4px_rgba(0,0,0,0.06)] transition-all duration-300 hover:shadow-[0_4px_20px_-8px_rgba(0,0,0,0.08)]">
+          {/* Dernières ventes - Liste cartes mobile / Tableau desktop - glassmorphism tablette */}
+          <div className="overflow-hidden rounded-3xl border border-gray-100 bg-white p-4 shadow-[0_2px_12px_-4px_rgba(0,0,0,0.06)] transition-all duration-300 md:bg-white/80 md:backdrop-blur-xl md:p-6 lg:p-8 hover:shadow-[0_4px_20px_-8px_rgba(0,0,0,0.08)]">
             <div className="mb-6 flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gray-100">
                 <Receipt className="h-5 w-5 text-gray-600" />
@@ -552,43 +560,67 @@ export default function Home() {
                 Aucune vente enregistrée.
               </p>
             ) : (
-              <div className="overflow-hidden rounded-2xl border border-gray-100">
-                <table className="min-w-full">
-                  <thead>
-                    <tr className="border-b border-gray-100 bg-gray-50/50">
-                      <th className="px-6 py-4 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
-                        Date / Heure
-                      </th>
-                      <th className="px-6 py-4 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
-                        Vendeur
-                      </th>
-                      <th className="px-6 py-4 text-right text-xs font-medium uppercase tracking-wider text-gray-500">
-                        Montant
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {dernieresVentes.map((v) => (
-                      <tr
-                        key={v.id}
-                        className="border-b border-gray-50 transition-colors hover:bg-gray-50/30 last:border-b-0"
-                      >
-                        <td className="flex items-center gap-2 px-6 py-4 text-sm text-gray-700">
-                          <Calendar className="h-4 w-4 shrink-0 text-gray-400" />
-                          {formatDate(v.created_at)}
-                        </td>
-                        <td className="flex items-center gap-2 px-6 py-4 text-sm text-gray-700">
-                          <User className="h-4 w-4 shrink-0 text-gray-400" />
+              <>
+                {/* Mode Liste (Mobile uniquement) */}
+                <div className="space-y-3 md:hidden">
+                  {dernieresVentes.map((v) => (
+                    <div
+                      key={v.id}
+                      className="flex min-h-[52px] items-center justify-between gap-4 rounded-2xl border border-gray-100 bg-gray-50/50 px-4 py-4"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate font-medium text-gray-900">
                           {vendeurMap[v.vendeur_id] ?? "Vendeur"}
-                        </td>
-                        <td className="px-6 py-4 text-right text-sm font-semibold text-gray-900 tabular-nums">
-                          {formatPrix(v.total)}
-                        </td>
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          {formatHeure(v.created_at)}
+                        </p>
+                      </div>
+                      <p className="shrink-0 text-base font-bold tabular-nums text-gray-900">
+                        {formatPrix(v.total)}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+                {/* Mode Tableau (Tablette+) */}
+                <div className="hidden overflow-hidden rounded-2xl border border-gray-100 md:block">
+                  <table className="min-w-full">
+                    <thead>
+                      <tr className="border-b border-gray-100 bg-gray-50/50">
+                        <th className="px-6 py-4 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                          Date / Heure
+                        </th>
+                        <th className="px-6 py-4 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                          Vendeur
+                        </th>
+                        <th className="px-6 py-4 text-right text-xs font-medium uppercase tracking-wider text-gray-500">
+                          Montant
+                        </th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody>
+                      {dernieresVentes.map((v) => (
+                        <tr
+                          key={v.id}
+                          className="border-b border-gray-50 transition-colors hover:bg-gray-50/30 last:border-b-0"
+                        >
+                          <td className="flex items-center gap-2 px-6 py-4 text-sm text-gray-700">
+                            <Calendar className="h-4 w-4 shrink-0 text-gray-400" />
+                            {formatDate(v.created_at)}
+                          </td>
+                          <td className="flex items-center gap-2 px-6 py-4 text-sm text-gray-700">
+                            <User className="h-4 w-4 shrink-0 text-gray-400" />
+                            {vendeurMap[v.vendeur_id] ?? "Vendeur"}
+                          </td>
+                          <td className="px-6 py-4 text-right text-sm font-semibold text-gray-900 tabular-nums">
+                            {formatPrix(v.total)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
             )}
           </div>
         </>

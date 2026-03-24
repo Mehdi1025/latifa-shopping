@@ -292,7 +292,7 @@ export default function VendeusePage() {
   };
 
   return (
-    <div className="relative flex h-full min-h-[calc(100vh-3.5rem)] flex-col lg:flex-row lg:min-h-screen">
+    <div className="relative flex h-full min-h-[calc(100vh-3.5rem)] flex-col md:flex-row md:min-h-screen">
       {/* Modal Remise */}
       <AnimatePresence>
         {remiseModalOpen && (
@@ -397,7 +397,7 @@ export default function VendeusePage() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
             transition={{ duration: 0.25 }}
-            className={`fixed top-20 left-1/2 z-[100] flex -translate-x-1/2 items-center gap-3 rounded-2xl px-6 py-4 shadow-[0_10px_40px_-10px_rgba(0,0,0,0.2)] lg:top-8 ${
+            className={`fixed top-20 left-1/2 z-[100] flex -translate-x-1/2 items-center gap-3 rounded-2xl px-6 py-4 shadow-[0_10px_40px_-10px_rgba(0,0,0,0.2)] md:top-8 ${
               toast.type === "success"
                 ? "bg-emerald-600 text-white"
                 : "bg-red-50 text-red-700 ring-1 ring-red-100"
@@ -413,8 +413,8 @@ export default function VendeusePage() {
         )}
       </AnimatePresence>
 
-      {/* Catalogue - Gauche (65%) - Fond ultra-léger */}
-      <section className="flex flex-1 flex-col overflow-auto bg-gray-50/50 p-6 lg:w-[65%] lg:p-10">
+      {/* Catalogue - Gauche 60% tablette+ - Fond ultra-léger */}
+      <section className="flex flex-1 flex-col overflow-auto bg-gray-50/50 p-6 md:w-[60%] md:p-8 lg:p-10">
         <div className="mb-6">
           <h1 className="text-2xl font-semibold text-gray-900">
             Catalogue
@@ -509,8 +509,8 @@ export default function VendeusePage() {
         )}
       </section>
 
-      {/* Ticket de caisse - Droite (35%) - Blanc pur, bordure subtile */}
-      <aside className="hidden flex-col border-l border-gray-100 bg-white lg:flex lg:w-[35%] lg:sticky lg:top-0 lg:h-screen lg:shadow-[0_-4px_30px_-10px_rgba(0,0,0,0.05)]">
+      {/* Ticket de caisse - Droite 40% tablette+ - Sticky, glassmorphism */}
+      <aside className="hidden flex-col border-l border-gray-100 bg-white/90 backdrop-blur-xl md:flex md:w-[40%] md:sticky md:top-0 md:h-screen md:shadow-[0_-4px_30px_-10px_rgba(0,0,0,0.05)]">
         <div className="flex flex-1 flex-col overflow-hidden p-8">
           <div className="mb-2 flex items-start justify-between gap-2">
             <h2 className="text-xl font-semibold text-gray-900">
@@ -688,11 +688,11 @@ export default function VendeusePage() {
         </div>
       </aside>
 
-      {/* Mobile: Bouton flottant panier - Noir premium */}
+      {/* Mobile: Bouton flottant panier - masqué sur tablette+ (sidebar panier visible) */}
       <button
         type="button"
         onClick={() => setDrawerOpen(true)}
-        className="fixed bottom-20 right-6 z-30 flex h-16 w-16 items-center justify-center rounded-2xl bg-black text-white shadow-[0_8px_30px_-6px_rgba(0,0,0,0.3)] transition-all duration-300 hover:bg-gray-900 active:scale-95 lg:hidden"
+        className="fixed bottom-20 right-6 z-30 flex h-16 w-16 items-center justify-center rounded-2xl bg-black text-white shadow-[0_8px_30px_-6px_rgba(0,0,0,0.3)] transition-all duration-300 hover:bg-gray-900 active:scale-95 md:hidden"
         aria-label="Ouvrir le panier"
       >
         <ShoppingBag className="h-7 w-7" />
@@ -703,15 +703,15 @@ export default function VendeusePage() {
         )}
       </button>
 
-      {/* Mobile: Drawer panier */}
+      {/* Mobile: Drawer panier - masqué sur tablette+ */}
       {drawerOpen && (
         <>
           <div
-            className="fixed inset-0 z-40 bg-gray-900/50 backdrop-blur-sm lg:hidden"
+            className="fixed inset-0 z-40 bg-gray-900/50 backdrop-blur-sm md:hidden"
             onClick={() => setDrawerOpen(false)}
             aria-hidden="true"
           />
-          <div className="fixed inset-x-0 bottom-0 z-50 max-h-[85vh] rounded-t-3xl border-t border-gray-100 bg-white shadow-[0_-10px_50px_-15px_rgba(0,0,0,0.15)] lg:hidden">
+          <div className="fixed inset-x-0 bottom-0 z-50 max-h-[85vh] rounded-t-3xl border-t border-gray-100 bg-white shadow-[0_-10px_50px_-15px_rgba(0,0,0,0.15)] md:hidden">
             <div className="flex flex-col" style={{ maxHeight: "85vh" }}>
               <div className="flex items-center justify-between gap-2 border-b border-gray-100 px-6 py-5">
                 <div>

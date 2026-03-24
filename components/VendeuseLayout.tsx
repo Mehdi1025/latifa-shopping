@@ -24,7 +24,48 @@ export default function VendeuseLayout({
 
   return (
     <div className="flex min-h-screen bg-gray-50/50">
-      {/* Sidebar - Blanc pur, bordure très subtile */}
+      {/* Sidebar Tablette: Collapsed (icônes uniquement) - md à lg */}
+      <aside className="fixed left-0 top-0 z-40 hidden h-screen w-20 flex-col border-r border-gray-100 bg-white/80 shadow-[0_4px_20px_-5px_rgba(0,0,0,0.06)] backdrop-blur-xl md:flex lg:hidden">
+        <div className="flex h-14 items-center justify-center border-b border-gray-100">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gray-900 text-sm font-bold text-white">
+            L
+          </div>
+        </div>
+        <nav className="flex-1 space-y-1 px-2 py-6">
+          {navItems.map((item) => {
+            const Icon = item.icon;
+            const isActive =
+              pathname === item.href ||
+              (item.href !== "/vendeuse" && pathname.startsWith(item.href));
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                title={item.label}
+                className={`flex items-center justify-center rounded-2xl p-3 text-sm font-medium transition-all duration-300 ${
+                  isActive
+                    ? "bg-gray-100 text-gray-900"
+                    : "text-gray-500 hover:bg-gray-50 hover:text-gray-900"
+                }`}
+              >
+                <Icon className="h-5 w-5 shrink-0 stroke-[1.5]" />
+              </Link>
+            );
+          })}
+        </nav>
+        <div className="border-t border-gray-100 p-3">
+          <div className="flex justify-center">
+            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gray-200">
+              <User className="h-4 w-4 text-gray-600" />
+            </div>
+          </div>
+          <div className="mt-2 flex justify-center">
+            <LogoutButton variant="sidebar" />
+          </div>
+        </div>
+      </aside>
+
+      {/* Sidebar Desktop - lg+ */}
       <aside className="fixed left-0 top-0 z-40 hidden h-screen w-20 flex-col border-r border-gray-100 bg-white shadow-[0_4px_20px_-5px_rgba(0,0,0,0.04)] lg:flex xl:w-56">
         <div className="flex h-16 items-center justify-between border-b border-gray-100 px-4 xl:px-5">
           <div className="flex items-center gap-2.5">
@@ -71,8 +112,8 @@ export default function VendeuseLayout({
         </div>
       </aside>
 
-      {/* Mobile: Top Bar */}
-      <div className="fixed left-0 right-0 top-0 z-50 flex h-14 items-center justify-between border-b border-gray-100 bg-white px-5 shadow-[0_2px_10px_-3px_rgba(0,0,0,0.04)] lg:hidden">
+      {/* Mobile: Top Bar (hidden on tablet - sidebar handles nav) */}
+      <div className="fixed left-0 right-0 top-0 z-50 flex h-14 items-center justify-between border-b border-gray-100 bg-white px-5 shadow-[0_2px_10px_-3px_rgba(0,0,0,0.04)] md:hidden">
         <span className="flex items-center gap-2.5">
           <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gray-900 text-xs font-bold text-white">
             L
@@ -93,11 +134,11 @@ export default function VendeuseLayout({
       {mobileMenuOpen && (
         <>
           <div
-            className="fixed inset-0 z-40 bg-gray-900/40 backdrop-blur-sm lg:hidden"
+            className="fixed inset-0 z-40 bg-gray-900/40 backdrop-blur-sm md:hidden"
             onClick={() => setMobileMenuOpen(false)}
             aria-hidden="true"
           />
-          <div className="fixed right-0 top-14 z-40 w-64 rounded-bl-2xl border-b border-l border-gray-100 bg-white py-4 shadow-[0_10px_40px_-10px_rgba(0,0,0,0.15)] lg:hidden">
+          <div className="fixed right-0 top-14 z-40 w-64 rounded-bl-2xl border-b border-l border-gray-100 bg-white py-4 shadow-[0_10px_40px_-10px_rgba(0,0,0,0.15)] md:hidden">
             <div className="flex items-center gap-3 px-5 py-3">
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gray-100">
                 <User className="h-5 w-5 text-gray-600" />
@@ -112,12 +153,12 @@ export default function VendeuseLayout({
       )}
 
       {/* Main Content */}
-      <main className="flex-1 pt-14 pb-24 lg:ml-20 lg:pb-0 lg:pt-0 xl:ml-56">
+      <main className="flex-1 pt-14 pb-24 md:ml-20 md:pt-0 md:pb-0 lg:ml-20 xl:ml-56">
         {children}
       </main>
 
-      {/* Bottom Nav Mobile - Blanc pur */}
-      <nav className="fixed bottom-0 left-0 right-0 z-40 flex items-center justify-around border-t border-gray-100 bg-white/95 py-3 backdrop-blur-md lg:hidden">
+      {/* Bottom Nav Mobile uniquement (< md) */}
+      <nav className="fixed bottom-0 left-0 right-0 z-40 flex items-center justify-around border-t border-gray-100 bg-white/95 py-3 backdrop-blur-md md:hidden">
         {navItems.map((item) => {
           const Icon = item.icon;
           const isActive =

@@ -32,7 +32,7 @@ export default function Header({
           <button
             type="button"
             onClick={onMenuClick}
-            className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-500 transition-all duration-300 ease-in-out hover:bg-slate-100 hover:text-slate-700"
+            className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-lg text-slate-500 transition-all duration-300 ease-in-out hover:bg-slate-100 hover:text-slate-700"
             aria-label="Ouvrir le menu"
           >
             <Menu className="h-5 w-5" />
