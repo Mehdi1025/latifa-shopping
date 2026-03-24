@@ -14,8 +14,6 @@ import {
   AlertCircle,
   Clock,
   ChevronRight,
-  ArrowUpRight,
-  Medal,
 } from "lucide-react";
 import Link from "next/link";
 import {
@@ -65,8 +63,7 @@ function formatPrix(prix: number): string {
   return new Intl.NumberFormat("fr-FR", {
     style: "currency",
     currency: "EUR",
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 2,
+    minimumFractionDigits: 2,
   }).format(prix);
 }
 
@@ -84,30 +81,13 @@ function formatDate(iso: string): string {
 const ACCENT = "#c9a98c"; // Doré Latifa Shopping
 const CHART_COLORS = [ACCENT, "#374151", "#4b5563", "#6b7280", "#9ca3af"];
 
-function getTodayStart(): string {
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  return d.toISOString().split("T")[0];
-}
-
-function getMonthStart(): string {
-  const d = new Date();
-  d.setDate(1);
-  d.setHours(0, 0, 0, 0);
-  return d.toISOString().split("T")[0];
-}
-
-function getYesterdayStart(): string {
-  const d = new Date();
-  d.setDate(d.getDate() - 1);
-  d.setHours(0, 0, 0, 0);
-  return d.toISOString().split("T")[0];
-}
-
 export default function Home() {
-  const [ventes, setVentes] = useState<Vente[]>([]);
+  const [caTotal, setCaTotal] = useState<number>(0);
+  const [nbVentes, setNbVentes] = useState<number>(0);
   const [alertesStock, setAlertesStock] = useState<number>(0);
+  const [dernieresVentes, setDernieresVentes] = useState<Vente[]>([]);
   const [vendeurMap, setVendeurMap] = useState<VendeurMap>({});
+  const [allVentes, setAllVentes] = useState<Vente[]>([]);
   const [ventesItems, setVentesItems] = useState<VenteItem[]>([]);
   const [produits, setProduits] = useState<Produit[]>([]);
   const [produitsRupture, setProduitsRupture] = useState<Produit[]>([]);
@@ -117,67 +97,35 @@ export default function Home() {
   const supabase = createSupabaseBrowserClient();
   const { triggerNewSale } = useNotifications();
 
-  const kpis = useMemo(() => {
-    const todayStart = getTodayStart();
-    const monthStart = getMonthStart();
-    const yesterdayStart = getYesterdayStart();
-    let caJour = 0;
-    let caMois = 0;
-    let caTotal = 0;
-    let caHier = 0;
-    let nbVentesJour = 0;
-    ventes.forEach((v) => {
-      const t = v.total ?? 0;
-      const date = v.created_at?.split("T")[0] ?? "";
-      caTotal += t;
-      if (date >= monthStart) caMois += t;
-      if (date === todayStart) {
-        caJour += t;
-        nbVentesJour += 1;
-      }
-      if (date === yesterdayStart) caHier += t;
-    });
-    const panierMoyen = nbVentesJour > 0 ? caJour / nbVentesJour : 0;
-    const evolutionPct =
-      caHier > 0 && caJour > caHier
-        ? Math.round(((caJour - caHier) / caHier) * 100)
-        : null;
-    return { caJour, caMois, caTotal, nbVentesJour, panierMoyen, evolutionPct };
-  }, [ventes]);
-
-  const dernieresVentes = useMemo(
-    () => [...ventes].sort((a, b) => (b.created_at > a.created_at ? 1 : -1)).slice(0, 10),
-    [ventes]
-  );
-
-  const thirtyDaysAgo = useMemo(() => {
-    const d = new Date();
-    d.setDate(d.getDate() - 30);
-    return d.toISOString().split("T")[0];
-  }, []);
-
-  const allVentesForChart = useMemo(
-    () => ventes.filter((v) => (v.created_at?.split("T")[0] ?? "") >= thirtyDaysAgo),
-    [ventes, thirtyDaysAgo]
-  );
-
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
       try {
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+        const fromDate = thirtyDaysAgo.toISOString().split("T")[0];
+
         const [
           ventesRes,
           alertesRes,
+          lastVentesRes,
+          ventesFullRes,
           itemsRes,
           produitsRes,
           ruptureRes,
           tachesRes,
         ] = await Promise.all([
+          supabase.from("ventes").select("total"),
+          supabase.from("produits").select("id").lt("stock", 5),
           supabase
             .from("ventes")
             .select("id, vendeur_id, total, created_at")
-            .order("created_at", { ascending: false }),
-          supabase.from("produits").select("id").lt("stock", 5),
+            .order("created_at", { ascending: false })
+            .limit(10),
+          supabase
+            .from("ventes")
+            .select("total, created_at")
+            .gte("created_at", fromDate),
           supabase.from("ventes_items").select("produit_id, quantite"),
           supabase.from("produits").select("id, nom, stock"),
           supabase.from("produits").select("id, nom").eq("stock", 0),
@@ -187,8 +135,13 @@ export default function Home() {
             .neq("statut", "Terminé"),
         ]);
 
-        setVentes((ventesRes.data as Vente[]) ?? []);
+        const ventes = (ventesRes.data ?? []) as { total: number }[];
+        const total = ventes.reduce((acc, v) => acc + (v.total ?? 0), 0);
+        setCaTotal(total);
+        setNbVentes(ventes.length);
         setAlertesStock(alertesRes.data?.length ?? 0);
+        setDernieresVentes((lastVentesRes.data as Vente[]) ?? []);
+        setAllVentes((ventesFullRes.data ?? []) as Vente[]);
         setVentesItems((itemsRes.data ?? []) as VenteItem[]);
         setProduits((produitsRes.data ?? []) as Produit[]);
         setProduitsRupture((ruptureRes.data ?? []) as Produit[]);
@@ -198,7 +151,7 @@ export default function Home() {
 
         const vendeurIds = [
           ...new Set(
-            ((ventesRes.data ?? []) as Vente[])
+            ((lastVentesRes.data ?? []) as Vente[])
               .map((v) => v.vendeur_id)
               .filter(Boolean)
           ),
@@ -206,13 +159,16 @@ export default function Home() {
         if (vendeurIds.length > 0) {
           const { data: profiles } = await supabase
             .from("profiles")
-            .select("id, full_name, email")
+            .select("id, full_name")
             .in("id", vendeurIds);
           const map: VendeurMap = {};
           (profiles ?? []).forEach(
-            (p: { id: string; full_name?: string | null; email?: string | null }) => {
-              const name = p.full_name?.trim() || p.email?.trim();
-              map[p.id] = name || "Vendeur";
+            (p: { id: string; full_name?: string | null }) => {
+              const name = (p as { full_name?: string }).full_name;
+              map[p.id] =
+                typeof name === "string" && name.trim()
+                  ? name.trim()
+                  : "Vendeur";
             }
           );
           setVendeurMap(map);
@@ -232,31 +188,19 @@ export default function Home() {
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "ventes" },
-        async (payload) => {
+        (payload) => {
           const newVente = payload.new as Vente;
           const montant = newVente.total ?? 0;
           triggerNewSale(montant);
           playNotificationSound();
           toast("💰 Nouvelle Vente !", {
-            description: formatPrix(montant),
+            description: `${montant.toFixed(2)}€`,
             duration: 5000,
           });
-          setVentes((prev) => [newVente, ...prev]);
-          setVendeurMap((prev) => {
-            if (newVente.vendeur_id && !prev[newVente.vendeur_id]) {
-              return { ...prev, [newVente.vendeur_id]: "Vendeur" };
-            }
-            return prev;
-          });
-          setTimeout(async () => {
-            const { data: items } = await supabase
-              .from("ventes_items")
-              .select("produit_id, quantite")
-              .eq("vente_id", newVente.id);
-            if (items?.length) {
-              setVentesItems((prev) => [...(items as VenteItem[]), ...prev]);
-            }
-          }, 500);
+          setCaTotal((prev) => prev + montant);
+          setNbVentes((prev) => prev + 1);
+          setDernieresVentes((prev) => [newVente, ...prev.slice(0, 9)]);
+          setAllVentes((prev) => [newVente, ...prev]);
         }
       )
       .subscribe();
@@ -275,7 +219,7 @@ export default function Home() {
       const key = d.toISOString().split("T")[0];
       byDate[key] = 0;
     }
-    allVentesForChart.forEach((v) => {
+    allVentes.forEach((v) => {
       const key = v.created_at.split("T")[0];
       if (byDate[key] !== undefined) byDate[key] += v.total ?? 0;
     });
@@ -288,7 +232,7 @@ export default function Home() {
         }),
         total: Math.round(total * 100) / 100,
       }));
-  }, [allVentesForChart]);
+  }, [allVentes]);
 
   const topProduits = useMemo(() => {
     const byProduit: Record<string, number> = {};
@@ -303,22 +247,8 @@ export default function Home() {
         quantite,
       }))
       .sort((a, b) => b.quantite - a.quantite)
-      .slice(0, 3);
-  }, [ventesItems, produits]);
-
-  const topVendeuses = useMemo(() => {
-    const byVendeur: Record<string, number> = {};
-    ventes.forEach((v) => {
-      if (v.vendeur_id) {
-        byVendeur[v.vendeur_id] =
-          (byVendeur[v.vendeur_id] ?? 0) + (v.total ?? 0);
-      }
-    });
-    return Object.entries(byVendeur)
-      .map(([id, ca]) => ({ id, ca, nom: vendeurMap[id] ?? "Vendeur" }))
-      .sort((a, b) => b.ca - a.ca)
       .slice(0, 5);
-  }, [ventes, vendeurMap]);
+  }, [ventesItems, produits]);
 
   return (
     <div className="min-h-screen bg-gray-50/50 p-6 lg:p-10">
@@ -337,46 +267,17 @@ export default function Home() {
         </div>
       ) : (
         <>
-          {/* Compteur de Vitesse : CA du Mois (priorité) */}
-          <div className="mb-8">
-            <div className="group relative overflow-hidden rounded-3xl border border-gray-100 bg-white p-10 shadow-[0_2px_12px_-4px_rgba(0,0,0,0.06)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_8px_30px_-12px_rgba(0,0,0,0.12)] lg:p-12">
-              <div className="mb-4 flex items-center justify-between gap-4">
-                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gray-100 transition-colors duration-300 group-hover:bg-[#c9a98c]">
-                  <Euro className="h-7 w-7 text-gray-600 transition-colors duration-300 group-hover:text-white" />
-                </div>
-                {kpis.evolutionPct != null && (
-                  <span className="flex items-center gap-1.5 rounded-xl bg-emerald-50 px-3 py-1.5 text-sm font-semibold text-emerald-600">
-                    <ArrowUpRight className="h-4 w-4" />
-                    +{kpis.evolutionPct}%
-                  </span>
-                )}
-              </div>
-              <p className="text-sm font-medium text-gray-400">CA du mois</p>
-              <p className="mt-2 text-4xl font-bold tracking-tight text-gray-900 tabular-nums lg:text-5xl">
-                {formatPrix(kpis.caMois)}
-              </p>
-            </div>
-          </div>
-
           {/* Cartes KPI */}
-          <div className="mb-12 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="mb-12 grid grid-cols-1 gap-6 sm:grid-cols-3">
             <div className="group rounded-3xl border border-gray-100 bg-white p-8 shadow-[0_2px_12px_-4px_rgba(0,0,0,0.06)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_8px_30px_-12px_rgba(0,0,0,0.12)]">
               <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-gray-100 transition-colors duration-300 group-hover:bg-[#c9a98c]">
                 <Euro className="h-6 w-6 text-gray-600 transition-colors duration-300 group-hover:text-white" />
               </div>
-              <p className="text-sm font-medium text-gray-400">CA du jour</p>
-              <p className="mt-2 text-2xl font-bold tracking-tight text-gray-900 tabular-nums lg:text-3xl">
-                {formatPrix(kpis.caJour)}
+              <p className="text-sm font-medium text-gray-400">
+                Chiffre d&apos;affaires total
               </p>
-            </div>
-
-            <div className="group rounded-3xl border border-gray-100 bg-white p-8 shadow-[0_2px_12px_-4px_rgba(0,0,0,0.06)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_8px_30px_-12px_rgba(0,0,0,0.12)]">
-              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-gray-100 transition-colors duration-300 group-hover:bg-[#c9a98c]">
-                <Euro className="h-6 w-6 text-gray-600 transition-colors duration-300 group-hover:text-white" />
-              </div>
-              <p className="text-sm font-medium text-gray-400">CA total</p>
-              <p className="mt-2 text-2xl font-bold tracking-tight text-gray-900 tabular-nums lg:text-3xl">
-                {formatPrix(kpis.caTotal)}
+              <p className="mt-2 text-3xl font-bold tracking-tight text-gray-900 tabular-nums">
+                {formatPrix(caTotal)}
               </p>
             </div>
 
@@ -384,19 +285,11 @@ export default function Home() {
               <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-gray-100 transition-colors duration-300 group-hover:bg-[#c9a98c]">
                 <ShoppingBag className="h-6 w-6 text-gray-600 transition-colors duration-300 group-hover:text-white" />
               </div>
-              <p className="text-sm font-medium text-gray-400">Ventes du jour</p>
-              <p className="mt-2 text-2xl font-bold tracking-tight text-gray-900 tabular-nums lg:text-3xl">
-                {kpis.nbVentesJour}
+              <p className="text-sm font-medium text-gray-400">
+                Nombre de ventes
               </p>
-            </div>
-
-            <div className="group rounded-3xl border border-gray-100 bg-white p-8 shadow-[0_2px_12px_-4px_rgba(0,0,0,0.06)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_8px_30px_-12px_rgba(0,0,0,0.12)]">
-              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-gray-100 transition-colors duration-300 group-hover:bg-[#c9a98c]">
-                <Receipt className="h-6 w-6 text-gray-600 transition-colors duration-300 group-hover:text-white" />
-              </div>
-              <p className="text-sm font-medium text-gray-400">Panier moyen</p>
-              <p className="mt-2 text-2xl font-bold tracking-tight text-gray-900 tabular-nums lg:text-3xl">
-                {formatPrix(kpis.panierMoyen)}
+              <p className="mt-2 text-3xl font-bold tracking-tight text-gray-900 tabular-nums">
+                {nbVentes}
               </p>
             </div>
 
@@ -579,7 +472,7 @@ export default function Home() {
               </div>
             </div>
 
-            {/* Top 3 Produits */}
+            {/* Top 5 Produits */}
             <div className="overflow-hidden rounded-3xl border border-gray-100 bg-white p-6 shadow-[0_2px_12px_-4px_rgba(0,0,0,0.06)] transition-all duration-300 hover:shadow-[0_4px_20px_-8px_rgba(0,0,0,0.08)]">
               <div className="mb-6 flex items-center gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gray-100">
@@ -587,9 +480,9 @@ export default function Home() {
                 </div>
                 <div>
                   <h2 className="text-lg font-semibold text-gray-900">
-                    Poule aux œufs d&apos;or
+                    Meilleures Ventes
                   </h2>
-                  <p className="text-sm text-gray-400">Top 3 produits</p>
+                  <p className="text-sm text-gray-400">Top 5 produits</p>
                 </div>
               </div>
               <div className="h-[280px] w-full">
@@ -635,53 +528,6 @@ export default function Home() {
                   </BarChart>
                 </ResponsiveContainer>
               </div>
-            </div>
-
-            {/* Top Vendeuses */}
-            <div className="overflow-hidden rounded-3xl border border-gray-100 bg-white p-6 shadow-[0_2px_12px_-4px_rgba(0,0,0,0.06)] transition-all duration-300 hover:shadow-[0_4px_20px_-8px_rgba(0,0,0,0.08)]">
-              <div className="mb-6 flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gray-100">
-                  <Medal className="h-5 w-5 text-gray-600" />
-                </div>
-                <div>
-                  <h2 className="text-lg font-semibold text-gray-900">
-                    Meilleures vendeuses
-                  </h2>
-                  <p className="text-sm text-gray-400">Classement par CA</p>
-                </div>
-              </div>
-              {topVendeuses.length === 0 ? (
-                <p className="py-8 text-center text-sm text-gray-400">Aucune vente.</p>
-              ) : (
-                <div className="space-y-3">
-                  {topVendeuses.map((v, i) => (
-                    <div
-                      key={v.id}
-                      className="flex items-center justify-between gap-4 rounded-2xl bg-gray-50/80 px-4 py-3"
-                    >
-                      <div className="flex items-center gap-3">
-                        <span
-                          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl text-sm font-bold ${
-                            i === 0
-                              ? "bg-amber-100 text-amber-700"
-                              : i === 1
-                                ? "bg-gray-200 text-gray-600"
-                                : i === 2
-                                  ? "bg-amber-50 text-amber-600"
-                                  : "bg-gray-100 text-gray-500"
-                          }`}
-                        >
-                          {i + 1}
-                        </span>
-                        <span className="font-medium text-gray-900">{v.nom}</span>
-                      </div>
-                      <span className="font-bold tabular-nums text-gray-900">
-                        {formatPrix(v.ca)}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
             </div>
           </div>
 
