@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
+import { toast } from "sonner";
 import {
   Euro,
   ShoppingBag,
@@ -28,6 +29,8 @@ import {
   Cell,
 } from "recharts";
 import { createSupabaseBrowserClient } from "@/utils/supabase/client";
+import { useNotifications } from "@/contexts/NotificationsContext";
+import { playNotificationSound } from "@/lib/notification-sound";
 
 type Vente = {
   id: string;
@@ -92,6 +95,7 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
 
   const supabase = createSupabaseBrowserClient();
+  const { triggerNewSale } = useNotifications();
 
   useEffect(() => {
     const fetchData = async () => {
@@ -177,6 +181,34 @@ export default function Home() {
     };
     fetchData();
   }, []);
+
+  useEffect(() => {
+    const channel = supabase
+      .channel("ventes-realtime")
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "ventes" },
+        (payload) => {
+          const newVente = payload.new as Vente;
+          const montant = newVente.total ?? 0;
+          triggerNewSale(montant);
+          playNotificationSound();
+          toast("💰 Nouvelle Vente !", {
+            description: `${montant.toFixed(2)}€`,
+            duration: 5000,
+          });
+          setCaTotal((prev) => prev + montant);
+          setNbVentes((prev) => prev + 1);
+          setDernieresVentes((prev) => [newVente, ...prev.slice(0, 9)]);
+          setAllVentes((prev) => [newVente, ...prev]);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [supabase, triggerNewSale]);
 
   const evolutionCA = useMemo(() => {
     const byDate: Record<string, number> = {};
