@@ -10,9 +10,9 @@ export const metadata: Metadata = {
 
 export default function StockRunwayPage() {
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100/80 p-4 md:p-6 lg:p-10">
+    <div className="admin-container min-h-dvh bg-gradient-to-b from-slate-50 to-slate-100/80 p-4 md:p-6 lg:p-10">
       <header className="mb-8 lg:mb-10">
-        <nav className="mb-4 flex flex-wrap items-center gap-1 text-sm text-slate-500">
+        <nav className="mb-4 flex flex-wrap items-center gap-1 text-sm text-slate-500 md:text-base">
           <Link
             href="/"
             className="transition-colors hover:text-slate-800"
@@ -22,10 +22,10 @@ export default function StockRunwayPage() {
           <ChevronRight className="h-4 w-4 shrink-0 opacity-60" />
           <span className="font-medium text-slate-800">Stock Runway</span>
         </nav>
-        <h1 className="text-2xl font-semibold tracking-tight text-slate-900 lg:text-3xl">
+        <h1 className="text-2xl font-semibold tracking-tight text-slate-900 md:text-3xl">
           Intelligence stock
         </h1>
-        <p className="mt-1 text-sm text-slate-500">
+        <p className="mt-1 text-sm text-slate-500 md:text-base">
           Anticipez les ruptures grâce à la vélocité de vente sur 30 jours.
         </p>
       </header>
@@ -47,7 +47,7 @@ export default function StockRunwayPage() {
           </div>
           <Link
             href="/produits"
-            className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-900 px-5 py-3 text-sm font-medium text-white transition-colors hover:bg-slate-800"
+            className="inline-flex h-12 min-h-12 items-center justify-center gap-2 rounded-xl bg-slate-900 px-5 text-sm font-medium text-white transition-colors hover:bg-slate-800 md:text-base"
           >
             Ouvrir Produits
             <ChevronRight className="h-4 w-4" />

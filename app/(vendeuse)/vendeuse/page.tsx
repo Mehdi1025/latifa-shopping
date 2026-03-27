@@ -8,7 +8,6 @@ import { createSupabaseBrowserClient } from "@/utils/supabase/client";
 import ClientelingPanel from "@/components/vendeur/ClientelingPanel";
 import GamificationJauge from "@/components/vendeur/GamificationJauge";
 import VipRadar from "@/components/vendeur/VipRadar";
-import MysteryVault from "@/components/vendeur/MysteryVault";
 import { MYSTERY_VAULT_PRODUCT_ID } from "@/lib/constants/mystery-vault";
 
 type Produit = {
@@ -151,7 +150,6 @@ export default function VendeusePage() {
   const [clientelingOpen, setClientelingOpen] = useState(false);
   const [gamificationRefreshKey, setGamificationRefreshKey] = useState(0);
   const [isMdUp, setIsMdUp] = useState(false);
-  const [produitMysteryTemplate, setProduitMysteryTemplate] = useState<Produit | null>(null);
   const prevPanierLen = useRef(0);
 
   const supabase = createSupabaseBrowserClient();
@@ -179,17 +177,6 @@ export default function VendeusePage() {
   useEffect(() => {
     fetchProduits();
   }, []);
-
-  useEffect(() => {
-    (async () => {
-      const { data } = await supabase
-        .from("produits")
-        .select("id, nom, description, prix, stock, categorie")
-        .eq("id", MYSTERY_VAULT_PRODUCT_ID)
-        .maybeSingle();
-      setProduitMysteryTemplate((data as Produit) ?? null);
-    })();
-  }, [supabase]);
 
   const fetchVentesDuJour = async () => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -383,26 +370,6 @@ export default function VendeusePage() {
     setTimeout(() => setToast(null), 4000);
   };
 
-  const addMysteryLotToPanier = (lotNom: string) => {
-    if (!produitMysteryTemplate) {
-      showToast(
-        "error",
-        "Produit Coffre Noir introuvable. Exécutez la migration SQL (produit technique)."
-      );
-      return;
-    }
-    setPanier((prev) => [
-      ...prev,
-      {
-        panierLineId: crypto.randomUUID(),
-        produit: produitMysteryTemplate,
-        quantite: 1,
-        libelleOverride: lotNom,
-      },
-    ]);
-    showToast("success", `Lot « ${lotNom} » ajouté au panier (15 €)`);
-  };
-
   const handleAnnulerVente = async (vente: VenteHistorique) => {
     if (!vente.ventes_items?.length) return;
     try {
@@ -550,7 +517,7 @@ export default function VendeusePage() {
   };
 
   return (
-    <div className="relative flex h-full min-h-[calc(100vh-3.5rem)] flex-col md:flex-row md:min-h-screen">
+    <div className="relative flex h-full min-h-[calc(100vh-3.5rem)] flex-1 flex-col md:min-h-0 md:flex-row md:min-h-[100dvh]">
       {/* Modal Remise */}
       <AnimatePresence>
         {remiseModalOpen && (
@@ -560,24 +527,24 @@ export default function VendeusePage() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setRemiseModalOpen(false)}
-              className="fixed inset-0 z-[80] bg-gray-900/50 backdrop-blur-sm"
+              className="fixed inset-0 z-[80] bg-gray-900/45 backdrop-blur-md"
             />
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95 }}
               transition={{ duration: 0.2 }}
-              className="fixed left-1/2 top-1/2 z-[90] w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-white p-6 shadow-2xl ring-1 ring-gray-100"
+              className="fixed left-1/2 top-1/2 z-[90] w-[calc(100%-2rem)] max-h-[min(90dvh,640px)] max-w-md -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl ring-1 ring-gray-100 md:max-w-lg"
             >
               <div className="mb-5 flex items-center justify-between">
                 <h3 className="text-lg font-semibold text-gray-900">Appliquer une remise</h3>
                 <button
                   type="button"
                   onClick={() => setRemiseModalOpen(false)}
-                  className="rounded-full p-2 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
+                  className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
                   aria-label="Fermer"
                 >
-                  <X className="h-5 w-5" />
+                  <X className="h-6 w-6" />
                 </button>
               </div>
               <div className="mb-5 flex gap-2 rounded-2xl bg-gray-100 p-1">
@@ -671,56 +638,56 @@ export default function VendeusePage() {
         )}
       </AnimatePresence>
 
-      {/* Catalogue - Gauche 60% tablette+ - Fond ultra-léger */}
-      <section className="flex flex-1 flex-col overflow-auto bg-gray-50/50 p-6 md:w-[60%] md:p-8 lg:p-10">
-        {!isMdUp && (
-          <GamificationJauge
-            refreshKey={gamificationRefreshKey}
-            className="mb-5"
-          />
-        )}
-        <VipRadar />
-        <MysteryVault onUnlock={addMysteryLotToPanier} className="mb-5" />
-        <div className="mb-6">
-          <h1 className="text-2xl font-semibold text-gray-900">
-            Catalogue
-          </h1>
-          <p className="mt-1 text-sm text-gray-400">
-            Touchez un produit pour l&apos;ajouter au panier
-          </p>
+      {/* Catalogue — gauche ~60% (md+) ; zone produits scrollable indépendamment du panier */}
+      <section className="flex min-h-0 flex-1 flex-col overflow-auto bg-gray-50/50 md:w-[60%] md:min-w-0 md:overflow-hidden">
+        <div className="shrink-0 p-6 pb-4 md:p-8 md:pb-5 lg:p-10 lg:pb-6">
+          {!isMdUp && (
+            <GamificationJauge
+              refreshKey={gamificationRefreshKey}
+              className="mb-5"
+            />
+          )}
+          <VipRadar />
+          <div className="mb-6">
+            <h1 className="text-2xl font-semibold text-gray-900">
+              Catalogue
+            </h1>
+            <p className="mt-1 text-sm text-gray-400">
+              Touchez un produit pour l&apos;ajouter au panier
+            </p>
+          </div>
+
+          <div className="mb-5 flex items-center gap-3 rounded-xl bg-white px-4 py-3 ring-1 ring-gray-100/80 shadow-sm">
+            <Search className="h-5 w-5 shrink-0 text-gray-400" />
+            <input
+              type="search"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Rechercher par nom ou catégorie…"
+              className="min-w-0 flex-1 bg-transparent text-gray-900 placeholder:text-gray-400 focus:outline-none"
+              aria-label="Rechercher un produit"
+            />
+          </div>
+
+          <div className="mb-6 flex flex-wrap gap-2">
+            {categories.map((cat) => (
+              <button
+                key={cat}
+                type="button"
+                onClick={() => setSelectedCategorie(cat)}
+                className={`rounded-xl px-4 py-2.5 text-sm font-medium transition-all duration-200 ${
+                  selectedCategorie === cat
+                    ? "bg-gray-900 text-white shadow-md"
+                    : "bg-white text-gray-600 ring-1 ring-gray-100 hover:bg-gray-50"
+                }`}
+              >
+                {cat}
+              </button>
+            ))}
+          </div>
         </div>
 
-        {/* Barre de recherche */}
-        <div className="mb-5 flex items-center gap-3 rounded-xl bg-white px-4 py-3 ring-1 ring-gray-100/80 shadow-sm">
-          <Search className="h-5 w-5 shrink-0 text-gray-400" />
-          <input
-            type="search"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Rechercher par nom ou catégorie…"
-            className="min-w-0 flex-1 bg-transparent text-gray-900 placeholder:text-gray-400 focus:outline-none"
-            aria-label="Rechercher un produit"
-          />
-        </div>
-
-        {/* Filtres par catégories */}
-        <div className="mb-6 flex flex-wrap gap-2">
-          {categories.map((cat) => (
-            <button
-              key={cat}
-              type="button"
-              onClick={() => setSelectedCategorie(cat)}
-              className={`rounded-xl px-4 py-2.5 text-sm font-medium transition-all duration-200 ${
-                selectedCategorie === cat
-                  ? "bg-gray-900 text-white shadow-md"
-                  : "bg-white text-gray-600 ring-1 ring-gray-100 hover:bg-gray-50"
-              }`}
-            >
-              {cat}
-            </button>
-          ))}
-        </div>
-
+        <div className="flex-1 px-6 pb-8 md:min-h-0 md:flex-1 md:overflow-y-auto md:px-8 md:pb-10 lg:px-10">
         {loading ? (
           <div className="flex flex-1 items-center justify-center py-24">
             <div className="h-10 w-10 animate-spin rounded-full border-2 border-gray-300 border-t-gray-900" />
@@ -736,7 +703,7 @@ export default function VendeusePage() {
             )}
           </p>
         ) : (
-          <div className="grid grid-cols-2 gap-4 sm:gap-5 md:grid-cols-3 lg:grid-cols-4 xl:gap-6">
+          <div className="grid grid-cols-2 gap-4 sm:gap-5 lg:grid-cols-3 xl:gap-6">
             <AnimatePresence mode="popLayout">
               {filteredProduits.map((produit) => (
                 <motion.button
@@ -748,7 +715,7 @@ export default function VendeusePage() {
                   transition={{ duration: 0.2, ease: "easeOut" }}
                   type="button"
                   onClick={() => addToPanier(produit)}
-                  className="group flex flex-col items-stretch rounded-3xl bg-white p-5 text-left ring-1 ring-gray-100/50 shadow-[0_2px_10px_-3px_rgba(6,81,237,0.1)] transition-all duration-300 ease-out hover:-translate-y-1 hover:shadow-xl active:scale-95 active:translate-y-0 active:shadow-[0_2px_10px_-3px_rgba(6,81,237,0.1)] md:p-6"
+                  className="group flex flex-col items-stretch rounded-3xl bg-white p-5 text-left ring-1 ring-gray-100/50 shadow-[0_2px_10px_-3px_rgba(6,81,237,0.1)] transition-transform duration-200 ease-out hover:-translate-y-1 hover:shadow-xl active:scale-95 active:translate-y-0 md:p-6"
                 >
                   <div className="mb-4 flex aspect-square items-center justify-center rounded-2xl bg-gray-50/80 text-gray-300 transition-colors duration-300 group-hover:bg-gray-100/80">
                     <ShoppingBag className="h-14 w-14 md:h-16 md:w-16" />
@@ -773,11 +740,13 @@ export default function VendeusePage() {
             </AnimatePresence>
           </div>
         )}
+        </div>
       </section>
 
-      {/* Ticket de caisse - Droite 40% tablette+ - Sticky, glassmorphism */}
-      <aside className="hidden flex-col border-l border-gray-100 bg-white/90 backdrop-blur-xl md:flex md:w-[40%] md:sticky md:top-0 md:h-screen md:shadow-[0_-4px_30px_-10px_rgba(0,0,0,0.05)]">
-        <div className="flex flex-1 flex-col overflow-hidden p-8">
+      {/* Ticket de caisse — droite ~40% (md+) ; pied avec Encaisser toujours accessible au pouce */}
+      <aside className="hidden min-h-0 flex-col border-l border-gray-100 bg-white/90 backdrop-blur-xl md:flex md:w-[40%] md:min-w-0 md:sticky md:top-0 md:h-[100dvh] md:max-h-[100dvh] md:shadow-[0_-4px_30px_-10px_rgba(0,0,0,0.05)]">
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+          <div className="flex-1 overflow-y-auto p-8 pb-4">
           {isMdUp && (
             <GamificationJauge
               refreshKey={gamificationRefreshKey}
@@ -792,7 +761,7 @@ export default function VendeusePage() {
               <button
                 type="button"
                 onClick={viderPanier}
-                className="flex items-center gap-1.5 text-sm text-gray-400 transition-colors hover:text-red-500"
+                className="flex min-h-[44px] items-center gap-1.5 rounded-xl px-2 text-sm text-gray-400 transition-colors hover:text-red-500"
               >
                 <Trash2 className="h-4 w-4" />
                 Vider
@@ -808,7 +777,7 @@ export default function VendeusePage() {
             </p>
           ) : (
             <>
-              <div className="flex-1 space-y-4 overflow-auto">
+              <div className="space-y-4">
                 <AnimatePresence mode="wait">
                   {panier.map((ligne) => (
                     <motion.div
@@ -817,7 +786,7 @@ export default function VendeusePage() {
                       initial={{ opacity: 1 }}
                       exit={{ opacity: 0, scale: 0.98 }}
                       transition={{ duration: 0.2 }}
-                      className="flex items-center justify-between gap-4 rounded-2xl bg-gray-50/50 p-4 transition-all duration-300"
+                      className="flex items-center justify-between gap-3 rounded-2xl bg-gray-50/50 p-4 transition-all duration-300"
                     >
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-semibold text-gray-900">
@@ -827,16 +796,16 @@ export default function VendeusePage() {
                           {formatPrix(ligne.produit.prix)} × {ligne.quantite}
                         </p>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex shrink-0 items-center gap-1.5">
                         <button
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
                             removeFromPanier(ligne.panierLineId);
                           }}
-                          className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-gray-100 text-gray-700 transition-all duration-300 hover:bg-gray-200 active:scale-90"
+                          className="flex size-[48px] min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-full bg-gray-100 text-gray-700 transition-transform duration-200 hover:bg-gray-200 active:scale-95"
                         >
-                          <Minus className="h-4 w-4" />
+                          <Minus className="h-5 w-5" />
                         </button>
                         <span className="min-w-[2.5rem] text-center text-base font-bold text-gray-900">
                           {ligne.quantite}
@@ -848,9 +817,9 @@ export default function VendeusePage() {
                             addOneToLine(ligne.panierLineId);
                           }}
                           disabled={ligne.quantite >= ligne.produit.stock}
-                          className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-gray-100 text-gray-700 transition-all duration-300 hover:bg-gray-200 active:scale-90 disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="flex size-[48px] min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-full bg-gray-100 text-gray-700 transition-transform duration-200 hover:bg-gray-200 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
                         >
-                          <Plus className="h-4 w-4" />
+                          <Plus className="h-5 w-5" />
                         </button>
                         <button
                           type="button"
@@ -858,10 +827,10 @@ export default function VendeusePage() {
                             e.stopPropagation();
                             removeItemCompletely(ligne.panierLineId);
                           }}
-                          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full p-2 text-gray-300 transition-all duration-300 hover:bg-red-50 hover:text-red-500 active:scale-90"
+                          className="flex size-[44px] min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-full text-gray-300 transition-transform duration-200 hover:bg-red-50 hover:text-red-500 active:scale-95"
                           aria-label="Supprimer"
                         >
-                          <X className="h-4 w-4" />
+                          <X className="h-5 w-5" />
                         </button>
                       </div>
                     </motion.div>
@@ -872,7 +841,7 @@ export default function VendeusePage() {
                 <button
                   type="button"
                   onClick={() => setRemiseModalOpen(true)}
-                  className="mb-4 flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-emerald-200 bg-emerald-50/50 py-3 text-sm font-semibold text-emerald-700 transition-all duration-300 hover:bg-emerald-100/80 hover:border-emerald-300"
+                  className="mb-4 flex min-h-[44px] w-full items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-emerald-200 bg-emerald-50/50 py-3 text-sm font-semibold text-emerald-700 transition-all duration-300 hover:border-emerald-300 hover:bg-emerald-100/80"
                 >
                   <Percent className="h-4 w-4" />
                   Appliquer une remise
@@ -901,14 +870,6 @@ export default function VendeusePage() {
                   resolvedClient={resolvedClient}
                   lookupLoading={clientLookupLoading}
                 />
-                <button
-                  type="button"
-                  onClick={handleEncaisser}
-                  disabled={encaissementLoading}
-                  className="flex w-full items-center justify-center rounded-2xl bg-black py-5 text-xl font-bold text-white shadow-lg transition-all duration-300 hover:bg-gray-900 active:scale-[0.98] disabled:opacity-70 disabled:cursor-not-allowed"
-                >
-                  {encaissementLoading ? "Encaissement..." : `Encaisser ${formatPrix(total)}`}
-                </button>
 
                 {/* Historique ventes du jour */}
                 <div className="mt-8 border-t border-gray-100 pt-8">
@@ -964,6 +925,19 @@ export default function VendeusePage() {
                 </div>
               </div>
             </>
+          )}
+          </div>
+          {panier.length > 0 && (
+            <div className="sticky bottom-0 z-10 shrink-0 border-t border-gray-100 bg-white/95 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-[0_-8px_32px_-12px_rgba(0,0,0,0.08)] backdrop-blur-md">
+              <button
+                type="button"
+                onClick={handleEncaisser}
+                disabled={encaissementLoading}
+                className="flex min-h-[56px] w-full items-center justify-center rounded-2xl bg-black py-5 text-xl font-bold text-white shadow-lg transition-all duration-300 hover:bg-gray-900 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-70 md:min-h-[60px] md:py-6 md:text-2xl"
+              >
+                {encaissementLoading ? "Encaissement..." : `Encaisser ${formatPrix(total)}`}
+              </button>
+            </div>
           )}
         </div>
       </aside>
@@ -1048,13 +1022,13 @@ export default function VendeusePage() {
                               {formatPrix(ligne.produit.prix)} × {ligne.quantite}
                             </p>
                           </div>
-                          <div className="flex items-center gap-2">
+                          <div className="flex shrink-0 items-center gap-1.5">
                             <button
                               type="button"
                               onClick={() => removeFromPanier(ligne.panierLineId)}
-                              className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-gray-100 text-gray-700 transition-all duration-300 hover:bg-gray-200 active:scale-90"
+                              className="flex size-[48px] min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-full bg-gray-100 text-gray-700 transition-transform duration-200 hover:bg-gray-200 active:scale-95"
                             >
-                              <Minus className="h-4 w-4" />
+                              <Minus className="h-5 w-5" />
                             </button>
                             <span className="min-w-[2.5rem] text-center text-base font-bold text-gray-900">
                               {ligne.quantite}
@@ -1063,17 +1037,17 @@ export default function VendeusePage() {
                               type="button"
                               onClick={() => addOneToLine(ligne.panierLineId)}
                               disabled={ligne.quantite >= ligne.produit.stock}
-                              className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-gray-100 text-gray-700 transition-all duration-300 hover:bg-gray-200 active:scale-90 disabled:opacity-50"
+                              className="flex size-[48px] min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-full bg-gray-100 text-gray-700 transition-transform duration-200 hover:bg-gray-200 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
                             >
-                              <Plus className="h-4 w-4" />
+                              <Plus className="h-5 w-5" />
                             </button>
                             <button
                               type="button"
                               onClick={() => removeItemCompletely(ligne.panierLineId)}
-                              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full p-2 text-gray-300 transition-all duration-300 hover:bg-red-50 hover:text-red-500 active:scale-90"
+                              className="flex size-[44px] min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-full text-gray-300 transition-transform duration-200 hover:bg-red-50 hover:text-red-500 active:scale-95"
                               aria-label="Supprimer"
                             >
-                              <X className="h-4 w-4" />
+                              <X className="h-5 w-5" />
                             </button>
                           </div>
                         </motion.div>

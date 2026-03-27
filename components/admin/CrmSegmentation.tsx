@@ -393,7 +393,7 @@ export default function CrmSegmentation() {
             </div>
 
             <motion.div
-              className="grid grid-cols-1 gap-6 md:grid-cols-3 md:gap-5"
+              className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3 md:gap-5"
               initial="hidden"
               animate="show"
               variants={{
@@ -446,17 +446,17 @@ export default function CrmSegmentation() {
                         {list.length}
                       </span>
                     </div>
-                    <ul className="max-h-[min(420px,55vh)] space-y-2 overflow-y-auto pr-1">
+                    <ul className="max-h-[min(420px,55vh)] space-y-2 overflow-y-auto overflow-x-auto pr-1">
                       {list.map((c) => (
                         <li
                           key={c.id}
-                          className="rounded-xl border border-white/10 bg-black/25 px-3 py-2.5 text-sm text-white/90"
+                          className="min-w-0 rounded-xl border border-white/10 bg-black/25 px-3 py-2.5 text-sm text-white/90"
                         >
                           <div className="flex items-start gap-2">
                             <User className="mt-0.5 h-4 w-4 shrink-0 text-white/40" />
                             <div className="min-w-0 flex-1">
                               <p className="truncate font-medium">{c.nom}</p>
-                              <p className="mt-0.5 text-xs text-white/45">
+                              <p className="mt-0.5 text-xs whitespace-nowrap text-white/45">
                                 R {c.recenceJours} j · F {c.frequence} ·{" "}
                                 {formatMoney(c.montant)}
                               </p>

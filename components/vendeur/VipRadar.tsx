@@ -301,40 +301,41 @@ export default function VipRadar() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.35 }}
-            className="fixed inset-0 z-[220] flex flex-col bg-zinc-950/97 backdrop-blur-md"
+            className="fixed inset-0 z-[220] flex flex-col bg-zinc-950/97 backdrop-blur-md md:items-center md:justify-center md:bg-black/45 md:backdrop-blur-md md:p-6"
           >
-            <div className="pointer-events-none absolute inset-0 flex items-center justify-center overflow-hidden">
-              {[0, 1, 2].map((i) => (
+            <div className="relative flex min-h-0 w-full flex-1 flex-col overflow-hidden md:max-h-[min(90dvh,880px)] md:max-w-2xl md:flex-none md:rounded-3xl md:border md:border-white/10 md:bg-zinc-950 md:shadow-2xl">
+              <div className="pointer-events-none absolute inset-0 flex items-center justify-center overflow-hidden md:rounded-3xl">
+                {[0, 1, 2].map((i) => (
+                  <motion.div
+                    key={i}
+                    className="absolute rounded-full border border-emerald-400/25"
+                    style={{
+                      width: "min(120vw, 900px)",
+                      height: "min(120vw, 900px)",
+                    }}
+                    initial={{ scale: 0.4, opacity: 0.45 }}
+                    animate={{
+                      scale: [1, 1.5, 2],
+                      opacity: [0.5, 0.25, 0],
+                    }}
+                    transition={{
+                      duration: 3.2,
+                      repeat: Infinity,
+                      delay: i * 1.05,
+                      ease: "easeOut",
+                    }}
+                  />
+                ))}
                 <motion.div
-                  key={i}
-                  className="absolute rounded-full border border-emerald-400/25"
-                  style={{
-                    width: "min(120vw, 900px)",
-                    height: "min(120vw, 900px)",
-                  }}
-                  initial={{ scale: 0.4, opacity: 0.45 }}
-                  animate={{
-                    scale: [1, 1.5, 2],
-                    opacity: [0.5, 0.25, 0],
-                  }}
-                  transition={{
-                    duration: 3.2,
-                    repeat: Infinity,
-                    delay: i * 1.05,
-                    ease: "easeOut",
-                  }}
+                  className="absolute h-[140%] w-6 skew-x-12 bg-gradient-to-b from-transparent via-emerald-400/15 to-transparent"
+                  animate={{ x: ["-50vw", "50vw"] }}
+                  transition={{ duration: 4, repeat: Infinity, ease: "linear" }}
                 />
-              ))}
-              <motion.div
-                className="absolute h-[140%] w-6 skew-x-12 bg-gradient-to-b from-transparent via-emerald-400/15 to-transparent"
-                animate={{ x: ["-50vw", "50vw"] }}
-                transition={{ duration: 4, repeat: Infinity, ease: "linear" }}
-              />
-            </div>
+              </div>
 
-            <div className="relative z-10 flex max-h-full flex-1 flex-col overflow-hidden">
+              <div className="relative z-10 flex max-h-full min-h-0 flex-1 flex-col overflow-hidden">
               <header className="flex shrink-0 items-center justify-between gap-3 border-b border-white/10 px-5 py-4 md:px-8">
-                <div>
+                <div className="min-w-0 pr-2">
                   <h2 className="font-serif text-xl font-medium tracking-wide text-white md:text-2xl">
                     Radar VIP
                   </h2>
@@ -347,10 +348,10 @@ export default function VipRadar() {
                 <button
                   type="button"
                   onClick={() => setOpen(false)}
-                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/5 text-white/70 transition hover:bg-white/10 hover:text-white"
+                  className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/5 text-white/70 transition hover:bg-white/10 hover:text-white"
                   aria-label="Fermer"
                 >
-                  <X className="h-5 w-5" />
+                  <X className="h-6 w-6" />
                 </button>
               </header>
 
@@ -486,6 +487,7 @@ export default function VipRadar() {
                   </AnimatePresence>
                 </ul>
               </div>
+            </div>
             </div>
           </motion.div>
         )}

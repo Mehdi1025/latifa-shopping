@@ -23,6 +23,16 @@ const bottomNavItems = [
   { href: "/taches", label: "Équipe", icon: Users },
 ];
 
+const tabletNavItems = [
+  { href: "/", label: "Accueil", icon: LayoutDashboard },
+  { href: "/kpi", label: "KPI", icon: BarChart3 },
+  { href: "/clients", label: "Clients", icon: Contact },
+  { href: "/stock", label: "Runway", icon: Gauge },
+  { href: "/produits", label: "Produits", icon: Package },
+  { href: "/taches", label: "Tâches", icon: Users },
+  { href: "/parametres", label: "Réglages", icon: Settings },
+];
+
 export default function DashboardLayout({
   children,
 }: {
@@ -46,7 +56,7 @@ export default function DashboardLayout({
   }, [sidebarOpen]);
 
   return (
-    <>
+    <div className="flex min-h-dvh flex-col">
       <Sidebar
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
@@ -59,49 +69,61 @@ export default function DashboardLayout({
           aria-hidden
         />
       )}
-      {/* Sidebar Tablette: Collapsed (icônes uniquement) - md à lg */}
-      <aside className="fixed left-0 top-0 z-40 hidden h-screen w-20 flex-col border-r border-slate-100 bg-white/80 shadow-[0_4px_20px_-5px_rgba(0,0,0,0.06)] backdrop-blur-xl md:flex lg:hidden">
-        <div className="flex h-14 items-center justify-center border-b border-slate-100">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-indigo-600 text-sm font-bold text-white">
-            L
+      {/* Tablette md–lg : barre icônes, s’élargit au survol (labels) */}
+      <aside className="group/sidebar fixed left-0 top-0 z-40 hidden h-screen w-20 overflow-x-hidden border-r border-slate-100 bg-white/90 shadow-[4px_0_24px_-8px_rgba(0,0,0,0.08)] backdrop-blur-xl transition-[width] duration-300 ease-out hover:w-64 hover:shadow-[8px_0_32px_-12px_rgba(0,0,0,0.12)] md:flex lg:hidden">
+        <div className="flex h-full w-64 min-w-[16rem] flex-col">
+          <div className="flex h-14 shrink-0 items-center border-b border-slate-100 px-3 py-2">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-indigo-600 text-sm font-bold text-white">
+              L
+            </div>
+            <span className="ml-3 max-w-0 overflow-hidden whitespace-nowrap text-sm font-semibold text-slate-900 opacity-0 transition-all duration-300 group-hover/sidebar:max-w-[160px] group-hover/sidebar:opacity-100">
+              Latifa
+            </span>
           </div>
-        </div>
-        <nav className="flex-1 space-y-1 px-2 py-6">
-          <Link href="/" title="Accueil" className={`flex items-center justify-center rounded-2xl p-3 text-sm font-medium transition-all ${pathname === "/" ? "bg-indigo-50 text-indigo-600" : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"}`}>
-            <LayoutDashboard className="h-5 w-5 shrink-0 stroke-[1.5]" />
-          </Link>
-          <Link href="/kpi" title="KPI" className={`flex items-center justify-center rounded-2xl p-3 text-sm font-medium transition-all ${pathname.startsWith("/kpi") ? "bg-indigo-50 text-indigo-600" : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"}`}>
-            <BarChart3 className="h-5 w-5 shrink-0 stroke-[1.5]" />
-          </Link>
-          <Link href="/clients" title="Clients CRM" className={`flex items-center justify-center rounded-2xl p-3 text-sm font-medium transition-all ${pathname.startsWith("/clients") ? "bg-indigo-50 text-indigo-600" : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"}`}>
-            <Contact className="h-5 w-5 shrink-0 stroke-[1.5]" />
-          </Link>
-          <Link href="/stock" title="Stock Runway" className={`flex items-center justify-center rounded-2xl p-3 text-sm font-medium transition-all ${pathname.startsWith("/stock") ? "bg-indigo-50 text-indigo-600" : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"}`}>
-            <Gauge className="h-5 w-5 shrink-0 stroke-[1.5]" />
-          </Link>
-          <Link href="/produits" title="Produits" className={`flex items-center justify-center rounded-2xl p-3 text-sm font-medium transition-all ${pathname.startsWith("/produits") ? "bg-indigo-50 text-indigo-600" : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"}`}>
-            <Package className="h-5 w-5 shrink-0 stroke-[1.5]" />
-          </Link>
-          <Link href="/taches" title="Tâches" className={`flex items-center justify-center rounded-2xl p-3 text-sm font-medium transition-all ${pathname.startsWith("/taches") ? "bg-indigo-50 text-indigo-600" : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"}`}>
-            <Users className="h-5 w-5 shrink-0 stroke-[1.5]" />
-          </Link>
-          <Link href="/parametres" title="Paramètres" className={`flex items-center justify-center rounded-2xl p-3 text-sm font-medium transition-all ${pathname.startsWith("/parametres") ? "bg-indigo-50 text-indigo-600" : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"}`}>
-            <Settings className="h-5 w-5 shrink-0 stroke-[1.5]" />
-          </Link>
-        </nav>
-        <div className="border-t border-slate-100 p-3">
-          <LogoutButton variant="sidebar" />
+          <nav className="flex flex-1 flex-col gap-1 overflow-y-auto px-2 py-4">
+            {tabletNavItems.map((item) => {
+              const Icon = item.icon;
+              const isActive =
+                pathname === item.href ||
+                (item.href !== "/" && pathname.startsWith(item.href));
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  title={item.label}
+                  className={`flex h-12 shrink-0 items-center gap-3 rounded-2xl px-3 text-sm font-medium transition-colors md:text-base ${
+                    isActive
+                      ? "bg-indigo-50 text-indigo-600"
+                      : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
+                  }`}
+                >
+                  <Icon className="h-5 w-5 shrink-0 stroke-[1.5]" />
+                  <span className="max-w-0 overflow-hidden whitespace-nowrap opacity-0 transition-all duration-300 group-hover/sidebar:max-w-[200px] group-hover/sidebar:opacity-100">
+                    {item.label}
+                  </span>
+                </Link>
+              );
+            })}
+          </nav>
+          <div className="border-t border-slate-100 p-2 group-hover/sidebar:px-3 group-hover/sidebar:py-3">
+            <div className="hidden group-hover/sidebar:block">
+              <LogoutButton variant="sidebar" />
+            </div>
+            <div className="flex justify-center group-hover/sidebar:hidden">
+              <LogoutButton variant="sidebar" compact />
+            </div>
+          </div>
         </div>
       </aside>
 
-      <div className="flex min-h-screen flex-col md:ml-20 lg:ml-64">
+      <div className="admin-container flex min-h-0 flex-1 flex-col md:ml-20 lg:ml-64">
         <Header
           onMenuClick={() => setSidebarOpen(true)}
           isMobile={isMobile}
           searchOpen={searchOpen}
           onSearchToggle={() => setSearchOpen(!searchOpen)}
         />
-        <main className="flex-1 pb-24 md:pb-0">{children}</main>
+        <main className="flex min-h-0 flex-1 flex-col pb-24 md:pb-0">{children}</main>
       </div>
 
       {/* Bottom Nav Mobile uniquement (< md) */}
@@ -115,7 +137,7 @@ export default function DashboardLayout({
             <Link
               key={item.href}
               href={item.href}
-              className="flex min-h-[44px] min-w-[44px] flex-1 flex-col items-center justify-center gap-1 rounded-xl px-2 py-2 transition-all active:scale-95"
+              className="flex min-h-[48px] min-w-[48px] flex-1 flex-col items-center justify-center gap-1 rounded-xl px-2 py-2 transition-all active:scale-95"
             >
               <Icon
                 className={`h-5 w-5 stroke-[1.5] ${
@@ -133,6 +155,6 @@ export default function DashboardLayout({
           );
         })}
       </nav>
-    </>
+    </div>
   );
 }

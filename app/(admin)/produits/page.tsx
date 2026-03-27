@@ -111,15 +111,15 @@ export default function ProduitsPage() {
   };
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8">
+    <div className="admin-container min-h-dvh p-4 sm:p-6 lg:p-8">
       <header className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <h1 className="text-xl font-bold tracking-tight text-slate-900 sm:text-2xl">
+        <h1 className="text-xl font-bold tracking-tight text-slate-900 sm:text-2xl md:text-3xl">
           Produits & Stock
         </h1>
         <button
           type="button"
           onClick={() => setModalOpen(true)}
-          className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-all duration-300 ease-in-out hover:bg-indigo-700 hover:shadow"
+          className="inline-flex h-12 min-h-12 shrink-0 items-center justify-center gap-2 rounded-lg bg-indigo-600 px-5 text-sm font-medium text-white shadow-sm transition-all duration-300 ease-in-out hover:bg-indigo-700 hover:shadow md:text-base"
         >
           <Plus className="h-4 w-4" />
           Ajouter un produit
@@ -142,7 +142,7 @@ export default function ProduitsPage() {
           <button
             type="button"
             onClick={() => setModalOpen(true)}
-            className="mt-4 inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-indigo-700"
+            className="mt-4 inline-flex h-12 min-h-12 items-center gap-2 rounded-lg bg-indigo-600 px-5 text-sm font-medium text-white hover:bg-indigo-700 md:text-base"
           >
             <Plus className="h-4 w-4" />
             Ajouter un produit
@@ -150,24 +150,24 @@ export default function ProduitsPage() {
         </div>
       ) : (
         <>
-          {/* Tableau desktop */}
-          <div className="hidden overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm lg:block">
-            <table className="min-w-full">
+          {/* Tableau tablette+ — défilement horizontal */}
+          <div className="hidden overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm md:block">
+            <table className="min-w-[640px] w-full">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50/80">
-                  <th className="px-6 py-5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
+                  <th className="whitespace-nowrap px-4 py-4 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 md:px-6 md:py-5">
                     Nom
                   </th>
-                  <th className="px-6 py-5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
+                  <th className="whitespace-nowrap px-4 py-4 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 md:px-6 md:py-5">
                     Catégorie
                   </th>
-                  <th className="px-6 py-5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
+                  <th className="whitespace-nowrap px-4 py-4 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 md:px-6 md:py-5">
                     Prix
                   </th>
-                  <th className="px-6 py-5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
+                  <th className="whitespace-nowrap px-4 py-4 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 md:px-6 md:py-5">
                     Stock
                   </th>
-                  <th className="px-6 py-5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
+                  <th className="whitespace-nowrap px-4 py-4 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 md:px-6 md:py-5">
                     Statut
                   </th>
                 </tr>
@@ -180,9 +180,9 @@ export default function ProduitsPage() {
                       i % 2 === 0 ? "bg-white" : "bg-slate-50/30"
                     }`}
                   >
-                    <td className="px-6 py-5">
+                    <td className="px-4 py-4 md:px-6 md:py-5">
                       <div>
-                        <p className="text-sm font-medium text-slate-900">
+                        <p className="whitespace-nowrap text-sm font-medium text-slate-900">
                           {produit.nom}
                         </p>
                         {produit.description && (
@@ -192,16 +192,16 @@ export default function ProduitsPage() {
                         )}
                       </div>
                     </td>
-                    <td className="px-6 py-5 text-sm text-slate-500">
+                    <td className="whitespace-nowrap px-4 py-4 text-sm text-slate-500 md:px-6 md:py-5">
                       {produit.categorie ?? "—"}
                     </td>
-                    <td className="px-6 py-5 text-sm font-medium text-slate-700">
+                    <td className="whitespace-nowrap px-4 py-4 text-sm font-medium text-slate-700 md:px-6 md:py-5">
                       {formatPrix(produit.prix)}
                     </td>
-                    <td className="px-6 py-5 text-sm text-slate-500">
+                    <td className="whitespace-nowrap px-4 py-4 text-sm text-slate-500 md:px-6 md:py-5">
                       {produit.stock}
                     </td>
-                    <td className="px-6 py-5">
+                    <td className="whitespace-nowrap px-4 py-4 md:px-6 md:py-5">
                       <StatutBadge stock={produit.stock} />
                     </td>
                   </tr>
@@ -211,7 +211,7 @@ export default function ProduitsPage() {
           </div>
 
           {/* Cartes mobile */}
-          <div className="space-y-4 lg:hidden">
+          <div className="space-y-4 md:hidden">
             {produits.map((produit) => (
               <article
                 key={produit.id}

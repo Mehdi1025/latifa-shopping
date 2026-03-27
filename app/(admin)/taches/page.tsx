@@ -136,20 +136,20 @@ export default function TachesPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50/50 p-6 lg:p-10">
+    <div className="admin-container min-h-dvh bg-gray-50/50 p-4 md:p-6 lg:p-10">
       <header className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-gray-900 lg:text-3xl">
+          <h1 className="text-2xl font-semibold tracking-tight text-gray-900 md:text-3xl">
             Gestion des Tâches
           </h1>
-          <p className="mt-1 text-sm text-gray-400">
+          <p className="mt-1 text-sm text-gray-400 md:text-base">
             Organisez et suivez les missions de votre équipe
           </p>
         </div>
         <button
           type="button"
           onClick={() => setPanelOpen(true)}
-          className="inline-flex items-center justify-center gap-2 rounded-2xl bg-gray-900 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all duration-300 hover:bg-gray-800 active:scale-[0.98]"
+          className="inline-flex h-12 min-h-12 items-center justify-center gap-2 rounded-2xl bg-gray-900 px-5 text-sm font-semibold text-white shadow-sm transition-all duration-300 hover:bg-gray-800 active:scale-[0.98] md:text-base"
         >
           <Plus className="h-4 w-4" />
           Nouvelle Mission
@@ -161,7 +161,7 @@ export default function TachesPage() {
           <Loader2 className="h-10 w-10 animate-spin text-gray-400" />
         </div>
       ) : (
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
           {STATUTS.map((statut) => {
             const style = columnStyles[statut];
             return (

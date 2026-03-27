@@ -56,7 +56,7 @@ export default function VendeuseLayout({
                 key={item.href}
                 href={item.href}
                 title={item.label}
-                className={`flex items-center justify-center rounded-2xl p-3 text-sm font-medium transition-all duration-300 ${
+                className={`flex min-h-[44px] min-w-[44px] items-center justify-center rounded-2xl p-3 text-sm font-medium transition-all duration-300 ${
                   isActive
                     ? "bg-gray-100 text-gray-900"
                     : "text-gray-500 hover:bg-gray-50 hover:text-gray-900"
@@ -165,7 +165,7 @@ export default function VendeuseLayout({
       )}
 
       {/* Main Content */}
-      <main className="flex-1 pt-14 pb-24 md:ml-20 md:pt-0 md:pb-0 lg:ml-20 xl:ml-56">
+      <main className="flex min-h-0 flex-1 flex-col pt-14 pb-24 md:ml-20 md:pt-0 md:pb-0 lg:ml-20 xl:ml-56">
         {children}
       </main>
 

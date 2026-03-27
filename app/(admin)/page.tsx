@@ -154,12 +154,12 @@ export default function Home() {
   }, [supabase, triggerNewSale]);
 
   return (
-    <div className="min-h-screen bg-gray-50/50 p-4 md:p-6 lg:p-10">
+    <div className="admin-container min-h-dvh bg-gray-50/50 p-4 md:p-6 lg:p-10">
       <header className="mb-8 lg:mb-10">
-        <h1 className="text-2xl font-semibold tracking-tight text-gray-900 lg:text-3xl">
+        <h1 className="text-2xl font-semibold tracking-tight text-gray-900 md:text-3xl">
           Vue d&apos;ensemble - Aujourd&apos;hui
         </h1>
-        <p className="mt-1 text-sm text-gray-400">
+        <p className="mt-1 text-sm text-gray-400 md:text-base">
           Activité du jour et dernières transactions
         </p>
       </header>
@@ -183,8 +183,8 @@ export default function Home() {
             </p>
           </section>
 
-          <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-3 md:gap-6">
-            <div className="group rounded-2xl border border-gray-100 bg-white p-5 shadow-[0_2px_12px_-4px_rgba(0,0,0,0.06)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_8px_30px_-12px_rgba(0,0,0,0.12)] md:p-6">
+          <div className="mb-8 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 md:gap-6">
+            <div className="stat-card group flex flex-col rounded-2xl border border-gray-100 bg-white p-5 shadow-[0_2px_12px_-4px_rgba(0,0,0,0.06)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_8px_30px_-12px_rgba(0,0,0,0.12)] md:p-6">
               <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-gray-100 transition-colors duration-300 group-hover:bg-[#c9a98c]">
                 <Euro className="h-5 w-5 text-gray-600 transition-colors duration-300 group-hover:text-white" />
               </div>
@@ -196,7 +196,7 @@ export default function Home() {
               </p>
             </div>
 
-            <div className="group rounded-2xl border border-gray-100 bg-white p-5 shadow-[0_2px_12px_-4px_rgba(0,0,0,0.06)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_8px_30px_-12px_rgba(0,0,0,0.12)] md:p-6">
+            <div className="stat-card group flex flex-col rounded-2xl border border-gray-100 bg-white p-5 shadow-[0_2px_12px_-4px_rgba(0,0,0,0.06)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_8px_30px_-12px_rgba(0,0,0,0.12)] md:p-6">
               <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-gray-100 transition-colors duration-300 group-hover:bg-[#c9a98c]">
                 <ShoppingBag className="h-5 w-5 text-gray-600 transition-colors duration-300 group-hover:text-white" />
               </div>
@@ -208,7 +208,7 @@ export default function Home() {
               </p>
             </div>
 
-            <div className="group rounded-2xl border border-gray-100 bg-white p-5 shadow-[0_2px_12px_-4px_rgba(0,0,0,0.06)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_8px_30px_-12px_rgba(0,0,0,0.12)] md:p-6">
+            <div className="stat-card group flex flex-col rounded-2xl border border-gray-100 bg-white p-5 shadow-[0_2px_12px_-4px_rgba(0,0,0,0.06)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_8px_30px_-12px_rgba(0,0,0,0.12)] md:p-6">
               <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-gray-100 transition-colors duration-300 group-hover:bg-[#c9a98c]">
                 <Percent className="h-5 w-5 text-gray-600 transition-colors duration-300 group-hover:text-white" />
               </div>

@@ -14,8 +14,8 @@ const connexions = [
 
 export default function ParametresPage() {
   return (
-    <div className="p-4 sm:p-6 lg:p-8">
-      <h1 className="mb-8 text-xl font-bold tracking-tight text-slate-900 sm:text-2xl">
+    <div className="admin-container min-h-dvh p-4 sm:p-6 lg:p-8">
+      <h1 className="mb-8 text-xl font-bold tracking-tight text-slate-900 sm:text-2xl md:text-3xl">
         Paramètres & Équipe
       </h1>
 
@@ -28,7 +28,7 @@ export default function ParametresPage() {
             </h2>
             <button
               type="button"
-              className="rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-600 transition-all duration-300 ease-in-out hover:bg-slate-50"
+              className="flex h-12 min-h-12 items-center rounded-md border border-slate-200 bg-white px-4 text-sm font-medium text-slate-600 transition-all duration-300 ease-in-out hover:bg-slate-50 md:text-base"
             >
               + Inviter
             </button>

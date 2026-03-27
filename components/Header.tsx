@@ -25,14 +25,14 @@ export default function Header({
   const { hasNewSale, clearNewSale } = useNotifications();
 
   return (
-    <header className="sticky top-0 z-30 flex h-14 items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 lg:px-6">
+    <header className="sticky top-0 z-30 flex min-h-14 items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 py-2 md:min-h-16 md:py-0 lg:px-6">
       {/* Gauche : Menu hamburger (mobile) ou espace vide (desktop) */}
       <div className="flex w-9 shrink-0 items-center lg:w-auto">
         {isMobile ? (
           <button
             type="button"
             onClick={onMenuClick}
-            className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-lg text-slate-500 transition-all duration-300 ease-in-out hover:bg-slate-100 hover:text-slate-700"
+            className="flex min-h-12 min-w-12 items-center justify-center rounded-lg text-slate-500 transition-all duration-300 ease-in-out hover:bg-slate-100 hover:text-slate-700 md:min-h-12 md:min-w-12"
             aria-label="Ouvrir le menu"
           >
             <Menu className="h-5 w-5" />
@@ -59,7 +59,7 @@ export default function Header({
             <input
               type="search"
               placeholder="Rechercher dans Latifa Shop..."
-              className="w-full rounded-lg border border-slate-200 bg-slate-50 py-2 pl-9 pr-4 text-sm text-slate-900 placeholder:text-slate-400 transition-all duration-300 ease-in-out focus:border-indigo-500 focus:bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              className="w-full rounded-lg border border-slate-200 bg-slate-50 py-2.5 pl-9 pr-4 text-sm text-slate-900 placeholder:text-slate-400 transition-all duration-300 ease-in-out focus:border-indigo-500 focus:bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500 md:py-3 md:text-base"
               autoFocus={isMobile && searchOpen}
             />
           </div>
@@ -73,10 +73,10 @@ export default function Header({
             <button
               type="button"
               onClick={clearNewSale}
-              className="relative flex h-9 w-9 items-center justify-center rounded-lg text-slate-500 transition-all duration-300 ease-in-out hover:bg-slate-100 hover:text-slate-700"
+              className="relative flex min-h-12 min-w-12 items-center justify-center rounded-lg text-slate-500 transition-all duration-300 ease-in-out hover:bg-slate-100 hover:text-slate-700"
               aria-label="Notifications"
             >
-              <Bell className="h-4 w-4" />
+              <Bell className="h-5 w-5" />
               <AnimatePresence>
                 {hasNewSale && (
                   <motion.span
@@ -97,27 +97,27 @@ export default function Header({
             </button>
             <button
               type="button"
-              className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-500 transition-all duration-300 ease-in-out hover:bg-slate-100 hover:text-slate-700"
+              className="flex min-h-12 min-w-12 items-center justify-center rounded-lg text-slate-500 transition-all duration-300 ease-in-out hover:bg-slate-100 hover:text-slate-700"
               aria-label="Applications"
             >
-              <LayoutGrid className="h-4 w-4" />
+              <LayoutGrid className="h-5 w-5" />
             </button>
             <button
               type="button"
-              className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-500 transition-all duration-300 ease-in-out hover:bg-slate-100 hover:text-slate-700"
+              className="flex min-h-12 min-w-12 items-center justify-center rounded-lg text-slate-500 transition-all duration-300 ease-in-out hover:bg-slate-100 hover:text-slate-700"
               aria-label="Activité"
             >
-              <TrendingUp className="h-4 w-4" />
+              <TrendingUp className="h-5 w-5" />
             </button>
           </>
         )}
         <button
           type="button"
           onClick={clearNewSale}
-          className="relative flex h-9 w-9 items-center justify-center rounded-lg text-slate-500 transition-all duration-300 ease-in-out hover:bg-slate-100 hover:text-slate-700 lg:hidden"
+          className="relative flex min-h-12 min-w-12 items-center justify-center rounded-lg text-slate-500 transition-all duration-300 ease-in-out hover:bg-slate-100 hover:text-slate-700 lg:hidden"
           aria-label="Notifications"
         >
-          <Bell className="h-4 w-4" />
+          <Bell className="h-5 w-5" />
           <AnimatePresence>
             {hasNewSale && (
               <motion.span
@@ -130,8 +130,8 @@ export default function Header({
             )}
           </AnimatePresence>
         </button>
-        <div className="ml-1 flex h-9 w-9 items-center justify-center overflow-hidden rounded-full bg-indigo-600 text-white">
-          <User className="h-5 w-5" />
+        <div className="ml-1 flex min-h-12 min-w-12 items-center justify-center overflow-hidden rounded-full bg-indigo-600 text-white">
+          <User className="h-6 w-6" />
         </div>
       </div>
     </header>

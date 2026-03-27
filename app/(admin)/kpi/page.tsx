@@ -221,12 +221,12 @@ export default function KPIPage() {
   const maxQ = topProduits[0]?.quantite ?? 1;
 
   return (
-    <div className="min-h-screen bg-gray-50/50 p-4 md:p-6 lg:p-10">
+    <div className="admin-container min-h-dvh bg-gray-50/50 p-4 md:p-6 lg:p-10">
       <header className="mb-8 lg:mb-10">
-        <h1 className="text-2xl font-semibold tracking-tight text-gray-900 lg:text-3xl">
+        <h1 className="text-2xl font-semibold tracking-tight text-gray-900 md:text-3xl">
           Analyses &amp; Performances
         </h1>
-        <p className="mt-1 text-sm text-gray-400">
+        <p className="mt-1 text-sm text-gray-400 md:text-base">
           Indicateurs mensuels, tendances et classements
         </p>
       </header>
@@ -238,8 +238,8 @@ export default function KPIPage() {
       ) : (
         <>
           {/* Section 1 — 4 KPIs globaux */}
-          <section className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm md:p-6">
+          <section className="mb-8 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4 md:gap-5">
+            <div className="stat-card flex flex-col rounded-2xl border border-gray-100 bg-white p-5 shadow-sm md:p-6">
               <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-50">
                 <Euro className="h-5 w-5 text-indigo-600" />
               </div>
@@ -251,7 +251,7 @@ export default function KPIPage() {
               </p>
               <p className="mt-2 text-xs text-gray-400">Mois en cours</p>
             </div>
-            <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm md:p-6">
+            <div className="stat-card flex flex-col rounded-2xl border border-gray-100 bg-white p-5 shadow-sm md:p-6">
               <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-50">
                 <Percent className="h-5 w-5 text-indigo-600" />
               </div>
@@ -263,7 +263,7 @@ export default function KPIPage() {
               </p>
               <p className="mt-2 text-xs text-gray-400">Sur le mois</p>
             </div>
-            <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm md:p-6">
+            <div className="stat-card flex flex-col rounded-2xl border border-gray-100 bg-white p-5 shadow-sm md:p-6">
               <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-50">
                 <ShoppingBag className="h-5 w-5 text-indigo-600" />
               </div>
@@ -275,7 +275,7 @@ export default function KPIPage() {
               </p>
               <p className="mt-2 text-xs text-gray-400">Mois en cours</p>
             </div>
-            <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm md:p-6">
+            <div className="stat-card flex flex-col rounded-2xl border border-gray-100 bg-white p-5 shadow-sm md:p-6">
               <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-50">
                 <TrendingUp className="h-5 w-5 text-indigo-600" />
               </div>
@@ -365,7 +365,7 @@ export default function KPIPage() {
           </section>
 
           {/* Section 3 — deux colonnes */}
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 lg:gap-8">
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2 md:gap-6 lg:gap-8">
             <section className="overflow-hidden rounded-3xl border border-gray-100 bg-white shadow-sm">
               <div className="border-b border-gray-100 px-5 py-4 md:px-6">
                 <div className="flex items-center gap-3">

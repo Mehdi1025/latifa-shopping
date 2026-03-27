@@ -8,9 +8,15 @@ import { createSupabaseBrowserClient } from "@/utils/supabase/client";
 type LogoutButtonProps = {
   variant?: "sidebar" | "page";
   className?: string;
+  /** Icône seule — barre latérale repliée (tablette) */
+  compact?: boolean;
 };
 
-export default function LogoutButton({ variant = "page", className = "" }: LogoutButtonProps) {
+export default function LogoutButton({
+  variant = "page",
+  className = "",
+  compact = false,
+}: LogoutButtonProps) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
 
@@ -28,12 +34,26 @@ export default function LogoutButton({ variant = "page", className = "" }: Logou
   };
 
   if (variant === "sidebar") {
+    if (compact) {
+      return (
+        <button
+          type="button"
+          onClick={handleLogout}
+          disabled={loading}
+          title="Se déconnecter"
+          aria-label="Se déconnecter"
+          className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl text-red-600 transition-all duration-300 ease-in-out hover:bg-red-50 hover:text-red-700 disabled:opacity-50 disabled:cursor-not-allowed ${className}`}
+        >
+          <LogOut className="h-5 w-5 shrink-0 stroke-[1.5]" />
+        </button>
+      );
+    }
     return (
       <button
         type="button"
         onClick={handleLogout}
         disabled={loading}
-        className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] font-medium text-red-600 transition-all duration-300 ease-in-out hover:bg-red-50 hover:text-red-700 disabled:opacity-50 disabled:cursor-not-allowed ${className}`}
+        className={`flex h-12 min-h-12 w-full items-center gap-2.5 rounded-xl px-3 text-sm font-medium text-red-600 transition-all duration-300 ease-in-out hover:bg-red-50 hover:text-red-700 md:text-base disabled:opacity-50 disabled:cursor-not-allowed ${className}`}
       >
         <LogOut className="h-4 w-4 shrink-0 stroke-[1.5]" />
         {loading ? "Déconnexion..." : "Se déconnecter"}

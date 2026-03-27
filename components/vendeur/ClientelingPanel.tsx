@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Sparkles, TrendingUp, Wallet, ShoppingBag } from "lucide-react";
 import { createSupabaseBrowserClient } from "@/utils/supabase/client";
@@ -81,6 +81,7 @@ export default function ClientelingPanel({
   onAddRecommended,
 }: ClientelingPanelProps) {
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
+  const [isMdUp, setIsMdUp] = useState(false);
   const [loading, setLoading] = useState(true);
   const [segment, setSegment] = useState<RfmClient["segment"] | null>(null);
   const [ltv, setLtv] = useState(0);
@@ -92,6 +93,14 @@ export default function ClientelingPanel({
     produit: Produit;
     label: string;
   } | null>(null);
+
+  useLayoutEffect(() => {
+    const mq = window.matchMedia("(min-width: 768px)");
+    const sync = () => setIsMdUp(mq.matches);
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
 
   useEffect(() => {
     if (!open || !clientId) return;
@@ -271,19 +280,25 @@ export default function ClientelingPanel({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[200] bg-black/50 backdrop-blur-[2px]"
+            className="fixed inset-0 z-[200] bg-black/45 backdrop-blur-md"
             aria-label="Fermer le panneau client"
             onClick={onClose}
           />
           <motion.aside
-            initial={{ x: "100%" }}
-            animate={{ x: 0 }}
-            exit={{ x: "100%" }}
-            transition={{ type: "spring", damping: 28, stiffness: 320 }}
-            className="fixed right-0 top-0 z-[210] flex h-full w-full max-w-md flex-col border-l border-white/10 bg-black/45 shadow-[-20px_0_60px_-20px_rgba(0,0,0,0.5)] backdrop-blur-xl"
+            initial={
+              isMdUp ? { opacity: 0, scale: 0.96 } : { x: "100%" }
+            }
+            animate={isMdUp ? { opacity: 1, scale: 1 } : { x: 0 }}
+            exit={isMdUp ? { opacity: 0, scale: 0.96 } : { x: "100%" }}
+            transition={
+              isMdUp
+                ? { duration: 0.22, ease: [0.16, 1, 0.3, 1] }
+                : { type: "spring", damping: 28, stiffness: 320 }
+            }
+            className="fixed z-[210] flex max-w-md flex-col border-white/10 bg-black/50 shadow-[-20px_0_60px_-20px_rgba(0,0,0,0.5)] backdrop-blur-xl max-md:right-0 max-md:top-0 max-md:h-full max-md:w-full md:left-1/2 md:top-1/2 md:h-auto md:max-h-[min(90dvh,800px)] md:w-[min(calc(100vw-3rem),28rem)] md:-translate-x-1/2 md:-translate-y-1/2 md:rounded-3xl md:border md:border-white/10 md:shadow-2xl"
           >
             <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/[0.07] to-transparent" />
-            <div className="relative flex h-full flex-col overflow-hidden">
+            <div className="relative flex h-full max-h-[inherit] min-h-0 flex-col overflow-hidden md:max-h-[min(90dvh,800px)]">
               <div className="flex items-start justify-between gap-3 border-b border-white/10 px-5 py-5">
                 <div className="flex min-w-0 flex-1 gap-4">
                   <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl border border-white/20 bg-gradient-to-br from-white/15 to-white/5 text-xl font-light tracking-widest text-white">
@@ -306,10 +321,10 @@ export default function ClientelingPanel({
                 <button
                   type="button"
                   onClick={onClose}
-                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/5 text-white/70 transition hover:bg-white/10 hover:text-white"
+                  className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/5 text-white/70 transition hover:bg-white/10 hover:text-white"
                   aria-label="Fermer"
                 >
-                  <X className="h-5 w-5" />
+                  <X className="h-6 w-6" />
                 </button>
               </div>
 
