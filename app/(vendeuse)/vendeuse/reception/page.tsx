@@ -215,7 +215,7 @@ export default function ReceptionMarchandisePage() {
           className="inline-flex min-h-[52px] shrink-0 items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-5 text-base font-semibold text-white shadow-md transition active:scale-[0.98] hover:bg-emerald-700"
         >
           <Plus className="h-5 w-5" />
-          ➕ Créer un nouveau produit
+          Créer un nouveau produit
         </button>
       </div>
 

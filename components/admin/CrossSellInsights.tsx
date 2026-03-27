@@ -77,6 +77,22 @@ export function computeTopProductPairs(
   return { duos, totalMultiItemBaskets };
 }
 
+/** Premier duo global contenant ce produit (duos triés par fréquence décroissante). */
+export function findBestPartnerForProduct(
+  duos: DuoInsight[],
+  productId: string
+): { partnerId: string; partnerName: string; duo: DuoInsight } | null {
+  for (const d of duos) {
+    if (d.idA === productId) {
+      return { partnerId: d.idB, partnerName: d.nomB, duo: d };
+    }
+    if (d.idB === productId) {
+      return { partnerId: d.idA, partnerName: d.nomA, duo: d };
+    }
+  }
+  return null;
+}
+
 const listVariants = {
   hidden: { opacity: 0 },
   show: {

@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import { Plus, Minus, ShoppingBag, ChevronDown, Trash2, X, CheckCircle, AlertCircle, Search, History, Percent, RotateCcw, Gift, User } from "lucide-react";
 import { createSupabaseBrowserClient } from "@/utils/supabase/client";
+import ClientelingPanel from "@/components/vendeur/ClientelingPanel";
 
 type Produit = {
   id: string;
@@ -139,6 +140,8 @@ export default function VendeusePage() {
   const [clientNom, setClientNom] = useState("");
   const [resolvedClient, setResolvedClient] = useState<ResolvedClient | null>(null);
   const [clientLookupLoading, setClientLookupLoading] = useState(false);
+  const [clientelingOpen, setClientelingOpen] = useState(false);
+  const prevPanierLen = useRef(0);
 
   const supabase = createSupabaseBrowserClient();
   const router = useRouter();
@@ -223,6 +226,25 @@ export default function VendeusePage() {
     }, 400);
     return () => clearTimeout(t);
   }, [clientPhone, supabase]);
+
+  useEffect(() => {
+    if (resolvedClient) {
+      setClientelingOpen(true);
+    } else {
+      setClientelingOpen(false);
+    }
+  }, [resolvedClient?.id]);
+
+  useEffect(() => {
+    if (
+      resolvedClient &&
+      prevPanierLen.current > 0 &&
+      panier.length === 0
+    ) {
+      setClientelingOpen(false);
+    }
+    prevPanierLen.current = panier.length;
+  }, [panier.length, resolvedClient]);
 
   const categories = useMemo(() => {
     const cats = new Set<string>();
@@ -1045,6 +1067,20 @@ export default function VendeusePage() {
             </div>
           </div>
         </>
+      )}
+
+      {resolvedClient && (
+        <ClientelingPanel
+          clientId={resolvedClient.id}
+          clientNom={resolvedClient.nom}
+          phoneDigits={normalizePhoneForDb(clientPhone)}
+          open={clientelingOpen}
+          onClose={() => setClientelingOpen(false)}
+          onAddRecommended={(produit) => {
+            addToPanier(produit);
+            showToast("success", `${produit.nom} ajouté au panier`);
+          }}
+        />
       )}
     </div>
   );
