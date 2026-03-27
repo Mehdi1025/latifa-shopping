@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
-import { Plus, Minus, ShoppingBag, ChevronDown, Trash2, X, CheckCircle, AlertCircle, Search, History, Percent, RotateCcw } from "lucide-react";
+import { Plus, Minus, ShoppingBag, ChevronDown, Trash2, X, CheckCircle, AlertCircle, Search, History, Percent, RotateCcw, Gift, User } from "lucide-react";
 import { createSupabaseBrowserClient } from "@/utils/supabase/client";
 
 type Produit = {
@@ -41,6 +41,84 @@ function formatPrix(prix: number): string {
   }).format(prix);
 }
 
+/** Téléphone stocké et recherché en chiffres (ex. 0612345678). */
+function normalizePhoneForDb(input: string): string {
+  let d = input.replace(/\D/g, "");
+  if (d.startsWith("33") && d.length >= 11) d = "0" + d.slice(2);
+  return d;
+}
+
+type ResolvedClient = { id: string; nom: string };
+
+function ClientCaisseSection({
+  clientPhone,
+  onClientPhoneChange,
+  clientNom,
+  onClientNomChange,
+  resolvedClient,
+  lookupLoading,
+}: {
+  clientPhone: string;
+  onClientPhoneChange: (v: string) => void;
+  clientNom: string;
+  onClientNomChange: (v: string) => void;
+  resolvedClient: ResolvedClient | null;
+  lookupLoading: boolean;
+}) {
+  const digits = normalizePhoneForDb(clientPhone);
+  const showNomNouveau =
+    digits.length >= 8 && !lookupLoading && !resolvedClient;
+
+  return (
+    <div className="mb-4 rounded-2xl border border-dashed border-violet-200/80 bg-gradient-to-br from-violet-50/90 to-white p-4 ring-1 ring-violet-100/60">
+      <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-gray-800">
+        <Gift className="h-4 w-4 text-violet-600" aria-hidden />
+        <span>Client (Optionnel) 🎁</span>
+      </div>
+      <label className="block text-xs font-medium text-gray-500">
+        Téléphone
+      </label>
+      <input
+        type="tel"
+        inputMode="tel"
+        autoComplete="tel"
+        value={clientPhone}
+        onChange={(e) => onClientPhoneChange(e.target.value)}
+        placeholder="ex. 06 12 34 56 78"
+        className="mt-1 w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-gray-900 placeholder:text-gray-400 focus:border-violet-400 focus:outline-none focus:ring-2 focus:ring-violet-100"
+      />
+      {lookupLoading && digits.length >= 8 && (
+        <p className="mt-2 text-xs text-violet-600">Recherche du client…</p>
+      )}
+      {resolvedClient && (
+        <div className="mt-3 flex items-center gap-2 rounded-xl bg-emerald-50 px-3 py-2 text-sm text-emerald-800 ring-1 ring-emerald-100">
+          <User className="h-4 w-4 shrink-0" />
+          <span className="font-medium">{resolvedClient.nom}</span>
+          <span className="text-emerald-600">— client reconnu</span>
+        </div>
+      )}
+      {showNomNouveau && (
+        <>
+          <label className="mt-3 block text-xs font-medium text-amber-800">
+            Nouveau client — nom
+          </label>
+          <input
+            type="text"
+            value={clientNom}
+            onChange={(e) => onClientNomChange(e.target.value)}
+            placeholder="Prénom Nom"
+            className="mt-1 w-full rounded-xl border border-amber-200 bg-amber-50/50 px-3 py-2.5 text-gray-900 placeholder:text-gray-400 focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-100"
+          />
+          <p className="mt-1.5 text-xs text-amber-800/80">
+            Ce numéro n&apos;est pas encore en base : le nom sera enregistré avec la
+            vente.
+          </p>
+        </>
+      )}
+    </div>
+  );
+}
+
 type ToastType = "success" | "error" | null;
 
 export default function VendeusePage() {
@@ -57,6 +135,10 @@ export default function VendeusePage() {
   const [remiseModalOpen, setRemiseModalOpen] = useState(false);
   const [remiseType, setRemiseType] = useState<"percent" | "fixed">("percent");
   const [remiseValue, setRemiseValue] = useState<number>(0);
+  const [clientPhone, setClientPhone] = useState("");
+  const [clientNom, setClientNom] = useState("");
+  const [resolvedClient, setResolvedClient] = useState<ResolvedClient | null>(null);
+  const [clientLookupLoading, setClientLookupLoading] = useState(false);
 
   const supabase = createSupabaseBrowserClient();
   const router = useRouter();
@@ -115,6 +197,32 @@ export default function VendeusePage() {
     const interval = setInterval(fetchVentesDuJour, 30000);
     return () => clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+    const digits = normalizePhoneForDb(clientPhone);
+    if (digits.length < 8) {
+      setResolvedClient(null);
+      return;
+    }
+    const t = setTimeout(async () => {
+      setClientLookupLoading(true);
+      try {
+        const { data } = await supabase
+          .from("clients")
+          .select("id, nom")
+          .eq("telephone", digits)
+          .maybeSingle();
+        setResolvedClient(
+          data ? { id: data.id, nom: data.nom } : null
+        );
+      } catch {
+        setResolvedClient(null);
+      } finally {
+        setClientLookupLoading(false);
+      }
+    }, 400);
+    return () => clearTimeout(t);
+  }, [clientPhone, supabase]);
 
   const categories = useMemo(() => {
     const cats = new Set<string>();
@@ -176,6 +284,9 @@ export default function VendeusePage() {
     setPanier([]);
     setRemiseValue(0);
     setRemiseType("percent");
+    setClientPhone("");
+    setClientNom("");
+    setResolvedClient(null);
   };
 
   const sousTotal = panier.reduce((acc, l) => acc + l.produit.prix * l.quantite, 0);
@@ -237,12 +348,48 @@ export default function VendeusePage() {
         return;
       }
 
+      const digits = normalizePhoneForDb(clientPhone);
+      if (digits.length > 0 && digits.length < 8) {
+        showToast("error", "Numéro de téléphone incomplet (8 chiffres minimum).");
+        return;
+      }
+
+      let clientId: string | null = null;
+      if (digits.length >= 8) {
+        if (resolvedClient) {
+          clientId = resolvedClient.id;
+        } else {
+          const nom = clientNom.trim();
+          if (!nom) {
+            showToast(
+              "error",
+              "Nouveau client : saisissez un nom ou videz le téléphone."
+            );
+            return;
+          }
+          const { data: newClient, error: clientErr } = await supabase
+            .from("clients")
+            .insert({ nom, telephone: digits })
+            .select("id")
+            .single();
+          if (clientErr || !newClient) {
+            showToast(
+              "error",
+              clientErr?.message ?? "Impossible de créer le client."
+            );
+            return;
+          }
+          clientId = (newClient as { id: string }).id;
+        }
+      }
+
       const { data: vente, error: venteError } = await supabase
         .from("ventes")
         .insert({
           vendeur_id: user.id,
           total,
           remise: remiseAmount,
+          ...(clientId ? { client_id: clientId } : {}),
         })
         .select("id")
         .single();
@@ -278,6 +425,9 @@ export default function VendeusePage() {
       setPanier([]);
       setRemiseValue(0);
       setRemiseType("percent");
+      setClientPhone("");
+      setClientNom("");
+      setResolvedClient(null);
       setDrawerOpen(false);
       setRemiseModalOpen(false);
       await fetchProduits();
@@ -621,6 +771,14 @@ export default function VendeusePage() {
                     <span>{formatPrix(total)}</span>
                   </p>
                 </div>
+                <ClientCaisseSection
+                  clientPhone={clientPhone}
+                  onClientPhoneChange={setClientPhone}
+                  clientNom={clientNom}
+                  onClientNomChange={setClientNom}
+                  resolvedClient={resolvedClient}
+                  lookupLoading={clientLookupLoading}
+                />
                 <button
                   type="button"
                   onClick={handleEncaisser}
@@ -827,6 +985,14 @@ export default function VendeusePage() {
                     <span>{formatPrix(total)}</span>
                   </p>
                 </div>
+                <ClientCaisseSection
+                  clientPhone={clientPhone}
+                  onClientPhoneChange={setClientPhone}
+                  clientNom={clientNom}
+                  onClientNomChange={setClientNom}
+                  resolvedClient={resolvedClient}
+                  lookupLoading={clientLookupLoading}
+                />
                 <button
                   type="button"
                   onClick={handleEncaisser}

@@ -18,7 +18,6 @@ type ClientRow = {
   id: string;
   nom: string;
   telephone: string | null;
-  email: string | null;
 };
 
 type VenteRow = {
@@ -32,7 +31,6 @@ export type RfmClient = {
   id: string;
   nom: string;
   telephone: string | null;
-  email: string | null;
   recenceJours: number;
   frequence: number;
   montant: number;
@@ -113,7 +111,6 @@ export function segmenterRfm(
       id: c.id,
       nom: c.nom,
       telephone: c.telephone,
-      email: c.email,
       recenceJours,
       frequence,
       montant,
@@ -173,47 +170,74 @@ export default function CrmSegmentation() {
     setLoading(true);
     setError(null);
     try {
-      const { data: clientsData, error: e1 } = await supabase
-        .from("clients")
-        .select("id, nom, telephone, email")
-        .order("nom");
+      let clientsData: ClientRow[] = [];
+      let ventesData: VenteRow[] = [];
 
-      if (e1) {
+      try {
+        const cRes = await supabase
+          .from("clients")
+          .select("id, nom, telephone")
+          .order("nom");
+
+        if (cRes.error) {
+          setError(
+            cRes.error.message.includes("relation") || cRes.error.code === "42P01"
+              ? "Table « clients » introuvable. Exécutez le script SQL (dossier supabase/sql)."
+              : cRes.error.message
+          );
+          setRows([]);
+          return;
+        }
+        clientsData = (cRes.data ?? []) as ClientRow[];
+
+        const vRes = await supabase
+          .from("ventes")
+          .select("id, client_id, total, created_at")
+          .not("client_id", "is", null);
+
+        if (vRes.error) {
+          setError(
+            vRes.error.message.includes("client_id") || vRes.error.code === "42703"
+              ? "Colonne « client_id » absente sur « ventes ». Exécutez le script SQL fourni."
+              : vRes.error.message
+          );
+          setRows([]);
+          return;
+        }
+        ventesData = (vRes.data ?? []) as VenteRow[];
+      } catch (inner) {
+        console.error(inner);
         setError(
-          e1.message.includes("relation") || e1.code === "42P01"
-            ? "Table « clients » introuvable. Appliquez la migration Supabase (voir supabase/migrations)."
-            : e1.message
+          "Impossible de charger le CRM pour le moment. Vérifiez la connexion et le schéma base de données."
         );
         setRows([]);
         return;
       }
 
-      const { data: ventesData, error: e2 } = await supabase
-        .from("ventes")
-        .select("id, client_id, total, created_at")
-        .not("client_id", "is", null);
+      try {
+        const ventesParClient = new Map<string, VenteRow[]>();
+        for (const v of ventesData) {
+          if (!v.client_id) continue;
+          if (!ventesParClient.has(v.client_id)) ventesParClient.set(v.client_id, []);
+          ventesParClient.get(v.client_id)!.push(v);
+        }
 
-      if (e2) {
-        setError(e2.message);
+        const { rows: r, seuilVipMontant } = segmenterRfm(
+          clientsData,
+          ventesParClient
+        );
+        setRows(r);
+        setSeuilNote(seuilVipMontant);
+      } catch (segErr) {
+        console.error(segErr);
+        setError("Erreur lors du calcul des segments RFM.");
         setRows([]);
-        return;
       }
-
-      const ventesParClient = new Map<string, VenteRow[]>();
-      for (const v of (ventesData ?? []) as VenteRow[]) {
-        if (!v.client_id) continue;
-        if (!ventesParClient.has(v.client_id)) ventesParClient.set(v.client_id, []);
-        ventesParClient.get(v.client_id)!.push(v);
-      }
-
-      const { rows: r, seuilVipMontant } = segmenterRfm(
-        (clientsData ?? []) as ClientRow[],
-        ventesParClient
-      );
-      setRows(r);
-      setSeuilNote(seuilVipMontant);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Erreur chargement CRM");
+      console.error(err);
+      setError(
+        err instanceof Error ? err.message : "Erreur inattendue lors du chargement CRM."
+      );
       setRows([]);
     } finally {
       setLoading(false);
@@ -303,11 +327,16 @@ export default function CrmSegmentation() {
             {error}
           </p>
         ) : rows.length === 0 ? (
-          <p className="rounded-2xl border border-white/10 bg-white/5 px-4 py-8 text-center text-sm text-white/65">
-            Aucun client avec ventes liées. Ajoutez des clients et renseignez{" "}
-            <code className="rounded bg-white/10 px-1">ventes.client_id</code>{" "}
-            pour activer l&apos;analyse RFM.
-          </p>
+          <div className="rounded-2xl border border-white/15 bg-white/5 px-6 py-10 text-center">
+            <p className="text-base font-medium leading-relaxed text-white/85">
+              Commencez à enregistrer vos clients à la caisse pour débloquer ces
+              statistiques.
+            </p>
+            <p className="mt-3 text-sm text-white/50">
+              Les ventes associées à un client (téléphone) alimentent la
+              récence, la fréquence et le montant (LTV).
+            </p>
+          </div>
         ) : (
           <>
             <div className="relative mx-auto mb-10 max-w-md">
