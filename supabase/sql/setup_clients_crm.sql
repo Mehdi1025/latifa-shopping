@@ -14,6 +14,14 @@ CREATE INDEX IF NOT EXISTS clients_telephone_idx ON public.clients (telephone);
 
 COMMENT ON TABLE public.clients IS 'Clients boutique — liés aux ventes via ventes.client_id';
 
+-- 1b) CRM enrichi (Radar VIP) — exécuter après coup si la table existait déjà
+ALTER TABLE public.clients
+  ADD COLUMN IF NOT EXISTS segment_rfm TEXT,
+  ADD COLUMN IF NOT EXISTS total_depense NUMERIC DEFAULT 0;
+
+ALTER TABLE public.ventes_items
+  ADD COLUMN IF NOT EXISTS libelle_ligne TEXT;
+
 -- 2) Colonne ventes.client_id (nullable) + clé étrangère
 ALTER TABLE public.ventes
   ADD COLUMN IF NOT EXISTS client_id UUID;

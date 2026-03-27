@@ -8,6 +8,8 @@ import { createSupabaseBrowserClient } from "@/utils/supabase/client";
 import ClientelingPanel from "@/components/vendeur/ClientelingPanel";
 import GamificationJauge from "@/components/vendeur/GamificationJauge";
 import VipRadar from "@/components/vendeur/VipRadar";
+import MysteryVault from "@/components/vendeur/MysteryVault";
+import { MYSTERY_VAULT_PRODUCT_ID } from "@/lib/constants/mystery-vault";
 
 type Produit = {
   id: string;
@@ -19,8 +21,12 @@ type Produit = {
 };
 
 type LignePanier = {
+  /** Clé stable par ligne (plusieurs lots Coffre = même produit_id) */
+  panierLineId: string;
   produit: Produit;
   quantite: number;
+  /** Libellé ticket (ex. nom du lot Coffre Noir) */
+  libelleOverride?: string;
 };
 
 type VenteItem = {
@@ -145,6 +151,7 @@ export default function VendeusePage() {
   const [clientelingOpen, setClientelingOpen] = useState(false);
   const [gamificationRefreshKey, setGamificationRefreshKey] = useState(0);
   const [isMdUp, setIsMdUp] = useState(false);
+  const [produitMysteryTemplate, setProduitMysteryTemplate] = useState<Produit | null>(null);
   const prevPanierLen = useRef(0);
 
   const supabase = createSupabaseBrowserClient();
@@ -172,6 +179,17 @@ export default function VendeusePage() {
   useEffect(() => {
     fetchProduits();
   }, []);
+
+  useEffect(() => {
+    (async () => {
+      const { data } = await supabase
+        .from("produits")
+        .select("id, nom, description, prix, stock, categorie")
+        .eq("id", MYSTERY_VAULT_PRODUCT_ID)
+        .maybeSingle();
+      setProduitMysteryTemplate((data as Produit) ?? null);
+    })();
+  }, [supabase]);
 
   const fetchVentesDuJour = async () => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -269,7 +287,7 @@ export default function VendeusePage() {
   }, [produits]);
 
   const filteredProduits = useMemo(() => {
-    let list = produits;
+    let list = produits.filter((p) => p.id !== MYSTERY_VAULT_PRODUCT_ID);
     if (selectedCategorie !== "Tous") {
       list = list.filter((p) => (p.categorie ?? "").trim() === selectedCategorie);
     }
@@ -285,34 +303,59 @@ export default function VendeusePage() {
   }, [produits, searchQuery, selectedCategorie]);
 
   const addToPanier = (produit: Produit) => {
+    if (produit.id === MYSTERY_VAULT_PRODUCT_ID) return;
     setPanier((prev) => {
-      const existing = prev.find((l) => l.produit.id === produit.id);
+      const existing = prev.find(
+        (l) => l.produit.id === produit.id && !l.libelleOverride
+      );
       if (existing) {
         if (existing.quantite >= produit.stock) return prev;
         return prev.map((l) =>
-          l.produit.id === produit.id
+          l.produit.id === produit.id && !l.libelleOverride
             ? { ...l, quantite: l.quantite + 1 }
             : l
         );
       }
-      return [...prev, { produit, quantite: 1 }];
+      return [
+        ...prev,
+        { panierLineId: crypto.randomUUID(), produit, quantite: 1 },
+      ];
     });
   };
 
-  const removeFromPanier = (produitId: string) => {
+  const removeFromPanier = (panierLineId: string) => {
     setPanier((prev) => {
-      const ligne = prev.find((l) => l.produit.id === produitId);
+      const ligne = prev.find((l) => l.panierLineId === panierLineId);
       if (!ligne) return prev;
-      if (ligne.quantite <= 1) return prev.filter((l) => l.produit.id !== produitId);
+      if (ligne.quantite <= 1) {
+        return prev.filter((l) => l.panierLineId !== panierLineId);
+      }
       return prev.map((l) =>
-        l.produit.id === produitId ? { ...l, quantite: l.quantite - 1 } : l
+        l.panierLineId === panierLineId
+          ? { ...l, quantite: l.quantite - 1 }
+          : l
       );
     });
   };
 
-  const removeItemCompletely = (produitId: string) => {
-    setPanier((prev) => prev.filter((l) => l.produit.id !== produitId));
+  const removeItemCompletely = (panierLineId: string) => {
+    setPanier((prev) => prev.filter((l) => l.panierLineId !== panierLineId));
   };
+
+  const addOneToLine = (panierLineId: string) => {
+    setPanier((prev) => {
+      const ligne = prev.find((l) => l.panierLineId === panierLineId);
+      if (!ligne || ligne.quantite >= ligne.produit.stock) return prev;
+      return prev.map((l) =>
+        l.panierLineId === panierLineId
+          ? { ...l, quantite: l.quantite + 1 }
+          : l
+      );
+    });
+  };
+
+  const lineDisplayNom = (ligne: LignePanier) =>
+    ligne.libelleOverride ?? ligne.produit.nom;
 
   const viderPanier = () => {
     setPanier([]);
@@ -340,10 +383,31 @@ export default function VendeusePage() {
     setTimeout(() => setToast(null), 4000);
   };
 
+  const addMysteryLotToPanier = (lotNom: string) => {
+    if (!produitMysteryTemplate) {
+      showToast(
+        "error",
+        "Produit Coffre Noir introuvable. Exécutez la migration SQL (produit technique)."
+      );
+      return;
+    }
+    setPanier((prev) => [
+      ...prev,
+      {
+        panierLineId: crypto.randomUUID(),
+        produit: produitMysteryTemplate,
+        quantite: 1,
+        libelleOverride: lotNom,
+      },
+    ]);
+    showToast("success", `Lot « ${lotNom} » ajouté au panier (15 €)`);
+  };
+
   const handleAnnulerVente = async (vente: VenteHistorique) => {
     if (!vente.ventes_items?.length) return;
     try {
       for (const item of vente.ventes_items) {
+        if (item.produit_id === MYSTERY_VAULT_PRODUCT_ID) continue;
         const { data: prod } = await supabase
           .from("produits")
           .select("stock")
@@ -435,16 +499,24 @@ export default function VendeusePage() {
       }
 
       for (const ligne of panier) {
-        const { error: itemError } = await supabase.from("ventes_items").insert({
+        const payload: Record<string, unknown> = {
           vente_id: vente.id,
           produit_id: ligne.produit.id,
           quantite: ligne.quantite,
           prix_unitaire: ligne.produit.prix,
-        });
+        };
+        if (ligne.libelleOverride) {
+          payload.libelle_ligne = ligne.libelleOverride;
+        }
+        const { error: itemError } = await supabase
+          .from("ventes_items")
+          .insert(payload);
         if (itemError) {
           showToast("error", `Erreur article: ${itemError.message}`);
           return;
         }
+
+        if (ligne.produit.id === MYSTERY_VAULT_PRODUCT_ID) continue;
 
         const newStock = ligne.produit.stock - ligne.quantite;
         const { error: stockError } = await supabase
@@ -608,6 +680,7 @@ export default function VendeusePage() {
           />
         )}
         <VipRadar />
+        <MysteryVault onUnlock={addMysteryLotToPanier} className="mb-5" />
         <div className="mb-6">
           <h1 className="text-2xl font-semibold text-gray-900">
             Catalogue
@@ -739,7 +812,7 @@ export default function VendeusePage() {
                 <AnimatePresence mode="wait">
                   {panier.map((ligne) => (
                     <motion.div
-                      key={ligne.produit.id}
+                      key={ligne.panierLineId}
                       layout
                       initial={{ opacity: 1 }}
                       exit={{ opacity: 0, scale: 0.98 }}
@@ -748,7 +821,7 @@ export default function VendeusePage() {
                     >
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-semibold text-gray-900">
-                          {ligne.produit.nom}
+                          {lineDisplayNom(ligne)}
                         </p>
                         <p className="mt-0.5 text-xs text-gray-400">
                           {formatPrix(ligne.produit.prix)} × {ligne.quantite}
@@ -759,7 +832,7 @@ export default function VendeusePage() {
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
-                            removeFromPanier(ligne.produit.id);
+                            removeFromPanier(ligne.panierLineId);
                           }}
                           className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-gray-100 text-gray-700 transition-all duration-300 hover:bg-gray-200 active:scale-90"
                         >
@@ -772,7 +845,7 @@ export default function VendeusePage() {
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
-                            addToPanier(ligne.produit);
+                            addOneToLine(ligne.panierLineId);
                           }}
                           disabled={ligne.quantite >= ligne.produit.stock}
                           className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-gray-100 text-gray-700 transition-all duration-300 hover:bg-gray-200 active:scale-90 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -783,7 +856,7 @@ export default function VendeusePage() {
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
-                            removeItemCompletely(ligne.produit.id);
+                            removeItemCompletely(ligne.panierLineId);
                           }}
                           className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full p-2 text-gray-300 transition-all duration-300 hover:bg-red-50 hover:text-red-500 active:scale-90"
                           aria-label="Supprimer"
@@ -960,7 +1033,7 @@ export default function VendeusePage() {
                     <AnimatePresence mode="wait">
                       {panier.map((ligne) => (
                         <motion.div
-                          key={ligne.produit.id}
+                          key={ligne.panierLineId}
                           layout
                           initial={{ opacity: 1 }}
                           exit={{ opacity: 0, scale: 0.98 }}
@@ -969,7 +1042,7 @@ export default function VendeusePage() {
                         >
                           <div className="min-w-0 flex-1">
                             <p className="truncate text-sm font-semibold text-gray-900">
-                              {ligne.produit.nom}
+                              {lineDisplayNom(ligne)}
                             </p>
                             <p className="mt-0.5 text-xs text-gray-400">
                               {formatPrix(ligne.produit.prix)} × {ligne.quantite}
@@ -978,7 +1051,7 @@ export default function VendeusePage() {
                           <div className="flex items-center gap-2">
                             <button
                               type="button"
-                              onClick={() => removeFromPanier(ligne.produit.id)}
+                              onClick={() => removeFromPanier(ligne.panierLineId)}
                               className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-gray-100 text-gray-700 transition-all duration-300 hover:bg-gray-200 active:scale-90"
                             >
                               <Minus className="h-4 w-4" />
@@ -988,7 +1061,7 @@ export default function VendeusePage() {
                             </span>
                             <button
                               type="button"
-                              onClick={() => addToPanier(ligne.produit)}
+                              onClick={() => addOneToLine(ligne.panierLineId)}
                               disabled={ligne.quantite >= ligne.produit.stock}
                               className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-gray-100 text-gray-700 transition-all duration-300 hover:bg-gray-200 active:scale-90 disabled:opacity-50"
                             >
@@ -996,7 +1069,7 @@ export default function VendeusePage() {
                             </button>
                             <button
                               type="button"
-                              onClick={() => removeItemCompletely(ligne.produit.id)}
+                              onClick={() => removeItemCompletely(ligne.panierLineId)}
                               className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full p-2 text-gray-300 transition-all duration-300 hover:bg-red-50 hover:text-red-500 active:scale-90"
                               aria-label="Supprimer"
                             >

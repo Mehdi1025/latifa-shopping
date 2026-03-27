@@ -5,13 +5,11 @@ import { AnimatePresence, motion } from "framer-motion";
 import { MessageCircle, Radar, X } from "lucide-react";
 import { toast } from "sonner";
 import { createSupabaseBrowserClient } from "@/utils/supabase/client";
-import { segmenterRfm, type RfmClient } from "@/components/admin/CrmSegmentation";
+import type { ClientCrmRow } from "@/types/crm";
 
-const MIN_JOURS = 31;
-const MAX_JOURS = 89;
+const JOURS_MIN_DEPUIS_VENTE = 30;
 const MAX_MISSIONS = 5;
 
-type ClientRow = { id: string; nom: string; telephone: string | null };
 type VenteRow = {
   id: string;
   client_id: string | null;
@@ -23,15 +21,11 @@ export type VipMission = {
   clientId: string;
   nom: string;
   telephone: string;
-  /** Jours depuis le dernier achat */
   joursDepuis: number;
-  /** Dernier produit (libellé) */
   dernierProduitNom: string;
-  /** Badge affiché */
-  statutLabel: "VIP" | "Client Récent";
-  /** LTV total pour tri / contexte */
+  /** Affichage : VIP ou Endormi (colonnes segment_rfm) */
+  segmentAffiche: "VIP" | "Endormi";
   ltv: number;
-  /** Texte mission (action suggérée) */
   actionText: string;
 };
 
@@ -43,7 +37,28 @@ function firstName(nom: string): string {
   return nom.trim().split(/\s+/)[0] ?? nom;
 }
 
-/** wa.me attend le numéro international sans + (ex. 33612345678). */
+function formatPhoneDisplay(digits: string): string {
+  const d = digits.replace(/\D/g, "");
+  if (d.length <= 2) return d;
+  const parts = [d.slice(0, 2)];
+  for (let i = 2; i < d.length; i += 2) {
+    parts.push(d.slice(i, i + 2));
+  }
+  return parts.join(" ");
+}
+
+/** segment_rfm en base : VIP | Endormi (casse tolérée) */
+function matchesRadarSegment(segment_rfm: string | null | undefined): boolean {
+  const s = (segment_rfm ?? "").trim().toLowerCase();
+  return s === "vip" || s === "endormi";
+}
+
+function segmentAfficheFromDb(segment_rfm: string | null | undefined): "VIP" | "Endormi" {
+  const s = (segment_rfm ?? "").trim().toLowerCase();
+  if (s === "vip") return "VIP";
+  return "Endormi";
+}
+
 function phoneToWaDigits(raw: string): string | null {
   let d = raw.replace(/\D/g, "");
   if (d.startsWith("33") && d.length >= 11) return d;
@@ -75,12 +90,6 @@ function missionActionSuggestion(produitNom: string, categorie: string | null): 
   return "Faites découvrir les nouveautés exclusives qui prolongent son style.";
 }
 
-function statutFromRfm(r: RfmClient): "VIP" | "Client Récent" {
-  if (r.segment === "vip") return "VIP";
-  if (r.segment === "endormi" && r.frequence >= 4) return "VIP";
-  return "Client Récent";
-}
-
 export default function VipRadar() {
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
   const [open, setOpen] = useState(false);
@@ -100,18 +109,32 @@ export default function VipRadar() {
     try {
       const { data: clientsData, error: cErr } = await supabase
         .from("clients")
-        .select("id, nom, telephone");
+        .select("id, nom, telephone, segment_rfm, total_depense");
       if (cErr) throw cErr;
+
+      const clients = (clientsData ?? []) as ClientCrmRow[];
+      const cibles = clients.filter(
+        (c) =>
+          c.telephone &&
+          c.telephone.replace(/\D/g, "").length >= 8 &&
+          matchesRadarSegment(c.segment_rfm)
+      );
+
+      if (cibles.length === 0) {
+        setMissions([]);
+        setLoading(false);
+        return;
+      }
+
+      const ids = cibles.map((c) => c.id);
 
       const { data: ventesData, error: vErr } = await supabase
         .from("ventes")
         .select("id, client_id, total, created_at")
-        .not("client_id", "is", null);
+        .in("client_id", ids);
       if (vErr) throw vErr;
 
-      const clients = (clientsData ?? []) as ClientRow[];
       const ventes = (ventesData ?? []) as VenteRow[];
-
       const ventesParClient = new Map<string, VenteRow[]>();
       for (const v of ventes) {
         if (!v.client_id) continue;
@@ -121,39 +144,44 @@ export default function VipRadar() {
       }
 
       const now = new Date();
-      const { rows: rfmRows } = segmenterRfm(clients, ventesParClient, now);
-      const rfmById = new Map(rfmRows.map((r) => [r.id, r]));
 
       type Candidat = {
-        clientId: string;
+        client: ClientCrmRow;
         lastVente: VenteRow;
-        ltv: number;
         jours: number;
+        ltv: number;
       };
 
       const candidats: Candidat[] = [];
 
-      for (const [clientId, list] of ventesParClient) {
+      for (const cl of cibles) {
+        const list = ventesParClient.get(cl.id);
+        if (!list?.length) continue;
+
         const sorted = [...list].sort(
           (a, b) =>
             new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
         );
         const last = sorted[0];
         const jours = daysBetween(new Date(last.created_at), now);
-        if (jours < MIN_JOURS || jours > MAX_JOURS) continue;
-
-        const cl = clients.find((c) => c.id === clientId);
-        if (!cl?.telephone || !cl.telephone.replace(/\D/g, "").length) continue;
+        if (jours <= JOURS_MIN_DEPUIS_VENTE) continue;
 
         const ltv = list.reduce((s, v) => s + (v.total ?? 0), 0);
-        candidats.push({ clientId, lastVente: last, ltv, jours });
+        candidats.push({ client: cl, lastVente: last, jours, ltv });
       }
 
-      candidats.sort((a, b) => b.ltv - a.ltv);
-      const top = candidats.slice(0, MAX_MISSIONS);
+      candidats.sort((a, b) => {
+        const ta = a.client.total_depense ?? a.ltv;
+        const tb = b.client.total_depense ?? b.ltv;
+        return tb - ta;
+      });
 
+      const top = candidats.slice(0, MAX_MISSIONS);
       const lastVenteIds = top.map((t) => t.lastVente.id);
-      const produitByVente = new Map<string, { nom: string; categorie: string | null }>();
+      const produitByVente = new Map<
+        string,
+        { nom: string; categorie: string | null }
+      >();
 
       if (lastVenteIds.length > 0) {
         const { data: items } = await supabase
@@ -162,7 +190,9 @@ export default function VipRadar() {
           .in("vente_id", lastVenteIds);
 
         const produitIds = [
-          ...new Set((items ?? []).map((i: { produit_id: string }) => i.produit_id)),
+          ...new Set(
+            (items ?? []).map((i: { produit_id: string }) => i.produit_id)
+          ),
         ];
         const { data: produits } = await supabase
           .from("produits")
@@ -170,13 +200,21 @@ export default function VipRadar() {
           .in("id", produitIds);
 
         const prodMap = Object.fromEntries(
-          ((produits ?? []) as { id: string; nom: string; categorie: string | null }[]).map(
-            (p) => [p.id, p]
-          )
+          (
+            (produits ?? []) as {
+              id: string;
+              nom: string;
+              categorie: string | null;
+            }[]
+          ).map((p) => [p.id, p])
         );
 
         for (const it of items ?? []) {
-          const row = it as { vente_id: string; produit_id: string; quantite: number };
+          const row = it as {
+            vente_id: string;
+            produit_id: string;
+            quantite: number;
+          };
           if (!produitByVente.has(row.vente_id)) {
             const pr = prodMap[row.produit_id];
             if (pr) {
@@ -191,22 +229,19 @@ export default function VipRadar() {
 
       const built: VipMission[] = [];
       for (const c of top) {
-        const cl = clients.find((x) => x.id === c.clientId);
-        if (!cl?.telephone) continue;
-        const rfm = rfmById.get(c.clientId);
+        const tel = c.client.telephone ?? "";
         const prod =
           produitByVente.get(c.lastVente.id) ?? {
             nom: "article",
             categorie: null,
           };
-        const statutLabel = rfm ? statutFromRfm(rfm) : "Client Récent";
         built.push({
-          clientId: c.clientId,
-          nom: cl.nom,
-          telephone: cl.telephone ?? "",
+          clientId: c.client.id,
+          nom: c.client.nom,
+          telephone: tel,
           joursDepuis: c.jours,
           dernierProduitNom: prod.nom,
-          statutLabel,
+          segmentAffiche: segmentAfficheFromDb(c.client.segment_rfm),
           ltv: c.ltv,
           actionText: missionActionSuggestion(prod.nom, prod.categorie),
         });
@@ -268,7 +303,6 @@ export default function VipRadar() {
             transition={{ duration: 0.35 }}
             className="fixed inset-0 z-[220] flex flex-col bg-zinc-950/97 backdrop-blur-md"
           >
-            {/* Radar sweep — cercles concentriques */}
             <div className="pointer-events-none absolute inset-0 flex items-center justify-center overflow-hidden">
               {[0, 1, 2].map((i) => (
                 <motion.div
@@ -305,7 +339,9 @@ export default function VipRadar() {
                     Radar VIP
                   </h2>
                   <p className="mt-1 text-xs text-white/45 md:text-sm">
-                    Fenêtre idéale : {MIN_JOURS}–{MAX_JOURS} jours depuis la dernière visite
+                    Segments <span className="text-white/70">VIP</span> ou{" "}
+                    <span className="text-white/70">Endormi</span> — dernière
+                    vente il y a plus de {JOURS_MIN_DEPUIS_VENTE} jours
                   </p>
                 </div>
                 <button
@@ -323,7 +359,11 @@ export default function VipRadar() {
                   <div className="flex flex-col items-center justify-center py-24">
                     <motion.div
                       animate={{ rotate: 360 }}
-                      transition={{ duration: 1.2, repeat: Infinity, ease: "linear" }}
+                      transition={{
+                        duration: 1.2,
+                        repeat: Infinity,
+                        ease: "linear",
+                      }}
                     >
                       <Radar className="h-12 w-12 text-emerald-400/80" />
                     </motion.div>
@@ -340,21 +380,24 @@ export default function VipRadar() {
                 )}
 
                 {!loading && !fetchError && missions.length === 0 && (
-                  <p className="text-center text-sm text-white/50">
-                    Aucune opportunité dans la fenêtre idéale pour le moment.
-                    Revenez plus tard ou enrichissez l&apos;historique des ventes.
+                  <p className="text-center text-sm text-white/55">
+                    Aucune cible pour le moment.
                   </p>
                 )}
 
-                {!loading && !fetchError && visibleMissions.length === 0 && missions.length > 0 && (
-                  <motion.p
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="text-center text-sm text-emerald-300/90"
-                  >
-                    Toutes les cibles prévues ont été contactées. Excellent travail !
-                  </motion.p>
-                )}
+                {!loading &&
+                  !fetchError &&
+                  visibleMissions.length === 0 &&
+                  missions.length > 0 && (
+                    <motion.p
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="text-center text-sm text-emerald-300/90"
+                    >
+                      Toutes les cibles prévues ont été contactées. Excellent
+                      travail !
+                    </motion.p>
+                  )}
 
                 <ul className="mx-auto flex max-w-lg flex-col gap-4 md:max-w-2xl">
                   <AnimatePresence mode="popLayout">
@@ -365,43 +408,64 @@ export default function VipRadar() {
                         initial={{ opacity: 0, y: 16 }}
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ x: 120, opacity: 0 }}
-                        transition={{ type: "spring", damping: 26, stiffness: 320 }}
+                        transition={{
+                          type: "spring",
+                          damping: 26,
+                          stiffness: 320,
+                        }}
                         className="list-none"
                       >
                         <article className="rounded-2xl border border-white/15 bg-white/[0.06] p-5 shadow-[0_0_40px_-12px_rgba(16,185,129,0.25)] backdrop-blur-xl ring-1 ring-emerald-500/10 md:p-6">
                           <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
-                            <div>
+                            <div className="min-w-0 flex-1">
                               <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-emerald-400/80">
                                 🎯 Cible
                               </p>
                               <h3 className="mt-1 font-serif text-2xl font-medium tracking-tight text-white md:text-3xl">
                                 {m.nom}
-                                <span className="ml-2 text-lg font-normal text-white/50">
-                                  ({m.statutLabel})
-                                </span>
                               </h3>
+                              <p className="mt-2 text-sm text-white/50">
+                                Tél.{" "}
+                                <span className="font-medium text-white/80">
+                                  {formatPhoneDisplay(m.telephone)}
+                                </span>
+                              </p>
+                              <div className="mt-3">
+                                {m.segmentAffiche === "VIP" ? (
+                                  <span className="inline-flex rounded-full bg-gradient-to-r from-amber-400 via-yellow-500 to-amber-600 px-3 py-1 text-xs font-bold uppercase tracking-wide text-amber-950 shadow-[0_0_20px_rgba(251,191,36,0.4)]">
+                                    VIP
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex rounded-full border border-orange-400/40 bg-orange-500/15 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-orange-100">
+                                    Endormi
+                                  </span>
+                                )}
+                              </div>
                             </div>
                           </div>
 
                           <p className="text-sm leading-relaxed text-white/70">
                             <span className="text-white/90">Historique : </span>
-                            A acheté{' '}
+                            A acheté{" "}
                             <span className="font-medium text-white">
                               {m.dernierProduitNom}
-                            </span>{' '}
-                            il y a {m.joursDepuis} jour{m.joursDepuis > 1 ? 's' : ''}.
+                            </span>{" "}
+                            il y a {m.joursDepuis} jour
+                            {m.joursDepuis > 1 ? "s" : ""}.
                           </p>
 
                           <p className="mt-3 text-sm leading-relaxed text-white/55">
-                            <span className="text-white/80">Action suggérée : </span>
+                            <span className="text-white/80">
+                              Action suggérée :{" "}
+                            </span>
                             {m.actionText}
                           </p>
 
                           <p className="mt-2 text-xs text-white/35">
-                            LTV cumulé :{' '}
-                            {new Intl.NumberFormat('fr-FR', {
-                              style: 'currency',
-                              currency: 'EUR',
+                            LTV cumulé :{" "}
+                            {new Intl.NumberFormat("fr-FR", {
+                              style: "currency",
+                              currency: "EUR",
                               maximumFractionDigits: 0,
                             }).format(m.ltv)}
                           </p>
