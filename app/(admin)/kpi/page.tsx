@@ -19,6 +19,7 @@ import {
   CartesianGrid,
 } from "recharts";
 import { createSupabaseBrowserClient } from "@/utils/supabase/client";
+import CrossSellInsights from "@/components/admin/CrossSellInsights";
 
 type Vente = {
   id: string;
@@ -292,6 +293,8 @@ export default function KPIPage() {
               <p className="mt-2 text-xs text-gray-400">vs mois précédent</p>
             </div>
           </section>
+
+          <CrossSellInsights />
 
           {/* Section 2 — Graphique CA pleine largeur */}
           <section className="mb-8 overflow-hidden rounded-3xl border border-gray-100 bg-white p-6 shadow-sm">
