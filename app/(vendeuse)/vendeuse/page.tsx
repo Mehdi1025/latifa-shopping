@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import { Plus, Minus, ShoppingBag, ChevronDown, Trash2, X, CheckCircle, AlertCircle, Search, History, Percent, RotateCcw, Gift, User } from "lucide-react";
 import { createSupabaseBrowserClient } from "@/utils/supabase/client";
 import ClientelingPanel from "@/components/vendeur/ClientelingPanel";
+import GamificationJauge from "@/components/vendeur/GamificationJauge";
 
 type Produit = {
   id: string;
@@ -141,9 +142,19 @@ export default function VendeusePage() {
   const [resolvedClient, setResolvedClient] = useState<ResolvedClient | null>(null);
   const [clientLookupLoading, setClientLookupLoading] = useState(false);
   const [clientelingOpen, setClientelingOpen] = useState(false);
+  const [gamificationRefreshKey, setGamificationRefreshKey] = useState(0);
+  const [isMdUp, setIsMdUp] = useState(false);
   const prevPanierLen = useRef(0);
 
   const supabase = createSupabaseBrowserClient();
+
+  useLayoutEffect(() => {
+    const mq = window.matchMedia("(min-width: 768px)");
+    const sync = () => setIsMdUp(mq.matches);
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
   const router = useRouter();
 
   const fetchProduits = async () => {
@@ -352,6 +363,7 @@ export default function VendeusePage() {
       if (delError) throw new Error(delError.message);
       await fetchVentesDuJour();
       await fetchProduits();
+      setGamificationRefreshKey((k) => k + 1);
       showToast("success", "Vente annulée. Stock restauré.");
     } catch (err) {
       showToast("error", err instanceof Error ? err.message : "Erreur lors de l'annulation.");
@@ -454,6 +466,7 @@ export default function VendeusePage() {
       setRemiseModalOpen(false);
       await fetchProduits();
       await fetchVentesDuJour();
+      setGamificationRefreshKey((k) => k + 1);
       router.refresh();
       showToast("success", "Vente enregistrée !");
     } catch (err) {
@@ -587,6 +600,12 @@ export default function VendeusePage() {
 
       {/* Catalogue - Gauche 60% tablette+ - Fond ultra-léger */}
       <section className="flex flex-1 flex-col overflow-auto bg-gray-50/50 p-6 md:w-[60%] md:p-8 lg:p-10">
+        {!isMdUp && (
+          <GamificationJauge
+            refreshKey={gamificationRefreshKey}
+            className="mb-5"
+          />
+        )}
         <div className="mb-6">
           <h1 className="text-2xl font-semibold text-gray-900">
             Catalogue
@@ -684,6 +703,12 @@ export default function VendeusePage() {
       {/* Ticket de caisse - Droite 40% tablette+ - Sticky, glassmorphism */}
       <aside className="hidden flex-col border-l border-gray-100 bg-white/90 backdrop-blur-xl md:flex md:w-[40%] md:sticky md:top-0 md:h-screen md:shadow-[0_-4px_30px_-10px_rgba(0,0,0,0.05)]">
         <div className="flex flex-1 flex-col overflow-hidden p-8">
+          {isMdUp && (
+            <GamificationJauge
+              refreshKey={gamificationRefreshKey}
+              className="mb-6 shrink-0"
+            />
+          )}
           <div className="mb-2 flex items-start justify-between gap-2">
             <h2 className="text-xl font-semibold text-gray-900">
               Ticket de caisse
