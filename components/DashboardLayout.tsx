@@ -9,10 +9,10 @@ import LogoutButton from "./LogoutButton";
 import { LayoutDashboard, BarChart3, Package, Users, Settings } from "lucide-react";
 
 const bottomNavItems = [
-  { href: "/", label: "Stats", icon: BarChart3 },
+  { href: "/", label: "Accueil", icon: LayoutDashboard },
+  { href: "/kpi", label: "KPI", icon: BarChart3 },
   { href: "/produits", label: "Stock", icon: Package },
   { href: "/taches", label: "Équipe", icon: Users },
-  { href: "/parametres", label: "Paramètres", icon: Settings },
 ];
 
 export default function DashboardLayout({

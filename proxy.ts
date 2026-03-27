@@ -10,7 +10,7 @@ function isProtectedPath(pathname: string) {
   return true;
 }
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   let response = NextResponse.next({
     request: {
       headers: request.headers,
@@ -18,6 +18,11 @@ export async function middleware(request: NextRequest) {
   });
 
   const { pathname } = request.nextUrl;
+
+  // Service workers and web manifest must be served without redirects (browser security).
+  if (pathname === "/sw.js" || pathname === "/manifest.json") {
+    return NextResponse.next();
+  }
 
   try {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
