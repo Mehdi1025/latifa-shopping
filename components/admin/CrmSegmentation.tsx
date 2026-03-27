@@ -255,6 +255,19 @@ export default function CrmSegmentation() {
     ].filter((d) => d.value > 0);
   }, [rows.length, bySegment]);
 
+  /** Données alignées Pie + Cell (fallback typé si tout à 0). */
+  const donutChartSlices = useMemo(() => {
+    if (donutData.length > 0) return donutData;
+    return [
+      {
+        name: "—",
+        value: 1,
+        pct: 0,
+        key: "vip" as const,
+      },
+    ];
+  }, [donutData]);
+
   const formatMoney = (n: number) =>
     new Intl.NumberFormat("fr-FR", {
       style: "currency",
@@ -305,11 +318,7 @@ export default function CrmSegmentation() {
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
-                      data={
-                        donutData.length
-                          ? donutData
-                          : [{ name: "—", value: 1, pct: 0, key: "vip" as const }]
-                      }
+                      data={donutChartSlices}
                       dataKey="value"
                       nameKey="name"
                       cx="50%"
@@ -319,14 +328,12 @@ export default function CrmSegmentation() {
                       paddingAngle={3}
                       stroke="rgba(255,255,255,0.08)"
                     >
-                      {(donutData.length ? donutData : [{ key: "vip" as const }]).map(
-                        (entry, i) => (
-                          <Cell
-                            key={`${entry.name}-${i}`}
-                            fill={DONUT_COLORS[entry.key]}
-                          />
-                        )
-                      )}
+                      {donutChartSlices.map((entry, i) => (
+                        <Cell
+                          key={`${entry.key}-${entry.name}-${i}`}
+                          fill={DONUT_COLORS[entry.key]}
+                        />
+                      ))}
                     </Pie>
                     <Tooltip
                       contentStyle={{
@@ -335,10 +342,18 @@ export default function CrmSegmentation() {
                         borderRadius: "12px",
                         fontSize: 12,
                       }}
-                      formatter={(value: number, _n, p) => [
-                        `${value} client(s) (${(p?.payload as { pct?: number })?.pct ?? 0}%)`,
-                        "",
-                      ]}
+                      formatter={(value, _name, item) => {
+                        const n =
+                          typeof value === "number"
+                            ? value
+                            : Number(value ?? 0);
+                        const pct = (item?.payload as { pct?: number } | undefined)
+                          ?.pct;
+                        return [
+                          `${n} client(s) (${pct ?? 0}%)`,
+                          "",
+                        ];
+                      }}
                     />
                     <Legend
                       wrapperStyle={{ fontSize: 12, color: "rgba(255,255,255,0.7)" }}
