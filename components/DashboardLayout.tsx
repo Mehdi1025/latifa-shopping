@@ -9,6 +9,7 @@ import LogoutButton from "./LogoutButton";
 import {
   LayoutDashboard,
   BarChart3,
+  Contact,
   Gauge,
   Package,
   Users,
@@ -71,6 +72,9 @@ export default function DashboardLayout({
           </Link>
           <Link href="/kpi" title="KPI" className={`flex items-center justify-center rounded-2xl p-3 text-sm font-medium transition-all ${pathname.startsWith("/kpi") ? "bg-indigo-50 text-indigo-600" : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"}`}>
             <BarChart3 className="h-5 w-5 shrink-0 stroke-[1.5]" />
+          </Link>
+          <Link href="/clients" title="Clients CRM" className={`flex items-center justify-center rounded-2xl p-3 text-sm font-medium transition-all ${pathname.startsWith("/clients") ? "bg-indigo-50 text-indigo-600" : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"}`}>
+            <Contact className="h-5 w-5 shrink-0 stroke-[1.5]" />
           </Link>
           <Link href="/stock" title="Stock Runway" className={`flex items-center justify-center rounded-2xl p-3 text-sm font-medium transition-all ${pathname.startsWith("/stock") ? "bg-indigo-50 text-indigo-600" : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"}`}>
             <Gauge className="h-5 w-5 shrink-0 stroke-[1.5]" />

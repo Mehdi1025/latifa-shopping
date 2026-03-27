@@ -11,6 +11,7 @@ import {
   Package,
   Gauge,
   Settings,
+  Users,
   ChevronDown,
   ChevronRight,
   X,
@@ -23,6 +24,7 @@ const navSections = [
     items: [
       { href: "/", label: "Accueil", icon: LayoutDashboard },
       { href: "/kpi", label: "KPI", icon: BarChart3 },
+      { href: "/clients", label: "Clients", icon: Users },
     ],
   },
   {
