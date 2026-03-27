@@ -3,9 +3,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import confetti from "canvas-confetti";
-import { Sparkles, TrendingUp, Wallet } from "lucide-react";
+import { MessageCircle, Sparkles, TrendingUp, Wallet } from "lucide-react";
 import { createSupabaseBrowserClient } from "@/utils/supabase/client";
-import { OBJECTIF_JOUR } from "@/components/vendeur/GamificationJauge";
+import { useObjectifDuJour } from "@/hooks/useObjectifDuJour";
 
 const PRIME_RATE = 0.03;
 
@@ -46,9 +46,15 @@ function triggerGoldConfetti() {
 
 export default function GoalTracker() {
   const supabase = createSupabaseBrowserClient();
+  const {
+    montantCible: objectifJour,
+    noteDuJour,
+    loading: loadingObjectif,
+  } = useObjectifDuJour();
   const [totalDuJour, setTotalDuJour] = useState(0);
-  const [loading, setLoading] = useState(true);
+  const [loadingVentes, setLoadingVentes] = useState(true);
   const celebratedRef = useRef(false);
+  const prevObjectifRef = useRef<number | null>(null);
 
   const fetchTotal = useCallback(async () => {
     const {
@@ -56,7 +62,7 @@ export default function GoalTracker() {
     } = await supabase.auth.getUser();
     if (!user) {
       setTotalDuJour(0);
-      setLoading(false);
+      setLoadingVentes(false);
       return;
     }
     const { start, end } = getTodayBounds();
@@ -69,7 +75,7 @@ export default function GoalTracker() {
 
     if (error) {
       setTotalDuJour(0);
-      setLoading(false);
+      setLoadingVentes(false);
       return;
     }
     const sum = (data ?? []).reduce((acc, row) => {
@@ -77,7 +83,7 @@ export default function GoalTracker() {
       return acc + (Number(t.total) || 0);
     }, 0);
     setTotalDuJour(sum);
-    setLoading(false);
+    setLoadingVentes(false);
   }, [supabase]);
 
   useEffect(() => {
@@ -89,13 +95,22 @@ export default function GoalTracker() {
     return () => clearInterval(id);
   }, [fetchTotal]);
 
+  const loading = loadingVentes || loadingObjectif;
+
   const pct = Math.min(
     100,
-    OBJECTIF_JOUR > 0 ? (totalDuJour / OBJECTIF_JOUR) * 100 : 0
+    objectifJour > 0 ? (totalDuJour / objectifJour) * 100 : 0
   );
-  const reste = Math.max(0, OBJECTIF_JOUR - totalDuJour);
+  const reste = Math.max(0, objectifJour - totalDuJour);
   const primeEstimee = totalDuJour * PRIME_RATE;
-  const objectifAtteint = totalDuJour >= OBJECTIF_JOUR;
+  const objectifAtteint = totalDuJour >= objectifJour;
+
+  useEffect(() => {
+    if (prevObjectifRef.current !== objectifJour) {
+      prevObjectifRef.current = objectifJour;
+      celebratedRef.current = totalDuJour >= objectifJour;
+    }
+  }, [objectifJour, totalDuJour]);
 
   useEffect(() => {
     if (loading || !objectifAtteint || celebratedRef.current) return;
@@ -109,6 +124,16 @@ export default function GoalTracker() {
       className="relative overflow-hidden rounded-3xl border border-white/15 bg-white/[0.07] p-6 shadow-[0_20px_60px_-25px_rgba(0,0,0,0.35)] backdrop-blur-xl md:p-8 dark:bg-black/25"
     >
       <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-amber-500/[0.06] via-transparent to-orange-600/[0.05]" />
+
+      {noteDuJour && (
+        <div className="relative mb-5 flex flex-wrap items-start gap-2 rounded-2xl border border-indigo-200/50 bg-indigo-50/90 px-4 py-3 text-sm text-indigo-950 shadow-sm backdrop-blur-sm dark:border-indigo-500/25 dark:bg-indigo-950/40 dark:text-indigo-100">
+          <MessageCircle className="mt-0.5 h-5 w-5 shrink-0 text-indigo-500 dark:text-indigo-300" />
+          <p>
+            <span className="font-semibold">Note du jour :</span>{" "}
+            <span className="font-medium">{noteDuJour}</span>
+          </p>
+        </div>
+      )}
 
       <div className="relative mb-6 flex flex-wrap items-start justify-between gap-4">
         <div>
@@ -133,10 +158,8 @@ export default function GoalTracker() {
       {/* Jauge liquide */}
       <div className="relative mb-8">
         <div className="relative h-16 overflow-hidden rounded-2xl border border-white/20 bg-slate-200/30 shadow-inner ring-1 ring-black/5 dark:bg-white/5 dark:ring-white/10 md:h-[4.5rem]">
-          {/* Track */}
           <div className="absolute inset-0 bg-gradient-to-b from-white/40 to-white/5 dark:from-white/[0.08] dark:to-transparent" />
 
-          {/* Remplissage animé */}
           <motion.div
             className="absolute inset-y-0 left-0 overflow-hidden rounded-r-2xl"
             initial={{ width: "0%" }}
@@ -144,7 +167,6 @@ export default function GoalTracker() {
             transition={{ type: "spring", damping: 28, stiffness: 120, delay: 0.15 }}
           >
             <div className="absolute inset-0 bg-gradient-to-r from-amber-400 via-amber-400 to-orange-500" />
-            {/* Reflet liquide */}
             <motion.div
               className="pointer-events-none absolute inset-y-0 w-1/2 bg-gradient-to-r from-transparent via-white/45 to-transparent opacity-80"
               initial={{ x: "-100%" }}
@@ -158,7 +180,6 @@ export default function GoalTracker() {
             />
           </motion.div>
 
-          {/* Pourcentage centré + brillance */}
           <div className="absolute inset-0 flex items-center justify-center px-4">
             <span
               className="relative text-lg font-bold tabular-nums text-slate-800 drop-shadow-[0_1px_2px_rgba(255,255,255,0.9)] dark:text-white dark:drop-shadow-[0_2px_8px_rgba(0,0,0,0.5)] md:text-xl"
@@ -177,11 +198,10 @@ export default function GoalTracker() {
             {loading ? "…" : formatEur(totalDuJour)}
           </span>
           <span className="text-slate-400">/</span>
-          <span>{formatEur(OBJECTIF_JOUR)}</span>
+          <span>{formatEur(objectifJour)}</span>
         </p>
       </div>
 
-      {/* Widgets */}
       <div className="relative grid gap-3 sm:grid-cols-2">
         <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 backdrop-blur-sm dark:bg-white/[0.04]">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-500/15 text-amber-600 dark:text-amber-300">

@@ -15,6 +15,7 @@ import {
   ChevronDown,
   ChevronRight,
   X,
+  Target,
 } from "lucide-react";
 import LogoutButton from "./LogoutButton";
 
@@ -30,6 +31,7 @@ const navSections = [
   {
     label: "GESTION",
     items: [
+      { href: "/objectifs", label: "Objectifs", icon: Target },
       { href: "/taches", label: "Tâches", icon: CheckSquare, badge: true },
       { href: "/process", label: "Process", icon: Workflow },
       { href: "/stock", label: "Runway", icon: Gauge },

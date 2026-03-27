@@ -5,9 +5,7 @@ import { motion } from "framer-motion";
 import confetti from "canvas-confetti";
 import { Target } from "lucide-react";
 import { createSupabaseBrowserClient } from "@/utils/supabase/client";
-
-/** Objectif journalier fixe (CA encaissé, somme des `ventes.total` du jour). */
-export const OBJECTIF_JOUR = 1000;
+import { useObjectifDuJour } from "@/hooks/useObjectifDuJour";
 
 function formatEurCompact(n: number): string {
   return new Intl.NumberFormat("fr-FR", {
@@ -63,10 +61,13 @@ export default function GamificationJauge({
   className = "",
 }: GamificationJaugeProps) {
   const supabase = createSupabaseBrowserClient();
+  const { montantCible: objectifJour, loading: loadingObjectif } =
+    useObjectifDuJour();
   const [totalDuJour, setTotalDuJour] = useState(0);
-  const [loading, setLoading] = useState(true);
+  const [loadingVentes, setLoadingVentes] = useState(true);
   const prevTotalRef = useRef<number | null>(null);
   const hasFiredConfettiForSession = useRef(false);
+  const prevObjectifRef = useRef<number | null>(null);
 
   const fetchTotalDuJour = useCallback(async () => {
     const {
@@ -74,7 +75,7 @@ export default function GamificationJauge({
     } = await supabase.auth.getUser();
     if (!user) {
       setTotalDuJour(0);
-      setLoading(false);
+      setLoadingVentes(false);
       return;
     }
 
@@ -88,7 +89,7 @@ export default function GamificationJauge({
 
     if (error) {
       setTotalDuJour(0);
-      setLoading(false);
+      setLoadingVentes(false);
       return;
     }
 
@@ -97,7 +98,7 @@ export default function GamificationJauge({
       0
     );
     setTotalDuJour(sum);
-    setLoading(false);
+    setLoadingVentes(false);
   }, [supabase]);
 
   useEffect(() => {
@@ -109,37 +110,43 @@ export default function GamificationJauge({
     return () => clearInterval(id);
   }, [fetchTotalDuJour]);
 
+  const loading = loadingVentes || loadingObjectif;
   const pct = Math.min(
     100,
-    OBJECTIF_JOUR > 0 ? (totalDuJour / OBJECTIF_JOUR) * 100 : 0
+    objectifJour > 0 ? (totalDuJour / objectifJour) * 100 : 0
   );
-  const reste = Math.max(0, OBJECTIF_JOUR - totalDuJour);
-  const atteint = totalDuJour >= OBJECTIF_JOUR;
+  const reste = Math.max(0, objectifJour - totalDuJour);
+  const atteint = totalDuJour >= objectifJour;
 
   useEffect(() => {
     const prev = prevTotalRef.current;
     prevTotalRef.current = totalDuJour;
 
+    if (prevObjectifRef.current !== objectifJour) {
+      prevObjectifRef.current = objectifJour;
+      hasFiredConfettiForSession.current = totalDuJour >= objectifJour;
+    }
+
     if (prev === null) {
-      if (totalDuJour >= OBJECTIF_JOUR) {
+      if (totalDuJour >= objectifJour) {
         hasFiredConfettiForSession.current = true;
       }
       return;
     }
 
     if (
-      prev < OBJECTIF_JOUR &&
-      totalDuJour >= OBJECTIF_JOUR &&
+      prev < objectifJour &&
+      totalDuJour >= objectifJour &&
       !hasFiredConfettiForSession.current
     ) {
       hasFiredConfettiForSession.current = true;
       triggerGoalConfetti();
     }
 
-    if (totalDuJour < OBJECTIF_JOUR) {
+    if (totalDuJour < objectifJour) {
       hasFiredConfettiForSession.current = false;
     }
-  }, [totalDuJour]);
+  }, [totalDuJour, objectifJour]);
 
   return (
     <div
@@ -156,7 +163,7 @@ export default function GamificationJauge({
           <span className="text-xs font-medium tabular-nums text-gray-600 dark:text-gray-300">
             {formatEurCompact(totalDuJour)}
             <span className="text-gray-400"> / </span>
-            {formatEurCompact(OBJECTIF_JOUR)}
+            {formatEurCompact(objectifJour)}
           </span>
         )}
       </div>

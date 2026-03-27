@@ -14,6 +14,7 @@ import {
   Package,
   Users,
   Settings,
+  Target,
 } from "lucide-react";
 
 const bottomNavItems = [
@@ -26,6 +27,7 @@ const bottomNavItems = [
 const tabletNavItems = [
   { href: "/", label: "Accueil", icon: LayoutDashboard },
   { href: "/kpi", label: "KPI", icon: BarChart3 },
+  { href: "/objectifs", label: "Objectifs", icon: Target },
   { href: "/clients", label: "Clients", icon: Contact },
   { href: "/stock", label: "Runway", icon: Gauge },
   { href: "/produits", label: "Produits", icon: Package },
