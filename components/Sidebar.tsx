@@ -9,6 +9,7 @@ import {
   CheckSquare,
   Workflow,
   Package,
+  Gauge,
   Settings,
   ChevronDown,
   ChevronRight,
@@ -29,6 +30,7 @@ const navSections = [
     items: [
       { href: "/taches", label: "Tâches", icon: CheckSquare, badge: true },
       { href: "/process", label: "Process", icon: Workflow },
+      { href: "/stock", label: "Runway", icon: Gauge },
       { href: "/produits", label: "Produits", icon: Package },
     ],
   },

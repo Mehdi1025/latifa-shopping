@@ -6,7 +6,14 @@ import { usePathname } from "next/navigation";
 import Sidebar from "./Sidebar";
 import Header from "./Header";
 import LogoutButton from "./LogoutButton";
-import { LayoutDashboard, BarChart3, Package, Users, Settings } from "lucide-react";
+import {
+  LayoutDashboard,
+  BarChart3,
+  Gauge,
+  Package,
+  Users,
+  Settings,
+} from "lucide-react";
 
 const bottomNavItems = [
   { href: "/", label: "Accueil", icon: LayoutDashboard },
@@ -64,6 +71,9 @@ export default function DashboardLayout({
           </Link>
           <Link href="/kpi" title="KPI" className={`flex items-center justify-center rounded-2xl p-3 text-sm font-medium transition-all ${pathname.startsWith("/kpi") ? "bg-indigo-50 text-indigo-600" : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"}`}>
             <BarChart3 className="h-5 w-5 shrink-0 stroke-[1.5]" />
+          </Link>
+          <Link href="/stock" title="Stock Runway" className={`flex items-center justify-center rounded-2xl p-3 text-sm font-medium transition-all ${pathname.startsWith("/stock") ? "bg-indigo-50 text-indigo-600" : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"}`}>
+            <Gauge className="h-5 w-5 shrink-0 stroke-[1.5]" />
           </Link>
           <Link href="/produits" title="Produits" className={`flex items-center justify-center rounded-2xl p-3 text-sm font-medium transition-all ${pathname.startsWith("/produits") ? "bg-indigo-50 text-indigo-600" : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"}`}>
             <Package className="h-5 w-5 shrink-0 stroke-[1.5]" />
