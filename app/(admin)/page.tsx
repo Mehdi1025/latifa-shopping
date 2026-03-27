@@ -6,6 +6,8 @@ import { Euro, ShoppingBag, Calendar, Receipt, Percent } from "lucide-react";
 import { createSupabaseBrowserClient } from "@/utils/supabase/client";
 import { useNotifications } from "@/contexts/NotificationsContext";
 import { playNotificationSound } from "@/lib/notification-sound";
+import { useAlerts } from "@/hooks/useAlerts";
+import ActionCenter from "@/components/ActionCenter";
 
 type Vente = {
   id: string;
@@ -67,6 +69,7 @@ export default function Home() {
 
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
   const { triggerNewSale } = useNotifications();
+  const { alerts, loading: alertsLoading } = useAlerts({ includeTasks: true });
 
   const panierMoyenJour =
     nbVentesJour > 0 ? Math.round((caJour / nbVentesJour) * 100) / 100 : 0;
@@ -155,13 +158,21 @@ export default function Home() {
 
   return (
     <div className="admin-container min-h-dvh bg-gray-50/50 p-4 md:p-6 lg:p-10">
-      <header className="mb-8 lg:mb-10">
-        <h1 className="text-2xl font-semibold tracking-tight text-gray-900 md:text-3xl">
-          Vue d&apos;ensemble - Aujourd&apos;hui
-        </h1>
-        <p className="mt-1 text-sm text-gray-400 md:text-base">
-          Activité du jour et dernières transactions
-        </p>
+      <header className="mb-8 flex flex-col gap-6 lg:mb-10 lg:flex-row lg:items-start lg:justify-between lg:gap-8">
+        <div className="min-w-0 flex-1">
+          <h1 className="text-2xl font-semibold tracking-tight text-gray-900 md:text-3xl">
+            Vue d&apos;ensemble - Aujourd&apos;hui
+          </h1>
+          <p className="mt-1 text-sm text-gray-400 md:text-base">
+            Activité du jour et dernières transactions
+          </p>
+        </div>
+        <ActionCenter
+          alerts={alerts}
+          loading={alertsLoading}
+          variant="full"
+          className="w-full shrink-0 lg:max-w-md xl:max-w-lg"
+        />
       </header>
 
       {loading ? (
@@ -170,19 +181,6 @@ export default function Home() {
         </div>
       ) : (
         <>
-          {/* Zone réservée — futur module Alertes Stock */}
-          <section
-            className="mb-8 flex min-h-[120px] flex-col justify-center rounded-3xl border border-dashed border-gray-200 bg-white/60 px-6 py-8 text-center md:min-h-[140px]"
-            aria-label="Emplacement réservé pour les alertes stock"
-          >
-            <p className="text-sm font-medium text-gray-400">
-              Alertes stock
-            </p>
-            <p className="mt-1 text-xs text-gray-400">
-              Module à venir — ruptures et seuils bas
-            </p>
-          </section>
-
           <div className="mb-8 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 md:gap-6">
             <div className="stat-card group flex flex-col rounded-2xl border border-gray-100 bg-white p-5 shadow-[0_2px_12px_-4px_rgba(0,0,0,0.06)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_8px_30px_-12px_rgba(0,0,0,0.12)] md:p-6">
               <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-gray-100 transition-colors duration-300 group-hover:bg-[#c9a98c]">
