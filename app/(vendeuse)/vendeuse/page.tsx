@@ -7,6 +7,7 @@ import { Plus, Minus, ShoppingBag, ChevronDown, Trash2, X, CheckCircle, AlertCir
 import { createSupabaseBrowserClient } from "@/utils/supabase/client";
 import ClientelingPanel from "@/components/vendeur/ClientelingPanel";
 import GamificationJauge from "@/components/vendeur/GamificationJauge";
+import VipRadar from "@/components/vendeur/VipRadar";
 
 type Produit = {
   id: string;
@@ -606,6 +607,7 @@ export default function VendeusePage() {
             className="mb-5"
           />
         )}
+        <VipRadar />
         <div className="mb-6">
           <h1 className="text-2xl font-semibold text-gray-900">
             Catalogue
