@@ -3,16 +3,23 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ShoppingCart, History, Target, Menu, X, User, CheckSquare, BookOpen } from "lucide-react";
+import { ShoppingCart, History, Target, Menu, X, User, CheckSquare, BookOpen, Package } from "lucide-react";
 import LogoutButton from "./LogoutButton";
+import { Toaster } from "sonner";
 
 const navItems = [
   { href: "/vendeuse", label: "Nouvelle Vente", icon: ShoppingCart },
+  { href: "/vendeuse/reception", label: "Réception", icon: Package },
   { href: "/vendeuse/taches", label: "Mes Missions", icon: CheckSquare },
   { href: "/vendeuse/process", label: "Guide Interne", icon: BookOpen },
   { href: "/vendeuse/historique", label: "Historique", icon: History },
   { href: "/vendeuse/objectifs", label: "Mes Objectifs", icon: Target },
 ];
+
+function navLinkActive(pathname: string, href: string) {
+  if (href === "/vendeuse") return pathname === "/vendeuse";
+  return pathname === href || pathname.startsWith(`${href}/`);
+}
 
 export default function VendeuseLayout({
   children,
@@ -24,6 +31,15 @@ export default function VendeuseLayout({
 
   return (
     <div className="flex min-h-screen bg-gray-50/50">
+      <Toaster
+        position="top-center"
+        richColors
+        toastOptions={{
+          classNames: {
+            toast: "rounded-2xl shadow-lg",
+          },
+        }}
+      />
       {/* Sidebar Tablette: Collapsed (icônes uniquement) - md à lg */}
       <aside className="fixed left-0 top-0 z-40 hidden h-screen w-20 flex-col border-r border-gray-100 bg-white/80 shadow-[0_4px_20px_-5px_rgba(0,0,0,0.06)] backdrop-blur-xl md:flex lg:hidden">
         <div className="flex h-14 items-center justify-center border-b border-gray-100">
@@ -34,9 +50,7 @@ export default function VendeuseLayout({
         <nav className="flex-1 space-y-1 px-2 py-6">
           {navItems.map((item) => {
             const Icon = item.icon;
-            const isActive =
-              pathname === item.href ||
-              (item.href !== "/vendeuse" && pathname.startsWith(item.href));
+            const isActive = navLinkActive(pathname, item.href);
             return (
               <Link
                 key={item.href}
@@ -80,9 +94,7 @@ export default function VendeuseLayout({
         <nav className="flex-1 space-y-1 px-3 py-6 xl:px-4">
           {navItems.map((item) => {
             const Icon = item.icon;
-            const isActive =
-              pathname === item.href ||
-              (item.href !== "/vendeuse" && pathname.startsWith(item.href));
+            const isActive = navLinkActive(pathname, item.href);
             return (
               <Link
                 key={item.href}
@@ -158,14 +170,13 @@ export default function VendeuseLayout({
       </main>
 
       {/* Bottom Nav Mobile uniquement (< md) */}
-      <nav className="fixed bottom-0 left-0 right-0 z-40 flex items-center justify-around border-t border-gray-100 bg-white/95 py-3 backdrop-blur-md md:hidden">
+      <nav className="fixed bottom-0 left-0 right-0 z-40 flex items-center justify-start gap-1 overflow-x-auto border-t border-gray-100 bg-white/95 px-2 py-2 backdrop-blur-md md:hidden [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
         {navItems.map((item) => {
           const Icon = item.icon;
-          const isActive =
-            pathname === item.href ||
-            (item.href !== "/vendeuse" && pathname.startsWith(item.href));
+          const isActive = navLinkActive(pathname, item.href);
           const shortLabels: Record<string, string> = {
             "Nouvelle Vente": "Vente",
+            Réception: "Récep.",
             "Mes Missions": "Missions",
             "Guide Interne": "Guide",
             Historique: "Historique",
@@ -175,12 +186,12 @@ export default function VendeuseLayout({
             <Link
               key={item.href}
               href={item.href}
-              className={`flex flex-col items-center gap-1 rounded-xl px-4 py-2 transition-all duration-300 active:scale-95 ${
+              className={`flex min-w-[4.25rem] shrink-0 flex-col items-center gap-0.5 rounded-xl px-2 py-2 transition-all duration-300 active:scale-95 ${
                 isActive ? "text-gray-900" : "text-gray-400"
               }`}
             >
               <Icon className="h-5 w-5 stroke-[1.5]" />
-              <span className="text-[10px] font-medium">
+              <span className="max-w-[4.25rem] truncate text-center text-[9px] font-medium leading-tight">
                 {shortLabels[item.label] ?? item.label}
               </span>
             </Link>
