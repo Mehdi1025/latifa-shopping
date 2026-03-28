@@ -1,95 +1,136 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-const PUBLIC_PATHS = ["/login"];
+const LOGIN_PATH = "/login";
+const VENDEUSE_HOME = "/vendeuse";
 
-function isProtectedPath(pathname: string) {
-  if (PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`))) {
-    return false;
-  }
+/** Routes accessibles sans session (hors assets exclus par le matcher). */
+function isPublicPath(pathname: string): boolean {
+  return (
+    pathname === LOGIN_PATH ||
+    pathname === "/sw.js" ||
+    pathname === "/manifest.json"
+  );
+}
+
+/** Espace caisse / vendeuse. */
+function isVendeusePath(pathname: string): boolean {
+  return pathname === VENDEUSE_HOME || pathname.startsWith(`${VENDEUSE_HOME}/`);
+}
+
+/**
+ * Espace admin : routes hors login et hors /vendeuse.
+ * Le dashboard admin est à `/` (groupe `(admin)`, pas de préfixe URL `/admin`).
+ * Les chemins `/admin/...` sont aussi traités comme admin si vous les ajoutez.
+ */
+function isAdminAppPath(pathname: string): boolean {
+  if (isPublicPath(pathname)) return false;
+  if (isVendeusePath(pathname)) return false;
   return true;
 }
 
+function normalizeRole(role: string | null | undefined): "admin" | "vendeuse" {
+  const r = role?.toLowerCase().trim();
+  return r === "admin" ? "admin" : "vendeuse";
+}
+
+/**
+ * Next.js 16 : le fichier attendu à la racine est `proxy.ts` (équivalent du middleware).
+ * Ne pas ajouter `middleware.ts` en parallèle : le build échoue si les deux existent.
+ */
 export async function proxy(request: NextRequest) {
-  let response = NextResponse.next({
-    request: {
-      headers: request.headers,
-    },
+  let supabaseResponse = NextResponse.next({
+    request,
   });
 
   const { pathname } = request.nextUrl;
 
-  // Service workers and web manifest must be served without redirects (browser security).
+  // Service workers et manifest : pas de redirection (sécurité navigateur).
   if (pathname === "/sw.js" || pathname === "/manifest.json") {
     return NextResponse.next();
   }
 
-  try {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-    if (!supabaseUrl || !supabaseKey) {
-      if (isProtectedPath(pathname)) {
-        const url = request.nextUrl.clone();
-        url.pathname = "/login";
-        return NextResponse.redirect(url);
-      }
-      return response;
+  if (!supabaseUrl || !supabaseKey) {
+    if (!isPublicPath(pathname)) {
+      const url = request.nextUrl.clone();
+      url.pathname = LOGIN_PATH;
+      return NextResponse.redirect(url);
     }
+    return supabaseResponse;
+  }
 
-    const supabase = createServerClient(supabaseUrl, supabaseKey, {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll();
-        },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value }) =>
-            response.cookies.set(name, value)
-          );
-        },
+  const supabase = createServerClient(supabaseUrl, supabaseKey, {
+    cookies: {
+      getAll() {
+        return request.cookies.getAll();
       },
-    });
+      setAll(cookiesToSet) {
+        cookiesToSet.forEach(({ name, value }) => {
+          request.cookies.set(name, value);
+        });
+        supabaseResponse = NextResponse.next({
+          request,
+        });
+        cookiesToSet.forEach(({ name, value, options }) => {
+          supabaseResponse.cookies.set(name, value, options);
+        });
+      },
+    },
+  });
 
+  try {
     const {
       data: { user },
     } = await supabase.auth.getUser();
 
-    // Utilisateur non connecté qui tente d'accéder à une page protégée
-    if (!user && isProtectedPath(pathname)) {
+    if (!user) {
+      if (!isPublicPath(pathname)) {
+        const url = request.nextUrl.clone();
+        url.pathname = LOGIN_PATH;
+        url.searchParams.set("next", pathname);
+        return NextResponse.redirect(url);
+      }
+      return supabaseResponse;
+    }
+
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    const role = normalizeRole(
+      (profile as { role?: string } | null)?.role ?? null
+    );
+
+    if (pathname === LOGIN_PATH) {
       const url = request.nextUrl.clone();
-      url.pathname = "/login";
+      url.pathname = role === "admin" ? "/" : VENDEUSE_HOME;
+      url.searchParams.delete("next");
       return NextResponse.redirect(url);
     }
 
-    // Utilisateur connecté sur /login → redirection vers son espace
-    if (user && pathname === "/login") {
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("role")
-        .eq("id", user.id)
-        .single();
-
-      const role = profile?.role?.toLowerCase() ?? "vendeuse";
+    if (role === "vendeuse" && isAdminAppPath(pathname)) {
       const url = request.nextUrl.clone();
-      url.pathname = role === "admin" ? "/" : "/vendeuse";
+      url.pathname = VENDEUSE_HOME;
       return NextResponse.redirect(url);
     }
   } catch {
-    if (isProtectedPath(pathname)) {
+    if (!isPublicPath(pathname)) {
       const url = request.nextUrl.clone();
-      url.pathname = "/login";
+      url.pathname = LOGIN_PATH;
       return NextResponse.redirect(url);
     }
   }
 
-  return response;
+  return supabaseResponse;
 }
 
 export const config = {
   matcher: [
-    /*
-     * Exclut les fichiers statiques (images, icônes, assets Next.js).
-     */
     "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
   ],
 };
