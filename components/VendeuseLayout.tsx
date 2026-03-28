@@ -74,7 +74,7 @@ export default function VendeuseLayout({
             </div>
           </div>
           <div className="mt-2 flex justify-center">
-            <LogoutButton variant="sidebar" />
+            <LogoutButton variant="sidebar" compact />
           </div>
         </div>
       </aside>
@@ -111,16 +111,26 @@ export default function VendeuseLayout({
             );
           })}
         </nav>
-        <div className="border-t border-gray-100 p-4 xl:p-5">
-          <div className="mb-3 flex items-center gap-3 rounded-xl bg-gray-50/80 px-3 py-2.5 xl:px-4">
+        <div className="border-t border-gray-100 p-3 xl:p-5">
+          <div className="mb-3 hidden items-center gap-3 rounded-xl bg-gray-50/80 px-3 py-2.5 xl:flex xl:px-4">
             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gray-200">
               <User className="h-4 w-4 text-gray-600" />
             </div>
-            <span className="hidden truncate text-sm font-medium text-gray-700 xl:block">
+            <span className="truncate text-sm font-medium text-gray-700">
               Vendeuse
             </span>
           </div>
-          <LogoutButton variant="sidebar" />
+          <div className="mb-2 flex justify-center xl:hidden">
+            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gray-200">
+              <User className="h-4 w-4 text-gray-600" />
+            </div>
+          </div>
+          <div className="flex justify-center xl:hidden">
+            <LogoutButton variant="sidebar" compact />
+          </div>
+          <div className="hidden xl:block">
+            <LogoutButton variant="sidebar" />
+          </div>
         </div>
       </aside>
 

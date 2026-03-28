@@ -107,7 +107,7 @@ export default function DashboardLayout({
               );
             })}
           </nav>
-          <div className="border-t border-slate-100 p-2 group-hover/sidebar:px-3 group-hover/sidebar:py-3">
+          <div className="shrink-0 border-t border-slate-100 p-2 group-hover/sidebar:px-3 group-hover/sidebar:py-3">
             <div className="hidden group-hover/sidebar:block">
               <LogoutButton variant="sidebar" />
             </div>

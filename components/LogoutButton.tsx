@@ -42,7 +42,7 @@ export default function LogoutButton({
           disabled={loading}
           title="Se déconnecter"
           aria-label="Se déconnecter"
-          className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl text-red-600 transition-all duration-300 ease-in-out hover:bg-red-50 hover:text-red-700 disabled:opacity-50 disabled:cursor-not-allowed ${className}`}
+          className={`flex min-h-12 min-w-12 shrink-0 items-center justify-center rounded-xl text-red-600 transition-all duration-300 ease-in-out hover:bg-red-50 hover:text-red-700 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 ${className}`}
         >
           <LogOut className="h-5 w-5 shrink-0 stroke-[1.5]" />
         </button>
@@ -53,10 +53,13 @@ export default function LogoutButton({
         type="button"
         onClick={handleLogout}
         disabled={loading}
-        className={`flex h-12 min-h-12 w-full items-center gap-2.5 rounded-xl px-3 text-sm font-medium text-red-600 transition-all duration-300 ease-in-out hover:bg-red-50 hover:text-red-700 md:text-base disabled:opacity-50 disabled:cursor-not-allowed ${className}`}
+        title={loading ? "Déconnexion..." : "Se déconnecter"}
+        className={`flex h-12 min-h-12 w-full min-w-0 items-center gap-2 rounded-xl px-2.5 text-xs font-medium text-red-600 transition-all duration-300 ease-in-out hover:bg-red-50 hover:text-red-700 sm:gap-2.5 sm:px-3 sm:text-sm md:text-base disabled:cursor-not-allowed disabled:opacity-50 ${className}`}
       >
         <LogOut className="h-4 w-4 shrink-0 stroke-[1.5]" />
-        {loading ? "Déconnexion..." : "Se déconnecter"}
+        <span className="min-w-0 truncate text-left">
+          {loading ? "Déconnexion..." : "Se déconnecter"}
+        </span>
       </button>
     );
   }
