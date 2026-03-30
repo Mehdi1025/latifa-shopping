@@ -2,7 +2,16 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { toast } from "sonner";
-import { Euro, ShoppingBag, Calendar, Receipt, Percent } from "lucide-react";
+import Link from "next/link";
+import {
+  Euro,
+  ShoppingBag,
+  Calendar,
+  Receipt,
+  Percent,
+  Kanban,
+  ChevronRight,
+} from "lucide-react";
 import { createSupabaseBrowserClient } from "@/utils/supabase/client";
 import { useNotifications } from "@/contexts/NotificationsContext";
 import { playNotificationSound } from "@/lib/notification-sound";
@@ -178,6 +187,25 @@ export default function Home() {
           className="w-full shrink-0 lg:max-w-md xl:max-w-lg"
         />
       </header>
+
+      <Link
+        href="/organisation"
+        className="group mb-6 flex items-center gap-4 rounded-2xl border border-indigo-100/80 bg-gradient-to-r from-white to-indigo-50/40 p-4 shadow-[0_2px_12px_-4px_rgba(79,70,229,0.12)] transition-all hover:border-indigo-200 hover:shadow-[0_8px_24px_-12px_rgba(79,70,229,0.2)] md:mb-8 md:p-5"
+      >
+        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-md shadow-indigo-600/25 transition-transform group-hover:scale-[1.02]">
+          <Kanban className="h-6 w-6" strokeWidth={1.75} />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-indigo-600">
+            Raccourci
+          </p>
+          <p className="mt-0.5 font-semibold text-gray-900">Organisation</p>
+          <p className="mt-0.5 text-xs text-gray-500">
+            Kanban des tâches et calendrier éditorial
+          </p>
+        </div>
+        <ChevronRight className="h-5 w-5 shrink-0 text-indigo-400 transition-transform group-hover:translate-x-0.5 group-hover:text-indigo-600" />
+      </Link>
 
       {loading ? (
         <div className="flex min-h-[320px] items-center justify-center">

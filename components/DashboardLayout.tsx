@@ -23,6 +23,7 @@ const bottomNavItems = [
   { href: "/kpi", label: "KPI", icon: BarChart3 },
   { href: "/produits", label: "Stock", icon: Package },
   { href: "/taches", label: "Équipe", icon: Users },
+  { href: "/organisation", label: "Organisation", icon: Kanban },
 ];
 
 const tabletNavItems = [
