@@ -10,6 +10,7 @@ import ActionCenter from "@/components/ActionCenter";
 import ClientelingPanel from "@/components/vendeur/ClientelingPanel";
 import GamificationJauge from "@/components/vendeur/GamificationJauge";
 import VipRadar from "@/components/vendeur/VipRadar";
+import FluxBoutiqueCard from "@/components/vendeur/FluxBoutiqueCard";
 import { MYSTERY_VAULT_PRODUCT_ID } from "@/lib/constants/mystery-vault";
 
 type Produit = {
@@ -660,6 +661,7 @@ export default function VendeusePage() {
             />
           )}
           <VipRadar />
+          <FluxBoutiqueCard />
           <ActionCenter
             alerts={alertesStock}
             loading={alertesLoading}
