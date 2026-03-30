@@ -25,6 +25,7 @@ import {
 import { createSupabaseBrowserClient } from "@/utils/supabase/client";
 import { localDateISO } from "@/hooks/useObjectifDuJour";
 import CrossSellInsights from "@/components/admin/CrossSellInsights";
+import KpiFinanceIntel from "@/components/admin/KpiFinanceIntel";
 
 type Vente = {
   id: string;
@@ -632,6 +633,22 @@ export default function KPIPage() {
                   </div>
                 </div>
               </motion.div>
+          </motion.div>
+
+          <motion.div variants={itemVariants} className="space-y-4">
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-neutral-400">
+                Trésorerie &amp; fiscalité
+              </p>
+              <h2 className="mt-1 text-lg font-semibold tracking-tight text-neutral-900 md:text-xl">
+                Intelligence financière
+              </h2>
+              <p className="mt-1 max-w-2xl text-sm text-neutral-500">
+                Runway, TVA estimée et budget réassort à partir du CA du mois et
+                du solde bancaire (mock jusqu&apos;à Open Banking).
+              </p>
+            </div>
+            <KpiFinanceIntel caMois={caMois} />
           </motion.div>
 
           {/* KPI mois — grille secondaire */}
