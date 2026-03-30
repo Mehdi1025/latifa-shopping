@@ -143,7 +143,7 @@ export function useAlerts(options?: UseAlertsOptions) {
             severity: "warning" as const,
             message: `Tâche en retard : « ${t.titre} »`,
             actionLabel: "Ouvrir",
-            href: `/taches`,
+            href: `/organisation`,
           }));
       }
 

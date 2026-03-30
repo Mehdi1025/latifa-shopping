@@ -12,7 +12,6 @@ import {
   Contact,
   Gauge,
   Package,
-  Users,
   Settings,
   Target,
   Kanban,
@@ -22,7 +21,6 @@ const bottomNavItems = [
   { href: "/", label: "Accueil", icon: LayoutDashboard },
   { href: "/kpi", label: "KPI", icon: BarChart3 },
   { href: "/produits", label: "Stock", icon: Package },
-  { href: "/taches", label: "Équipe", icon: Users },
   { href: "/organisation", label: "Organisation", icon: Kanban },
 ];
 
@@ -33,7 +31,6 @@ const tabletNavItems = [
   { href: "/clients", label: "Clients", icon: Contact },
   { href: "/stock", label: "Runway", icon: Gauge },
   { href: "/produits", label: "Produits", icon: Package },
-  { href: "/taches", label: "Tâches", icon: Users },
   { href: "/organisation", label: "Organisation", icon: Kanban },
   { href: "/parametres", label: "Réglages", icon: Settings },
 ];

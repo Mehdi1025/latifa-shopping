@@ -1,11 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Kanban, Loader2 } from "lucide-react";
 import { createSupabaseBrowserClient } from "@/utils/supabase/client";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import OrganisationKanban, {
   type KanbanTache,
+  normalizeKanbanOrder,
 } from "@/components/admin/organisation/OrganisationKanban";
 import EditorialCalendar, {
   type EditorialPost,
@@ -29,7 +30,7 @@ export default function OrganisationPage() {
     const [tachesRes, profilesRes, editorialRes] = await Promise.all([
       supabase
         .from("taches")
-        .select("id, titre, description, statut, assigne_a, deadline")
+        .select("id, titre, statut, assigne_a, deadline")
         .order("deadline", { ascending: true, nullsFirst: false }),
       supabase.from("profiles").select("id, email, role"),
       supabase
@@ -41,7 +42,9 @@ export default function OrganisationPage() {
     if (tachesRes.error) {
       console.error(tachesRes.error);
     } else {
-      setTaches((tachesRes.data ?? []) as KanbanTache[]);
+      setTaches(
+        normalizeKanbanOrder((tachesRes.data ?? []) as KanbanTache[])
+      );
     }
     if (profilesRes.error) {
       console.error(profilesRes.error);
@@ -66,6 +69,17 @@ export default function OrganisationPage() {
       const p = profiles.find((x) => x.id === id);
       return p?.email ?? p?.role ?? id.slice(0, 8);
     },
+    [profiles]
+  );
+
+  const assigneeOptions = useMemo(
+    () =>
+      profiles
+        .filter((p) => (p.role ?? "").toLowerCase() !== "admin")
+        .map((p) => ({
+          id: p.id,
+          label: (p.email ?? p.role ?? "Vendeuse").trim() || "Vendeuse",
+        })),
     [profiles]
   );
 
@@ -106,8 +120,10 @@ export default function OrganisationPage() {
             </TabsList>
             <TabsContent value="projet" className="mt-8">
               <OrganisationKanban
-                initialTaches={taches}
+                taches={taches}
+                setTaches={setTaches}
                 assigneeLabel={assigneeLabel}
+                assigneeOptions={assigneeOptions}
               />
             </TabsContent>
             <TabsContent value="editorial" className="mt-8">

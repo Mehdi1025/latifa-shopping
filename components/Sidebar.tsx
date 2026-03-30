@@ -1,12 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ComponentType } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
   BarChart3,
-  CheckSquare,
   Workflow,
   Package,
   Gauge,
@@ -20,7 +19,14 @@ import {
 } from "lucide-react";
 import LogoutButton from "./LogoutButton";
 
-const navSections = [
+type NavItem = {
+  href: string;
+  label: string;
+  icon: ComponentType<{ className?: string }>;
+  badge?: boolean;
+};
+
+const navSections: { label: string; items: NavItem[] }[] = [
   {
     label: "PAGES",
     items: [
@@ -33,7 +39,6 @@ const navSections = [
     label: "GESTION",
     items: [
       { href: "/objectifs", label: "Objectifs", icon: Target },
-      { href: "/taches", label: "Tâches", icon: CheckSquare, badge: true },
       { href: "/organisation", label: "Organisation", icon: Kanban },
       { href: "/process", label: "Process", icon: Workflow },
       { href: "/stock", label: "Runway", icon: Gauge },
