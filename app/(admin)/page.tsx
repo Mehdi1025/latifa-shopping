@@ -17,6 +17,7 @@ import { useNotifications } from "@/contexts/NotificationsContext";
 import { playNotificationSound } from "@/lib/notification-sound";
 import { useAlerts } from "@/hooks/useAlerts";
 import ActionCenter from "@/components/ActionCenter";
+import BankWidget from "@/components/admin/BankWidget";
 
 type Vente = {
   id: string;
@@ -207,14 +208,15 @@ export default function Home() {
         <ChevronRight className="h-5 w-5 shrink-0 text-indigo-400 transition-transform group-hover:translate-x-0.5 group-hover:text-indigo-600" />
       </Link>
 
-      {loading ? (
-        <div className="flex min-h-[320px] items-center justify-center">
-          <div className="h-10 w-10 animate-spin rounded-full border-2 border-gray-300 border-t-gray-900" />
-        </div>
-      ) : (
-        <>
-          <div className="mb-8 grid grid-cols-1 gap-4 md:grid-cols-3 md:gap-6">
-            <div className="stat-card group flex flex-col rounded-2xl border border-gray-100 bg-white p-5 shadow-[0_2px_12px_-4px_rgba(0,0,0,0.06)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_8px_30px_-12px_rgba(0,0,0,0.12)] md:p-6">
+      <div className="mb-8 grid grid-cols-1 gap-4 lg:grid-cols-2 lg:items-stretch lg:gap-6">
+        <div className="flex min-h-[200px] flex-col">
+          {loading ? (
+            <div className="flex flex-1 flex-col items-center justify-center rounded-2xl border border-gray-100 bg-white p-8 shadow-[0_2px_12px_-4px_rgba(0,0,0,0.06)]">
+              <div className="h-10 w-10 animate-spin rounded-full border-2 border-gray-300 border-t-gray-900" />
+              <p className="mt-3 text-xs text-gray-400">Chargement du CA…</p>
+            </div>
+          ) : (
+            <div className="stat-card group flex h-full flex-col rounded-2xl border border-gray-100 bg-white p-5 shadow-[0_2px_12px_-4px_rgba(0,0,0,0.06)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_8px_30px_-12px_rgba(0,0,0,0.12)] md:p-6">
               <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-gray-100 transition-colors duration-300 group-hover:bg-[#c9a98c]">
                 <Euro className="h-5 w-5 text-gray-600 transition-colors duration-300 group-hover:text-white" />
               </div>
@@ -225,7 +227,14 @@ export default function Home() {
                 {formatPrix(caJour)}
               </p>
             </div>
+          )}
+        </div>
+        <BankWidget className="min-h-[200px] lg:min-h-0" />
+      </div>
 
+      {loading ? null : (
+        <>
+          <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 md:gap-6">
             <div className="stat-card group flex flex-col rounded-2xl border border-gray-100 bg-white p-5 shadow-[0_2px_12px_-4px_rgba(0,0,0,0.06)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_8px_30px_-12px_rgba(0,0,0,0.12)] md:p-6">
               <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-gray-100 transition-colors duration-300 group-hover:bg-[#c9a98c]">
                 <ShoppingBag className="h-5 w-5 text-gray-600 transition-colors duration-300 group-hover:text-white" />
