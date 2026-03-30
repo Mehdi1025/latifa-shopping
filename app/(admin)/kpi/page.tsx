@@ -16,8 +16,9 @@ import {
 } from "lucide-react";
 import {
   ResponsiveContainer,
-  AreaChart,
+  ComposedChart,
   Area,
+  Line,
   XAxis,
   YAxis,
   Tooltip,
@@ -26,6 +27,8 @@ import { createSupabaseBrowserClient } from "@/utils/supabase/client";
 import { localDateISO } from "@/hooks/useObjectifDuJour";
 import CrossSellInsights from "@/components/admin/CrossSellInsights";
 import KpiFinanceIntel from "@/components/admin/KpiFinanceIntel";
+import BusinessSimulator from "@/components/admin/kpi/BusinessSimulator";
+import { MOCK_SOLDE_BANCAIRE } from "@/lib/finance-kpi";
 
 type Vente = {
   id: string;
@@ -139,6 +142,44 @@ function KpiTooltip({
   );
 }
 
+function SimulationChartTooltip({
+  active,
+  payload,
+  label,
+}: {
+  active?: boolean;
+  payload?: ReadonlyArray<{
+    dataKey?: string;
+    value?: number;
+    payload?: { total?: number; simulated?: number };
+  }>;
+  label?: string;
+}) {
+  if (!active || !payload?.length) return null;
+  const row = payload[0]?.payload;
+  const total = row?.total;
+  const sim = row?.simulated;
+  return (
+    <div className="rounded-xl border border-cyan-500/20 bg-neutral-950/95 px-3 py-2.5 shadow-2xl ring-1 ring-white/10 backdrop-blur-md">
+      <p className="text-[10px] font-medium uppercase tracking-wider text-neutral-500">
+        {label}
+      </p>
+      <p className="mt-2 text-[10px] font-medium uppercase tracking-wider text-neutral-500">
+        CA jour (réel)
+      </p>
+      <p className="mt-0.5 text-sm font-semibold tabular-nums text-white">
+        {typeof total === "number" ? formatPrix(total) : "—"}
+      </p>
+      <p className="mt-2 text-[10px] font-medium uppercase tracking-wider text-cyan-400/90">
+        Simulé (scénario)
+      </p>
+      <p className="mt-0.5 text-sm font-semibold tabular-nums text-cyan-300">
+        {typeof sim === "number" ? formatPrix(sim) : "—"}
+      </p>
+    </div>
+  );
+}
+
 function TrendBadge({ pct }: { pct: number | null }) {
   if (pct === null || Number.isNaN(pct)) {
     return (
@@ -206,6 +247,9 @@ export default function KPIPage() {
   const [nbVentesHier, setNbVentesHier] = useState(0);
   const [nombreEntrees, setNombreEntrees] = useState<number | null>(null);
   const [nombreEntreesHier, setNombreEntreesHier] = useState<number | null>(null);
+  const [simVarPrix, setSimVarPrix] = useState(0);
+  const [simVarTrafic, setSimVarTrafic] = useState(0);
+  const [simRecrue, setSimRecrue] = useState(false);
 
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
 
@@ -431,6 +475,20 @@ export default function KPIPage() {
       }));
   }, [ventes30j]);
 
+  const simMult = useMemo(
+    () => (1 + simVarPrix / 100) * (1 + simVarTrafic / 100),
+    [simVarPrix, simVarTrafic]
+  );
+
+  const evolutionChartData = useMemo(
+    () =>
+      evolutionCA.map((r) => ({
+        ...r,
+        simulated: Math.round(r.total * simMult * 100) / 100,
+      })),
+    [evolutionCA, simMult]
+  );
+
   const topProduits = useMemo(() => {
     const byProduit: Record<string, number> = {};
     ventesItems.forEach((item) => {
@@ -497,13 +555,16 @@ export default function KPIPage() {
                   <h2 className="mt-1 text-lg font-semibold tracking-tight text-neutral-900 md:text-xl">
                     Tendance 30 jours
                   </h2>
+                  <p className="mt-1 text-[11px] text-neutral-500">
+                    Courbe pleine = réel · Pointillés néon = scénario simulateur
+                  </p>
                 </div>
                 <TrendBadge pct={trendCaPct} />
               </div>
               <div className="min-h-0 flex-1 w-full min-w-0 pt-2">
                 <ResponsiveContainer width="100%" height={340}>
-                  <AreaChart
-                    data={evolutionCA}
+                  <ComposedChart
+                    data={evolutionChartData}
                     margin={{ top: 12, right: 8, left: -8, bottom: 0 }}
                   >
                     <defs>
@@ -512,6 +573,19 @@ export default function KPIPage() {
                         <stop offset="55%" stopColor={ACCENT} stopOpacity={0.08} />
                         <stop offset="100%" stopColor={ACCENT} stopOpacity={0} />
                       </linearGradient>
+                      <filter
+                        id="kpiNeonGlow"
+                        x="-40%"
+                        y="-40%"
+                        width="180%"
+                        height="180%"
+                      >
+                        <feGaussianBlur stdDeviation="2.5" result="blur" />
+                        <feMerge>
+                          <feMergeNode in="blur" />
+                          <feMergeNode in="SourceGraphic" />
+                        </feMerge>
+                      </filter>
                     </defs>
                     <XAxis
                       dataKey="date"
@@ -530,7 +604,7 @@ export default function KPIPage() {
                       width={36}
                     />
                     <Tooltip
-                      content={<KpiTooltip />}
+                      content={<SimulationChartTooltip />}
                       cursor={{
                         stroke: "rgba(0,0,0,0.06)",
                         strokeWidth: 1,
@@ -545,7 +619,17 @@ export default function KPIPage() {
                       dot={false}
                       activeDot={{ r: 4, strokeWidth: 0, fill: ACCENT }}
                     />
-                  </AreaChart>
+                    <Line
+                      type="monotone"
+                      dataKey="simulated"
+                      stroke="#22d3ee"
+                      strokeWidth={2.5}
+                      strokeDasharray="6 5"
+                      dot={false}
+                      activeDot={{ r: 5, strokeWidth: 0, fill: "#22d3ee" }}
+                      filter="url(#kpiNeonGlow)"
+                    />
+                  </ComposedChart>
                 </ResponsiveContainer>
               </div>
             </motion.section>
@@ -633,6 +717,24 @@ export default function KPIPage() {
                   </div>
                 </div>
               </motion.div>
+          </motion.div>
+
+          <motion.div variants={itemVariants} className="w-full">
+            <BusinessSimulator
+              varPrix={simVarPrix}
+              varTrafic={simVarTrafic}
+              recrue={simRecrue}
+              onVarPrixChange={setSimVarPrix}
+              onVarTraficChange={setSimVarTrafic}
+              onRecrueChange={setSimRecrue}
+              onReset={() => {
+                setSimVarPrix(0);
+                setSimVarTrafic(0);
+                setSimRecrue(false);
+              }}
+              caProjeteFinMois={caProjeteFinMois}
+              soldeBancaire={MOCK_SOLDE_BANCAIRE}
+            />
           </motion.div>
 
           <motion.div variants={itemVariants} className="space-y-4">
