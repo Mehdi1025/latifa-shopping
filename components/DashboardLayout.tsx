@@ -15,6 +15,7 @@ import {
   Users,
   Settings,
   Target,
+  Kanban,
 } from "lucide-react";
 
 const bottomNavItems = [
@@ -32,6 +33,7 @@ const tabletNavItems = [
   { href: "/stock", label: "Runway", icon: Gauge },
   { href: "/produits", label: "Produits", icon: Package },
   { href: "/taches", label: "Tâches", icon: Users },
+  { href: "/organisation", label: "Organisation", icon: Kanban },
   { href: "/parametres", label: "Réglages", icon: Settings },
 ];
 

@@ -11,9 +11,13 @@ import {
   Loader2,
 } from "lucide-react";
 import { createSupabaseBrowserClient } from "@/utils/supabase/client";
+import {
+  TACHE_STATUTS,
+  TACHE_STATUT_LABELS,
+  type TacheStatut,
+} from "@/lib/tache-statuts";
 
-const STATUTS = ["À faire", "En cours", "Terminé"] as const;
-type Statut = (typeof STATUTS)[number];
+type Statut = TacheStatut;
 
 type Tache = {
   id: string;
@@ -98,7 +102,7 @@ export default function TachesPage() {
       description: form.description.trim() || null,
       assigne_a: form.assigne_a || null,
       deadline: form.deadline || null,
-      statut: "À faire",
+      statut: "a_faire",
     });
     setSubmitLoading(false);
     if (error) return;
@@ -124,15 +128,15 @@ export default function TachesPage() {
   };
 
   const tachesByStatut = {
-    "À faire": taches.filter((t) => t.statut === "À faire"),
-    "En cours": taches.filter((t) => t.statut === "En cours"),
-    Terminé: taches.filter((t) => t.statut === "Terminé"),
+    a_faire: taches.filter((t) => t.statut === "a_faire"),
+    en_cours: taches.filter((t) => t.statut === "en_cours"),
+    termine: taches.filter((t) => t.statut === "termine"),
   };
 
   const columnStyles: Record<Statut, { bg: string; header: string }> = {
-    "À faire": { bg: "bg-gray-100/60", header: "text-gray-600" },
-    "En cours": { bg: "bg-blue-50/60", header: "text-blue-700" },
-    Terminé: { bg: "bg-emerald-50/60", header: "text-emerald-700" },
+    a_faire: { bg: "bg-gray-100/60", header: "text-gray-600" },
+    en_cours: { bg: "bg-blue-50/60", header: "text-blue-700" },
+    termine: { bg: "bg-emerald-50/60", header: "text-emerald-700" },
   };
 
   return (
@@ -162,7 +166,7 @@ export default function TachesPage() {
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {STATUTS.map((statut) => {
+          {TACHE_STATUTS.map((statut) => {
             const style = columnStyles[statut];
             return (
               <div
@@ -171,7 +175,7 @@ export default function TachesPage() {
               >
                 <div className="mb-4 flex items-center justify-between">
                   <h2 className={`text-sm font-semibold uppercase tracking-wider ${style.header}`}>
-                    {statut}
+                    {TACHE_STATUT_LABELS[statut]}
                   </h2>
                   <span className="rounded-full bg-white/80 px-2.5 py-0.5 text-xs font-medium text-gray-500 shadow-sm">
                     {tachesByStatut[statut].length}
@@ -231,7 +235,7 @@ export default function TachesPage() {
                                 aria-hidden="true"
                               />
                               <div className="absolute right-0 top-full z-50 mt-1 w-48 rounded-xl border border-gray-100 bg-white py-1 shadow-lg">
-                                {STATUTS.filter((s) => s !== tache.statut).map(
+                                {TACHE_STATUTS.filter((s) => s !== tache.statut).map(
                                   (s) => (
                                     <button
                                       key={s}
@@ -242,7 +246,7 @@ export default function TachesPage() {
                                       className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 transition-colors hover:bg-gray-50"
                                     >
                                       <ChevronRight className="h-3.5 w-3.5" />
-                                      Passer en « {s} »
+                                      Passer en « {TACHE_STATUT_LABELS[s]} »
                                     </button>
                                   )
                                 )}

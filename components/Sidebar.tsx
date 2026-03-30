@@ -16,6 +16,7 @@ import {
   ChevronRight,
   X,
   Target,
+  Kanban,
 } from "lucide-react";
 import LogoutButton from "./LogoutButton";
 
@@ -33,6 +34,7 @@ const navSections = [
     items: [
       { href: "/objectifs", label: "Objectifs", icon: Target },
       { href: "/taches", label: "Tâches", icon: CheckSquare, badge: true },
+      { href: "/organisation", label: "Organisation", icon: Kanban },
       { href: "/process", label: "Process", icon: Workflow },
       { href: "/stock", label: "Runway", icon: Gauge },
       { href: "/produits", label: "Produits", icon: Package },

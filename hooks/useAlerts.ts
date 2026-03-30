@@ -33,7 +33,8 @@ function isTaskOverdue(deadline: string | null): boolean {
 }
 
 function isTaskOpen(statut: string): boolean {
-  return statut.trim() !== "Terminé";
+  const s = statut.trim().toLowerCase();
+  return s !== "termine" && s !== "terminé";
 }
 
 const DEFAULT_STOCK_LINK = { href: "/produits", actionLabel: "Voir produit" };
@@ -73,7 +74,7 @@ export function useAlerts(options?: UseAlertsOptions) {
           ? supabase
               .from("taches")
               .select("id, titre, deadline, statut")
-              .neq("statut", "Terminé")
+              .neq("statut", "termine")
               .not("deadline", "is", null)
               .lt("deadline", nowIso)
           : Promise.resolve({ data: null, error: null }),

@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { CheckSquare, Calendar, CheckCircle, Loader2 } from "lucide-react";
 import { createSupabaseBrowserClient } from "@/utils/supabase/client";
+import { isTacheTerminee } from "@/lib/tache-statuts";
 
 type Tache = {
   id: string;
@@ -72,19 +73,19 @@ export default function VendeuseTachesPage() {
     setCompletingId(tacheId);
     const { error } = await supabase
       .from("taches")
-      .update({ statut: "Terminé" })
+      .update({ statut: "termine" })
       .eq("id", tacheId);
     setCompletingId(null);
     if (error) return;
     setTaches((prev) =>
-      prev.map((t) => (t.id === tacheId ? { ...t, statut: "Terminé" } : t))
+      prev.map((t) => (t.id === tacheId ? { ...t, statut: "termine" } : t))
     );
     setToast({ type: "success", message: "Mission accomplie !" });
     setTimeout(() => setToast(null), 4000);
   };
 
-  const tachesEnCours = taches.filter((t) => t.statut !== "Terminé");
-  const tachesTerminees = taches.filter((t) => t.statut === "Terminé");
+  const tachesEnCours = taches.filter((t) => !isTacheTerminee(t.statut));
+  const tachesTerminees = taches.filter((t) => isTacheTerminee(t.statut));
 
   return (
     <div className="min-h-screen bg-gray-50/50 p-6 lg:p-10">
