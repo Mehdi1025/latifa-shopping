@@ -8,11 +8,13 @@ import {
   CHARGE_RECRUE_MENSUELLE,
 } from "@/lib/finance-kpi";
 import {
+  Loader2,
   Orbit,
   RotateCcw,
   Sparkles,
   Zap,
 } from "lucide-react";
+import { applyStrategyToKanban } from "@/app/actions/simulator-actions";
 
 function useAnimatedNumber(target: number) {
   const [display, setDisplay] = useState(target);
@@ -118,6 +120,8 @@ export default function BusinessSimulator({
   caProjeteFinMois,
   soldeBancaire,
 }: Props) {
+  const [applying, setApplying] = useState(false);
+
   const mult = useMemo(
     () => (1 + varPrix / 100) * (1 + varTrafic / 100),
     [varPrix, varTrafic]
@@ -137,10 +141,43 @@ export default function BusinessSimulator({
   const isRisky = !Number.isFinite(runway) || runway < 2;
   const isExcellent = Number.isFinite(runway) && runway >= 6 && budgetReassort > 3000;
 
-  const handleApply = () => {
-    toast("💡 Stratégie notée ! L'IA va adapter vos alertes.", {
-      duration: 4500,
-    });
+  const hasStrategyChanges =
+    varPrix !== 0 || varTrafic !== 0 || recrue === true;
+
+  const handleApply = async () => {
+    if (!hasStrategyChanges || applying) return;
+    setApplying(true);
+    try {
+      const result = await applyStrategyToKanban(varPrix, varTrafic, recrue);
+      if (!result.ok) {
+        if (result.error === "no_changes") {
+          toast.error("Ajustez au moins un curseur ou activez la recrue.", {
+            duration: 4000,
+          });
+        } else if (result.error === "unauthorized" || result.error === "forbidden") {
+          toast.error("Session expirée ou droits insuffisants.", {
+            duration: 4000,
+          });
+        } else {
+          toast.error("Enregistrement impossible", {
+            description: result.error,
+            duration: 5000,
+          });
+        }
+        return;
+      }
+      toast.success(
+        "✅ Stratégie appliquée ! Les missions ont été envoyées dans le Kanban de l'équipe.",
+        {
+          duration: 5500,
+          className:
+            "!rounded-2xl !border !border-emerald-400/50 !bg-emerald-950/95 !text-emerald-50 !shadow-xl",
+        }
+      );
+      onReset();
+    } finally {
+      setApplying(false);
+    }
   };
 
   return (
@@ -241,11 +278,21 @@ export default function BusinessSimulator({
             </button>
             <button
               type="button"
-              onClick={handleApply}
-              className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-fuchsia-500 to-violet-600 px-4 py-2.5 text-xs font-semibold text-white shadow-lg shadow-fuchsia-900/40 transition hover:brightness-110"
+              onClick={() => void handleApply()}
+              disabled={!hasStrategyChanges || applying}
+              title={
+                !hasStrategyChanges
+                  ? "Modifiez un curseur ou la recrue pour créer des missions"
+                  : undefined
+              }
+              className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-fuchsia-500 to-violet-600 px-4 py-2.5 text-xs font-semibold text-white shadow-lg shadow-fuchsia-900/40 transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-45"
             >
-              <Zap className="h-3.5 w-3.5" />
-              Appliquer cette stratégie
+              {applying ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Zap className="h-3.5 w-3.5" />
+              )}
+              {applying ? "Application…" : "Appliquer cette stratégie"}
             </button>
           </div>
         </div>
