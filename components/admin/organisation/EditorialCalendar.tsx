@@ -3,15 +3,23 @@
 import {
   useCallback,
   useMemo,
+  useRef,
   useState,
   type Dispatch,
   type FormEvent,
   type SetStateAction,
 } from "react";
 import {
+  DragDropContext,
+  Draggable,
+  Droppable,
+  type DropResult,
+} from "@hello-pangea/dnd";
+import {
   CalendarDays,
   ChevronLeft,
   ChevronRight,
+  GripVertical,
   Loader2,
   Plus,
   Sparkles,
@@ -77,6 +85,20 @@ function localDateKey(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 
+/** Nouvelle date en conservant l’heure / minutes du post. */
+function mergeDateKeepingTime(
+  isoPublication: string,
+  destKey: string
+): string {
+  const old = new Date(isoPublication);
+  const [ys, ms, ds] = destKey.split("-");
+  const y = Number(ys);
+  const m = Number(ms) - 1;
+  const d = Number(ds);
+  const next = new Date(y, m, d, old.getHours(), old.getMinutes(), old.getSeconds(), old.getMilliseconds());
+  return next.toISOString();
+}
+
 function platformDotClass(name: string): string {
   const n = name.trim().toLowerCase();
   if (n.includes("instagram")) return "bg-pink-500";
@@ -97,6 +119,8 @@ export default function EditorialCalendar({
 }) {
   const supabase = createSupabaseBrowserClient();
   const [loading, setLoading] = useState(false);
+  const [movingId, setMovingId] = useState<string | null>(null);
+  const postsBeforeMove = useRef<EditorialPost[] | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [viewMonth, setViewMonth] = useState(() => startOfMonth(new Date()));
@@ -122,7 +146,7 @@ export default function EditorialCalendar({
       return;
     }
     setPosts((data ?? []) as EditorialPost[]);
-  }, [supabase]);
+  }, [supabase, setPosts]);
 
   const postsByDay = useMemo(() => {
     const map = new Map<string, EditorialPost[]>();
@@ -214,6 +238,60 @@ export default function EditorialCalendar({
     setModalOpen(false);
   };
 
+  const onCalendarDragEnd = useCallback(
+    async (result: DropResult) => {
+      const { destination, source, draggableId } = result;
+      if (!destination) return;
+      if (
+        destination.droppableId === source.droppableId &&
+        destination.index === source.index
+      ) {
+        return;
+      }
+      if (destination.droppableId === source.droppableId) {
+        return;
+      }
+
+      const destKey = destination.droppableId;
+      const post = posts.find((p) => p.id === draggableId);
+      if (!post) return;
+
+      const newIso = mergeDateKeepingTime(post.date_publication, destKey);
+      if (newIso === post.date_publication) return;
+
+      postsBeforeMove.current = posts;
+      setMovingId(draggableId);
+      setPosts((prev) =>
+        prev.map((p) =>
+          p.id === draggableId ? { ...p, date_publication: newIso } : p
+        )
+      );
+
+      const { error } = await supabase
+        .from("editorial_calendar")
+        .update({ date_publication: newIso })
+        .eq("id", draggableId);
+
+      setMovingId(null);
+
+      if (error) {
+        if (postsBeforeMove.current) {
+          setPosts(postsBeforeMove.current);
+        }
+        toast.error("Impossible de déplacer la publication", {
+          description: error.message,
+        });
+        return;
+      }
+
+      toast.success("Date mise à jour", {
+        description: "Glissée sur le nouveau jour.",
+        duration: 2500,
+      });
+    },
+    [posts, supabase, setPosts]
+  );
+
   return (
     <div className="space-y-8">
       <div className="flex flex-wrap items-center justify-between gap-4">
@@ -298,11 +376,17 @@ export default function EditorialCalendar({
       </section>
 
       <section className="rounded-[1.25rem] border border-white/50 bg-white/50 p-6 shadow-[0_8px_40px_-24px_rgba(0,0,0,0.15)] backdrop-blur-xl">
-        <div className="mb-4 flex items-center justify-between">
-          <h4 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-neutral-600">
-            <CalendarDays className="h-4 w-4 text-sky-500" />
-            Vue mensuelle
-          </h4>
+        <div className="mb-4 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h4 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-neutral-600">
+              <CalendarDays className="h-4 w-4 text-sky-500" />
+              Vue mensuelle
+            </h4>
+            <p className="mt-1 text-xs text-neutral-500">
+              Glissez-déposez une publication sur un autre jour — la date se met
+              à jour tout de suite (l&apos;heure est conservée).
+            </p>
+          </div>
           <div className="flex items-center gap-2">
             <button
               type="button"
@@ -332,50 +416,100 @@ export default function EditorialCalendar({
             </div>
           ))}
         </div>
-        <div className="grid grid-cols-7 gap-1.5">
-          {gridCells.map((cell) => {
-            if (cell.day === null) {
+        <DragDropContext onDragEnd={onCalendarDragEnd}>
+          <div className="grid grid-cols-7 gap-1.5">
+            {gridCells.map((cell) => {
+              if (cell.day === null) {
+                return (
+                  <div key={cell.key} className="min-h-[6.5rem] rounded-xl" />
+                );
+              }
+              const key = `${year}-${String(month + 1).padStart(2, "0")}-${String(cell.day).padStart(2, "0")}`;
+              const dayPosts = postsByDay.get(key) ?? [];
+              const isToday =
+                new Date().toDateString() ===
+                new Date(year, month, cell.day).toDateString();
               return (
-                <div key={cell.key} className="min-h-[4.5rem] rounded-xl" />
-              );
-            }
-            const key = `${year}-${String(month + 1).padStart(2, "0")}-${String(cell.day).padStart(2, "0")}`;
-            const dayPosts = postsByDay.get(key) ?? [];
-            const isToday =
-              new Date().toDateString() ===
-              new Date(year, month, cell.day).toDateString();
-            return (
-              <div
-                key={cell.key}
-                className={`flex min-h-[4.5rem] flex-col rounded-xl border p-1.5 text-left ${
-                  isToday
-                    ? "border-indigo-400/60 bg-indigo-50/50"
-                    : "border-white/40 bg-white/30"
-                }`}
-              >
-                <span
-                  className={`text-xs font-semibold ${isToday ? "text-indigo-700" : "text-neutral-600"}`}
-                >
-                  {cell.day}
-                </span>
-                <div className="mt-1 flex flex-wrap gap-0.5">
-                  {dayPosts.slice(0, 3).map((p) => (
-                    <span
-                      key={p.id}
-                      title={p.titre}
-                      className={`h-1.5 w-1.5 shrink-0 rounded-full ${platformDotClass(p.plateforme)}`}
-                    />
-                  ))}
-                  {dayPosts.length > 3 && (
-                    <span className="text-[9px] text-neutral-400">
-                      +{dayPosts.length - 3}
-                    </span>
+                <Droppable key={cell.key} droppableId={key}>
+                  {(dropProvided, dropSnapshot) => (
+                    <div
+                      ref={dropProvided.innerRef}
+                      {...dropProvided.droppableProps}
+                      className={`flex min-h-[6.5rem] flex-col rounded-xl border p-1 text-left transition-colors ${
+                        isToday
+                          ? "border-indigo-400/60 bg-indigo-50/50"
+                          : "border-white/40 bg-white/30"
+                      } ${
+                        dropSnapshot.isDraggingOver
+                          ? "border-sky-400/70 bg-sky-50/80 ring-1 ring-sky-300/40"
+                          : ""
+                      }`}
+                    >
+                      <span
+                        className={`shrink-0 px-0.5 pt-0.5 text-[11px] font-semibold ${
+                          isToday ? "text-indigo-700" : "text-neutral-600"
+                        }`}
+                      >
+                        {cell.day}
+                      </span>
+                      <div className="mt-0.5 flex max-h-[5.25rem] min-h-[2rem] flex-col gap-0.5 overflow-y-auto pr-0.5">
+                        {dayPosts.map((p, index) => (
+                          <Draggable
+                            key={p.id}
+                            draggableId={p.id}
+                            index={index}
+                            isDragDisabled={movingId === p.id}
+                          >
+                            {(dragProvided, dragSnapshot) => (
+                              <div
+                                ref={dragProvided.innerRef}
+                                {...dragProvided.draggableProps}
+                                className={`group flex cursor-grab items-start gap-0.5 rounded-lg border border-white/60 bg-white/90 px-1 py-0.5 text-[9px] shadow-sm active:cursor-grabbing ${
+                                  dragSnapshot.isDragging
+                                    ? "z-50 border-sky-300 shadow-lg ring-2 ring-sky-200/80"
+                                    : "hover:border-neutral-200"
+                                }`}
+                              >
+                                <button
+                                  type="button"
+                                  className="mt-0.5 shrink-0 text-neutral-300 hover:text-neutral-500"
+                                  aria-label="Déplacer"
+                                  {...dragProvided.dragHandleProps}
+                                >
+                                  <GripVertical className="h-3 w-3" />
+                                </button>
+                                <span
+                                  className={`mt-0.5 h-1.5 w-1.5 shrink-0 rounded-full ${platformDotClass(p.plateforme)}`}
+                                />
+                                <span
+                                  className="min-w-0 flex-1 leading-tight text-neutral-800"
+                                  title={p.titre}
+                                >
+                                  {p.titre.length > 22
+                                    ? `${p.titre.slice(0, 20)}…`
+                                    : p.titre}
+                                </span>
+                                {movingId === p.id && (
+                                  <Loader2 className="h-2.5 w-2.5 shrink-0 animate-spin text-neutral-400" />
+                                )}
+                              </div>
+                            )}
+                          </Draggable>
+                        ))}
+                        {dropProvided.placeholder}
+                        {dayPosts.length === 0 && !dropSnapshot.isDraggingOver && (
+                          <span className="px-0.5 py-1 text-[9px] text-neutral-400/80">
+                            —
+                          </span>
+                        )}
+                      </div>
+                    </div>
                   )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
+                </Droppable>
+              );
+            })}
+          </div>
+        </DragDropContext>
       </section>
 
       {modalOpen && (

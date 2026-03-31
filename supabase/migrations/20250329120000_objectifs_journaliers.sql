@@ -7,6 +7,43 @@ create table if not exists public.objectifs_journaliers (
   updated_at timestamptz not null default now()
 );
 
+-- Si la table existait déjà (créée à la main ou ancienne version) sans colonne `jour`,
+-- `CREATE TABLE IF NOT EXISTS` ne fait rien et l’index ci-dessous échoue (42703).
+do $$
+begin
+  if exists (
+    select 1
+    from information_schema.tables
+    where table_schema = 'public'
+      and table_name = 'objectifs_journaliers'
+  )
+  and not exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'objectifs_journaliers'
+      and column_name = 'jour'
+  ) then
+    if exists (
+      select 1
+      from information_schema.columns
+      where table_schema = 'public'
+        and table_name = 'objectifs_journaliers'
+        and column_name = 'date'
+    ) then
+      alter table public.objectifs_journaliers rename column date to jour;
+    elsif exists (
+      select 1
+      from information_schema.columns
+      where table_schema = 'public'
+        and table_name = 'objectifs_journaliers'
+        and column_name = 'jour_date'
+    ) then
+      alter table public.objectifs_journaliers rename column jour_date to jour;
+    end if;
+  end if;
+end $$;
+
 create index if not exists objectifs_journaliers_jour_idx on public.objectifs_journaliers (jour desc);
 
 alter table public.objectifs_journaliers enable row level security;
