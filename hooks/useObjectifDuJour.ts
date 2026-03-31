@@ -5,6 +5,14 @@ import { createSupabaseBrowserClient } from "@/utils/supabase/client";
 
 export const DEFAULT_OBJECTIF_MONTANT = 1000;
 
+/** Montant CA cible : schéma canonique `montant_cible`, anciennes bases `objectif_journalier`. */
+export function pickMontantObjectif(row: Record<string, unknown>): number | null {
+  const raw = row.montant_cible ?? row.objectif_journalier;
+  if (raw == null) return null;
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : null;
+}
+
 /** Date locale YYYY-MM-DD (alignée sur le fuseau du navigateur). */
 export function localDateISO(d: Date = new Date()): string {
   const y = d.getFullYear();
@@ -35,7 +43,7 @@ export function useObjectifDuJour(): ObjectifDuJourRow & { refetch: () => Promis
     const jour = localDateISO();
     const { data, error } = await supabase
       .from("objectifs_journaliers")
-      .select("montant_cible, note_du_jour, taux_conversion")
+      .select("*")
       .eq("jour", jour)
       .maybeSingle();
 
@@ -55,17 +63,14 @@ export function useObjectifDuJour(): ObjectifDuJourRow & { refetch: () => Promis
       return;
     }
 
-    const row = data as {
-      montant_cible: number | null;
-      note_du_jour: string | null;
-      taux_conversion: number | null;
-    };
+    const row = data as Record<string, unknown>;
+    const montant = pickMontantObjectif(row);
     setMontantCible(
-      row.montant_cible != null && !Number.isNaN(Number(row.montant_cible))
-        ? Number(row.montant_cible)
-        : DEFAULT_OBJECTIF_MONTANT
+      montant != null && montant >= 0 ? montant : DEFAULT_OBJECTIF_MONTANT
     );
-    setNoteDuJour(row.note_du_jour?.trim() ? row.note_du_jour : null);
+    const noteRaw = row.note_du_jour;
+    const noteStr = typeof noteRaw === "string" ? noteRaw.trim() : "";
+    setNoteDuJour(noteStr ? noteStr : null);
     setTauxConversion(
       row.taux_conversion != null && !Number.isNaN(Number(row.taux_conversion))
         ? Number(row.taux_conversion)

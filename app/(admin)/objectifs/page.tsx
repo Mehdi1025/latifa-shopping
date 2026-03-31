@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { createSupabaseBrowserClient } from "@/utils/supabase/client";
-import { localDateISO } from "@/hooks/useObjectifDuJour";
+import { localDateISO, pickMontantObjectif } from "@/hooks/useObjectifDuJour";
 
 type JourPlan = {
   jour: string;
@@ -128,7 +128,7 @@ export default function AdminObjectifsPage() {
 
     const { data, error } = await supabase
       .from("objectifs_journaliers")
-      .select("jour, montant_cible, taux_conversion, note_du_jour")
+      .select("*")
       .in("jour", jours);
 
     if (error) {
@@ -140,22 +140,29 @@ export default function AdminObjectifsPage() {
 
     const byJour = Object.fromEntries(
       (data ?? []).map((r) => {
-        const row = r as {
-          jour: string;
-          montant_cible: number | null;
-          taux_conversion: number | null;
-          note_du_jour: string | null;
-        };
+        const row = r as Record<string, unknown>;
+        const jourKey = row.jour;
+        const jour =
+          typeof jourKey === "string"
+            ? jourKey
+            : jourKey instanceof Date
+              ? jourKey.toISOString().slice(0, 10)
+              : String(jourKey ?? "");
+        const montantN = pickMontantObjectif(row);
+        const tauxRaw = row.taux_conversion;
+        const noteRaw = row.note_du_jour;
+        const note =
+          typeof noteRaw === "string" ? noteRaw : noteRaw != null ? String(noteRaw) : "";
         return [
-          row.jour,
+          jour,
           {
             montant:
-              row.montant_cible != null ? String(row.montant_cible) : "1000",
+              montantN != null && montantN >= 0 ? String(montantN) : "1000",
             taux:
-              row.taux_conversion != null && !Number.isNaN(Number(row.taux_conversion))
-                ? String(row.taux_conversion)
+              tauxRaw != null && !Number.isNaN(Number(tauxRaw))
+                ? String(tauxRaw)
                 : "",
-            note: row.note_du_jour ?? "",
+            note,
           },
         ];
       })
