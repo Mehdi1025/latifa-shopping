@@ -85,6 +85,10 @@ export default function FluxBoutiqueCard() {
         <div>
           <h2 className="text-sm font-semibold text-gray-900">Flux Boutique</h2>
           <p className="text-xs text-gray-500">Entrées aujourd&apos;hui</p>
+          <p className="mt-1 text-[11px] leading-snug text-gray-400">
+            Chaque soir, enregistrez le total de passages : le taux de conversion admin
+            (ventes ÷ passages) se calcule automatiquement.
+          </p>
         </div>
       </div>
 

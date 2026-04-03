@@ -45,6 +45,14 @@ function startOfTodayISO(): string {
   return d.toISOString();
 }
 
+function fmtEurCompact(n: number): string {
+  return new Intl.NumberFormat("fr-FR", {
+    style: "currency",
+    currency: "EUR",
+    maximumFractionDigits: 0,
+  }).format(n);
+}
+
 export function useAlerts(options?: UseAlertsOptions) {
   const includeTasks = options?.includeTasks ?? true;
   const includeAdminIntelligence = options?.includeAdminIntelligence ?? false;
@@ -64,34 +72,42 @@ export function useAlerts(options?: UseAlertsOptions) {
       const fromDay = startOfTodayISO();
       const jour = localDateISO();
 
-      const [produitsRes, tachesRes, trafficRes, ventesCountRes] = await Promise.all([
-        supabase
-          .from("produits")
-          .select("id, nom, stock")
-          .lte("stock", STOCK_THRESHOLD)
-          .order("stock", { ascending: true }),
-        includeTasks
-          ? supabase
-              .from("taches")
-              .select("id, titre, deadline, statut")
-              .neq("statut", "termine")
-              .not("deadline", "is", null)
-              .lt("deadline", nowIso)
-          : Promise.resolve({ data: null, error: null }),
-        includeAdminIntelligence
-          ? supabase
-              .from("daily_traffic")
-              .select("nombre_entrees")
-              .eq("jour", jour)
-              .maybeSingle()
-          : Promise.resolve({ data: null, error: null }),
-        includeAdminIntelligence
-          ? supabase
-              .from("ventes")
-              .select("id", { count: "exact", head: true })
-              .gte("created_at", fromDay)
-          : Promise.resolve({ count: null, error: null }),
-      ]);
+      const [produitsRes, tachesRes, trafficRes, ventesJourRes, objectifJourRes] =
+        await Promise.all([
+          supabase
+            .from("produits")
+            .select("id, nom, stock")
+            .lte("stock", STOCK_THRESHOLD)
+            .order("stock", { ascending: true }),
+          includeTasks
+            ? supabase
+                .from("taches")
+                .select("id, titre, deadline, statut")
+                .neq("statut", "termine")
+                .not("deadline", "is", null)
+                .lt("deadline", nowIso)
+            : Promise.resolve({ data: null, error: null }),
+          includeAdminIntelligence
+            ? supabase
+                .from("daily_traffic")
+                .select("nombre_entrees")
+                .eq("jour", jour)
+                .maybeSingle()
+            : Promise.resolve({ data: null, error: null }),
+          includeAdminIntelligence
+            ? supabase
+                .from("ventes")
+                .select("total")
+                .gte("created_at", fromDay)
+            : Promise.resolve({ data: null, error: null }),
+          includeAdminIntelligence
+            ? supabase
+                .from("objectifs_journaliers")
+                .select("montant_cible")
+                .eq("jour", jour)
+                .maybeSingle()
+            : Promise.resolve({ data: null, error: null }),
+        ]);
 
       if (produitsRes.error) {
         setError(produitsRes.error.message);
@@ -110,7 +126,7 @@ export function useAlerts(options?: UseAlertsOptions) {
         !(trafficRes && "error" in trafficRes && trafficRes.error);
       const intelVentesOk =
         !includeAdminIntelligence ||
-        !(ventesCountRes && "error" in ventesCountRes && ventesCountRes.error);
+        !(ventesJourRes && "error" in ventesJourRes && ventesJourRes.error);
 
       const stockRows = (produitsRes.data ?? []) as {
         id: string;
@@ -157,10 +173,12 @@ export function useAlerts(options?: UseAlertsOptions) {
           (trafficRes && "data" in trafficRes
             ? (trafficRes.data as { nombre_entrees?: number } | null)?.nombre_entrees
             : null) ?? null;
-        const nbVentesJour =
-          (ventesCountRes && "count" in ventesCountRes
-            ? ventesCountRes.count
-            : null) ?? 0;
+        const ventesJourRows =
+          ventesJourRes && "data" in ventesJourRes
+            ? ((ventesJourRes.data ?? []) as { total?: number }[])
+            : [];
+        const nbVentesJour = ventesJourRows.length;
+        const caJour = ventesJourRows.reduce((s, v) => s + (v.total ?? 0), 0);
 
         const entreesNum =
           typeof nombreEntrees === "number" && !Number.isNaN(nombreEntrees)
@@ -196,6 +214,30 @@ export function useAlerts(options?: UseAlertsOptions) {
             href: "/vendeuse",
           });
         }
+
+        const objRow =
+          objectifJourRes && "data" in objectifJourRes
+            ? (objectifJourRes.data as { montant_cible?: number | null } | null)
+            : null;
+        const cible =
+          objRow?.montant_cible != null &&
+          !Number.isNaN(Number(objRow.montant_cible))
+            ? Number(objRow.montant_cible)
+            : null;
+        if (
+          cible !== null &&
+          cible > 0 &&
+          caJour < cible * 0.65 &&
+          hour >= 17
+        ) {
+          intelligenceAlerts.push({
+            id: "intel-objectif-ca-jour",
+            severity: "warning",
+            message: `CA jour (${fmtEurCompact(caJour)}) en retard sur l'objectif (${fmtEurCompact(cible)}).`,
+            actionLabel: "Objectifs",
+            href: "/objectifs",
+          });
+        }
       }
 
       const merged = [...stockAlerts, ...taskAlerts, ...intelligenceAlerts].sort(
@@ -223,6 +265,51 @@ export function useAlerts(options?: UseAlertsOptions) {
   useEffect(() => {
     fetchAlerts();
   }, [fetchAlerts]);
+
+  useEffect(() => {
+    const ch = supabase
+      .channel("alerts-realtime")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "ventes" },
+        () => {
+          void fetchAlerts();
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "taches" },
+        () => {
+          void fetchAlerts();
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "produits" },
+        () => {
+          void fetchAlerts();
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "daily_traffic" },
+        () => {
+          void fetchAlerts();
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "objectifs_journaliers" },
+        () => {
+          void fetchAlerts();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(ch);
+    };
+  }, [supabase, fetchAlerts]);
 
   return { alerts, loading, error, refetch: fetchAlerts };
 }

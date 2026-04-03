@@ -9,6 +9,7 @@ import {
   Workflow,
   Package,
   Gauge,
+  FileUp,
   Settings,
   Users,
   ChevronDown,
@@ -43,6 +44,7 @@ const navSections: { label: string; items: NavItem[] }[] = [
       { href: "/process", label: "Process", icon: Workflow },
       { href: "/stock", label: "Runway", icon: Gauge },
       { href: "/produits", label: "Produits", icon: Package },
+      { href: "/import", label: "Import CSV", icon: FileUp },
     ],
   },
   {

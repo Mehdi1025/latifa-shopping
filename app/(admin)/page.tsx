@@ -11,6 +11,8 @@ import {
   Percent,
   Kanban,
   ChevronRight,
+  Users,
+  TrendingUp,
 } from "lucide-react";
 import { createSupabaseBrowserClient } from "@/utils/supabase/client";
 import { useNotifications } from "@/contexts/NotificationsContext";
@@ -19,6 +21,7 @@ import { useAlerts } from "@/hooks/useAlerts";
 import ActionCenter from "@/components/ActionCenter";
 import BankWidget from "@/components/admin/BankWidget";
 import { MethodePaiementBadge } from "@/components/MethodePaiement";
+import { localDateISO } from "@/hooks/useObjectifDuJour";
 
 type Vente = {
   id: string;
@@ -72,11 +75,26 @@ function isSameLocalDay(iso: string, ref: Date = new Date()): boolean {
   );
 }
 
+function monthRangeLocal(ref: Date = new Date()) {
+  const start = new Date(ref.getFullYear(), ref.getMonth(), 1, 0, 0, 0, 0);
+  const end = new Date(ref.getFullYear(), ref.getMonth() + 1, 0, 23, 59, 59, 999);
+  return { start: start.toISOString(), end: end.toISOString() };
+}
+
+function formatPercent0(n: number): string {
+  return `${n.toLocaleString("fr-FR", {
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1,
+  })} %`;
+}
+
 export default function Home() {
   const [caJour, setCaJour] = useState<number>(0);
   const [nbVentesJour, setNbVentesJour] = useState<number>(0);
   const [dernieresVentes, setDernieresVentes] = useState<Vente[]>([]);
   const [vendeurMap, setVendeurMap] = useState<VendeurMap>({});
+  const [nombreEntrees, setNombreEntrees] = useState<number | null>(null);
+  const [caMois, setCaMois] = useState(0);
   const [loading, setLoading] = useState(true);
 
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
@@ -89,13 +107,30 @@ export default function Home() {
   const panierMoyenJour =
     nbVentesJour > 0 ? Math.round((caJour / nbVentesJour) * 100) / 100 : 0;
 
+  const tauxConversionJour =
+    nombreEntrees !== null && nombreEntrees > 0
+      ? (nbVentesJour / nombreEntrees) * 100
+      : null;
+
+  const today = new Date();
+  const jourDuMois = today.getDate();
+  const joursDansMois = new Date(
+    today.getFullYear(),
+    today.getMonth() + 1,
+    0
+  ).getDate();
+  const projectionFinMois =
+    jourDuMois > 0 ? (caMois / jourDuMois) * joursDansMois : 0;
+
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
       try {
         const fromDay = startOfTodayISO();
+        const { start: monthStart, end: monthEnd } = monthRangeLocal();
+        const jourKey = localDateISO();
 
-        const [jourRes, lastVentesRes] = await Promise.all([
+        const [jourRes, lastVentesRes, trafficRes, moisRes] = await Promise.all([
           supabase
             .from("ventes")
             .select("total, created_at")
@@ -105,6 +140,16 @@ export default function Home() {
             .select("id, vendeur_id, total, created_at, methode_paiement")
             .order("created_at", { ascending: false })
             .limit(10),
+          supabase
+            .from("daily_traffic")
+            .select("nombre_entrees")
+            .eq("jour", jourKey)
+            .maybeSingle(),
+          supabase
+            .from("ventes")
+            .select("total")
+            .gte("created_at", monthStart)
+            .lte("created_at", monthEnd),
         ]);
 
         const ventesJour = (jourRes.data ?? []) as { total: number }[];
@@ -112,6 +157,17 @@ export default function Home() {
         setCaJour(ca);
         setNbVentesJour(ventesJour.length);
         setDernieresVentes((lastVentesRes.data as Vente[]) ?? []);
+
+        const ne = (trafficRes.data as { nombre_entrees?: number } | null)
+          ?.nombre_entrees;
+        setNombreEntrees(
+          typeof ne === "number" && !Number.isNaN(ne) ? ne : null
+        );
+
+        const ventesMoisRows = (moisRes.data ?? []) as { total?: number }[];
+        setCaMois(
+          ventesMoisRows.reduce((s, v) => s + (v.total ?? 0), 0)
+        );
 
         const vendeurIds = [
           ...new Set(
@@ -258,6 +314,65 @@ export default function Home() {
               </p>
               <p className="mt-1 text-2xl font-bold tracking-tight text-gray-900 tabular-nums md:text-3xl">
                 {formatPrix(panierMoyenJour)}
+              </p>
+            </div>
+          </div>
+
+          <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 md:gap-6">
+            <div className="stat-card group flex flex-col rounded-2xl border border-gray-100 bg-white p-5 shadow-[0_2px_12px_-4px_rgba(0,0,0,0.06)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_8px_30px_-12px_rgba(0,0,0,0.12)] md:p-6">
+              <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-50 transition-colors duration-300 group-hover:bg-indigo-100">
+                <Percent className="h-5 w-5 text-indigo-700" />
+              </div>
+              <p className="text-xs font-medium uppercase tracking-wide text-gray-400">
+                Taux de conversion (jour)
+              </p>
+              <p className="mt-1 text-2xl font-bold tracking-tight text-gray-900 tabular-nums md:text-3xl">
+                {tauxConversionJour !== null
+                  ? formatPercent0(tauxConversionJour)
+                  : "—"}
+              </p>
+              <p className="mt-2 text-xs leading-relaxed text-gray-500">
+                Ventes du jour ÷ passages boutique. Les vendeuses saisissent le flux
+                chaque soir dans{" "}
+                <Link href="/vendeuse" className="font-medium text-indigo-600 hover:underline">
+                  Flux boutique
+                </Link>
+                .
+              </p>
+            </div>
+
+            <div className="stat-card group flex flex-col rounded-2xl border border-gray-100 bg-white p-5 shadow-[0_2px_12px_-4px_rgba(0,0,0,0.06)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_8px_30px_-12px_rgba(0,0,0,0.12)] md:p-6">
+              <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-sky-50 transition-colors duration-300 group-hover:bg-sky-100">
+                <Users className="h-5 w-5 text-sky-800" />
+              </div>
+              <p className="text-xs font-medium uppercase tracking-wide text-gray-400">
+                Passages (aujourd&apos;hui)
+              </p>
+              <p className="mt-1 text-2xl font-bold tracking-tight text-gray-900 tabular-nums md:text-3xl">
+                {nombreEntrees !== null ? nombreEntrees : "—"}
+              </p>
+              <p className="mt-2 text-xs text-gray-500">
+                Compteur aligné sur la journée — même base que le pilotage KPI.
+              </p>
+            </div>
+
+            <div className="stat-card group flex flex-col rounded-2xl border border-gray-100 bg-white p-5 shadow-[0_2px_12px_-4px_rgba(0,0,0,0.06)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_8px_30px_-12px_rgba(0,0,0,0.12)] sm:col-span-2 lg:col-span-1 md:p-6">
+              <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-amber-50 transition-colors duration-300 group-hover:bg-amber-100">
+                <TrendingUp className="h-5 w-5 text-amber-800" />
+              </div>
+              <p className="text-xs font-medium uppercase tracking-wide text-gray-400">
+                Projection CA fin de mois
+              </p>
+              <p className="mt-1 text-2xl font-bold tracking-tight text-gray-900 tabular-nums md:text-3xl">
+                {formatPrix(projectionFinMois)}
+              </p>
+              <p className="mt-2 text-xs leading-relaxed text-gray-500">
+                Extrapolation : (CA mois ÷ jour du mois) × jours du mois. Scénarios
+                détaillés sur{" "}
+                <Link href="/kpi" className="font-medium text-indigo-600 hover:underline">
+                  KPI
+                </Link>
+                .
               </p>
             </div>
           </div>

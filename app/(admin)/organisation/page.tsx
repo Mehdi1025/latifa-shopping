@@ -115,7 +115,7 @@ export default function OrganisationPage() {
         ) : (
           <Tabs defaultValue="projet" className="w-full">
             <TabsList className="w-full sm:w-auto">
-              <TabsTrigger value="projet">Gestion de projet</TabsTrigger>
+              <TabsTrigger value="projet">Projets &amp; tâches (Kanban)</TabsTrigger>
               <TabsTrigger value="editorial">Calendrier éditorial</TabsTrigger>
             </TabsList>
             <TabsContent value="projet" className="mt-8">

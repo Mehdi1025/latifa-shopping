@@ -1,4 +1,4 @@
-import { Users, Target, Link2 } from "lucide-react";
+import { Users, Target, Link2, Smartphone } from "lucide-react";
 
 const utilisateurs = [
   { nom: "Latifa", email: "latifa@latifashop.com", role: "Admin", roleClass: "bg-violet-100 text-violet-700" },
@@ -128,6 +128,20 @@ export default function ParametresPage() {
           </section>
         </div>
       </div>
+
+      <section className="mt-8 rounded-xl border border-dashed border-slate-200 bg-slate-50/80 p-6">
+        <h2 className="mb-3 flex items-center gap-2 text-lg font-semibold text-slate-900">
+          <Smartphone className="h-5 w-5 text-slate-500" />
+          Récap de fin de journée (SMS / WhatsApp)
+        </h2>
+        <p className="text-sm leading-relaxed text-slate-600">
+          Hors périmètre pour l&apos;instant : pour envoyer chaque soir un récap (chiffres du
+          jour, tâches, alertes) sur mobile, il faudra brancher un fournisseur type{" "}
+          <span className="font-medium">Twilio</span> ou l&apos;API{" "}
+          <span className="font-medium">WhatsApp Business</span>, plus une tâche planifiée
+          (cron / Edge Function) qui agrège les données et déclenche l&apos;envoi.
+        </p>
+      </section>
     </div>
   );
 }
