@@ -39,6 +39,10 @@ type Vente = {
 
 type VendeurMap = Record<string, string>;
 
+/** Carte type Stripe / Apple Analytics — blanc, bordure cheveu, ombre très douce */
+const card =
+  "rounded-2xl border border-slate-100 bg-white shadow-[0_4px_20px_rgba(0,0,0,0.03)] transition-shadow duration-200 hover:shadow-[0_8px_28px_rgba(0,0,0,0.05)]";
+
 function formatPrix(prix: number): string {
   return new Intl.NumberFormat("fr-FR", {
     style: "currency",
@@ -102,11 +106,11 @@ const containerVariants = {
 };
 
 const itemVariants = {
-  hidden: { opacity: 0, y: 28 },
+  hidden: { opacity: 0, y: 24 },
   show: {
     opacity: 1,
     y: 0,
-    transition: { duration: 0.5, ease: easeOut },
+    transition: { duration: 0.48, ease: easeOut },
   },
 };
 
@@ -114,7 +118,7 @@ const bentoVariants = {
   hidden: { opacity: 0 },
   show: {
     opacity: 1,
-    transition: { staggerChildren: 0.1, delayChildren: 0.12 },
+    transition: { staggerChildren: 0.1, delayChildren: 0.1 },
   },
 };
 
@@ -127,60 +131,52 @@ function AlertsFeed({
 }) {
   if (loading) {
     return (
-      <div className="flex min-h-[200px] flex-col items-center justify-center gap-3 rounded-2xl bg-white/[0.03] py-16">
-        <Loader2 className="h-8 w-8 animate-spin text-neutral-400" />
-        <span className="text-sm text-neutral-500">Synchronisation…</span>
+      <div className="flex min-h-[200px] flex-col items-center justify-center gap-3 rounded-2xl border border-slate-100 bg-slate-50/50 py-16">
+        <Loader2 className="h-7 w-7 animate-spin text-slate-400" />
+        <span className="text-sm text-slate-500">Synchronisation…</span>
       </div>
     );
   }
   if (alerts.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-emerald-500/15 bg-emerald-500/[0.06] px-6 py-14 text-center">
-        <div className="flex h-14 w-14 items-center justify-center rounded-full bg-emerald-500/10">
-          <CheckCircle2 className="h-7 w-7 text-emerald-600" strokeWidth={1.75} />
+      <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-slate-100 bg-white px-6 py-14 text-center shadow-[0_4px_20px_rgba(0,0,0,0.03)]">
+        <div className="flex h-12 w-12 items-center justify-center rounded-full border border-slate-100 bg-white">
+          <CheckCircle2 className="h-6 w-6 text-emerald-600" strokeWidth={1.75} />
         </div>
-        <p className="max-w-xs text-sm font-medium leading-relaxed text-neutral-700">
+        <p className="max-w-xs text-sm font-medium leading-relaxed text-slate-600">
           Aucune alerte active — la boutique respire.
         </p>
       </div>
     );
   }
   return (
-    <ul className="flex flex-col gap-3">
+    <ul className="flex flex-col gap-2.5">
       {alerts.map((alert) => (
         <li key={alert.id}>
           <Link
             href={alert.href}
-            className={`group relative flex items-start gap-4 overflow-hidden rounded-2xl px-4 py-4 transition-all duration-300 hover:shadow-lg ${
+            className={`group flex items-start gap-3 rounded-2xl border bg-white px-4 py-3.5 shadow-[0_2px_12px_rgba(0,0,0,0.02)] transition-all duration-200 hover:shadow-[0_6px_20px_rgba(0,0,0,0.04)] ${
               alert.severity === "danger"
-                ? "border border-red-200/60 bg-gradient-to-br from-red-50/90 to-white shadow-[0_0_0_1px_rgba(239,68,68,0.08)] hover:border-red-300/80"
-                : "border border-amber-200/50 bg-gradient-to-br from-amber-50/80 to-white shadow-[0_0_0_1px_rgba(245,158,11,0.06)] hover:border-amber-300/70"
+                ? "border-l-[3px] border-l-red-500 border-t border-r border-b border-slate-100"
+                : "border-l-[3px] border-l-amber-400 border-t border-r border-b border-slate-100"
             }`}
           >
             <span
-              className={`absolute left-0 top-1/2 h-12 w-1 -translate-y-1/2 rounded-full ${
-                alert.severity === "danger" ? "bg-red-500" : "bg-amber-500"
-              } animate-pulse shadow-[0_0_12px_rgba(239,68,68,0.5)]`}
-              aria-hidden
-            />
-            <span
-              className={`relative mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${
-                alert.severity === "danger"
-                  ? "bg-red-500/15 text-red-600"
-                  : "bg-amber-500/15 text-amber-700"
+              className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-100 bg-slate-50 ${
+                alert.severity === "danger" ? "text-red-600" : "text-amber-600"
               }`}
             >
               {alert.severity === "danger" ? (
-                <AlertTriangle className="h-5 w-5" strokeWidth={1.75} />
+                <AlertTriangle className="h-4 w-4" strokeWidth={2} />
               ) : (
-                <Info className="h-5 w-5" strokeWidth={1.75} />
+                <Info className="h-4 w-4" strokeWidth={2} />
               )}
             </span>
             <div className="min-w-0 flex-1 pt-0.5">
-              <p className="text-sm font-semibold leading-snug text-neutral-900">
+              <p className="text-sm font-medium leading-snug text-slate-900">
                 {alert.message}
               </p>
-              <span className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-indigo-600 transition group-hover:gap-2">
+              <span className="mt-1.5 inline-flex items-center gap-1 text-xs font-semibold text-blue-600 transition group-hover:gap-1.5">
                 {alert.actionLabel}
                 <ArrowUpRight className="h-3.5 w-3.5" />
               </span>
@@ -197,29 +193,25 @@ const QUICK_ACTIONS = [
     href: "/kpi",
     label: "Voir les KPI",
     icon: BarChart3,
-    gradient: "from-indigo-500/15 to-violet-500/10",
-    iconClass: "text-indigo-600 group-hover:text-indigo-700",
+    iconClass: "text-blue-600",
   },
   {
     href: "/organisation",
     label: "Tâches & projet",
     icon: ListTodo,
-    gradient: "from-emerald-500/15 to-teal-500/10",
-    iconClass: "text-emerald-600 group-hover:text-emerald-700",
+    iconClass: "text-emerald-600",
   },
   {
     href: "/organisation",
     label: "Calendrier éditorial",
     icon: CalendarDays,
-    gradient: "from-rose-500/12 to-orange-500/10",
-    iconClass: "text-rose-600 group-hover:text-rose-700",
+    iconClass: "text-rose-600",
   },
   {
     href: "/import",
     label: "Import CSV",
     icon: FileUp,
-    gradient: "from-slate-500/12 to-slate-600/10",
-    iconClass: "text-slate-700 group-hover:text-slate-900",
+    iconClass: "text-slate-700",
   },
 ] as const;
 
@@ -382,37 +374,33 @@ export default function Home() {
   }, [supabase, triggerNewSale, refetchAlerts]);
 
   return (
-    <div className="relative min-h-dvh overflow-hidden bg-gradient-to-br from-slate-50 via-white to-indigo-50/[0.35] p-4 md:p-6 lg:p-10 dark:from-neutral-950 dark:via-neutral-950 dark:to-indigo-950/30">
-      <div
-        className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,rgba(99,102,241,0.09),transparent)] dark:bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,rgba(99,102,241,0.15),transparent)]"
-        aria-hidden
-      />
-
+    <div className="min-h-dvh bg-slate-50 p-4 md:p-6 lg:p-10">
       <motion.div
         className="relative mx-auto max-w-6xl"
         variants={containerVariants}
         initial="hidden"
         animate="show"
       >
-        {/* Morning Brief */}
         <motion.header variants={itemVariants} className="mb-10 md:mb-12">
-          <p className="text-[13px] font-medium tracking-wide text-neutral-400 dark:text-neutral-500">
+          <p className="text-[13px] font-medium tracking-wide text-slate-500">
             {dateLongue}
           </p>
-          <h1 className="mt-3 max-w-4xl font-serif text-[1.65rem] font-light leading-[1.2] tracking-tight text-neutral-900 dark:text-white sm:text-3xl md:text-[2.15rem]">
+          <h1 className="mt-3 max-w-4xl font-serif text-[1.65rem] font-light leading-[1.2] tracking-tight text-slate-900 sm:text-3xl md:text-[2.1rem]">
             Bonjour Latifa, voici l&apos;état de la boutique aujourd&apos;hui.
           </h1>
-          <p className="mt-4 max-w-xl text-sm leading-relaxed text-neutral-500 dark:text-neutral-400">
+          <p className="mt-4 max-w-xl text-sm leading-relaxed text-slate-500">
             Morning brief — chiffres clés, alertes et accès rapides. Le détail
-            analytique vit sur{" "}
-            <Link href="/kpi" className="font-medium text-indigo-600 underline-offset-2 hover:underline dark:text-indigo-400">
+            analytique sur{" "}
+            <Link
+              href="/kpi"
+              className="font-medium text-blue-600 underline-offset-2 hover:underline"
+            >
               KPI
             </Link>
             .
           </p>
         </motion.header>
 
-        {/* Flash metrics */}
         <motion.section
           variants={itemVariants}
           className="mb-10 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 lg:gap-5"
@@ -422,49 +410,52 @@ export default function Home() {
               {[1, 2, 3, 4].map((i) => (
                 <div
                   key={i}
-                  className="h-36 animate-pulse rounded-3xl bg-white/60 shadow-[0_4px_32px_-12px_rgba(0,0,0,0.08)] dark:bg-white/5"
+                  className="h-36 animate-pulse rounded-2xl border border-slate-100 bg-slate-100/60"
                 />
               ))}
             </>
           ) : (
             <>
-              <div className="group flex flex-col rounded-3xl bg-white/90 px-5 py-6 shadow-[0_4px_32px_-16px_rgba(0,0,0,0.1)] ring-1 ring-black/[0.03] backdrop-blur-sm transition-all duration-300 hover:shadow-[0_12px_40px_-16px_rgba(99,102,241,0.18)] dark:bg-white/[0.06] dark:ring-white/10">
+              <div className={`group flex flex-col px-5 py-6 ${card}`}>
                 <div className="mb-4 flex items-center justify-between">
-                  <span className="text-[11px] font-semibold uppercase tracking-[0.2em] text-neutral-400">
+                  <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
                     CA jour
                   </span>
-                  <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-indigo-500/10 text-indigo-600 transition-transform duration-300 group-hover:scale-105 dark:bg-indigo-400/15 dark:text-indigo-300">
+                  <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-100 bg-slate-50 text-blue-600 transition-transform duration-200 group-hover:scale-[1.02]">
                     <Euro className="h-5 w-5" strokeWidth={1.5} />
                   </span>
                 </div>
-                <p className="text-3xl font-light tabular-nums tracking-tight text-neutral-900 dark:text-white">
+                <p className="text-3xl font-light tabular-nums tracking-tight text-emerald-600">
                   {formatPrix(caJour)}
                 </p>
                 {progressionObjectif !== null && (
                   <div className="mt-4">
-                    <div className="mb-1.5 flex justify-between text-[11px] text-neutral-500 dark:text-neutral-400">
+                    <div className="mb-1.5 flex justify-between text-[11px] text-slate-500">
                       <span>Objectif journalier</span>
-                      <span className="tabular-nums font-medium text-neutral-700 dark:text-neutral-300">
+                      <span className="tabular-nums font-medium text-slate-700">
                         {Math.round(progressionObjectif)}%
                       </span>
                     </div>
-                    <div className="h-1.5 w-full overflow-hidden rounded-full bg-neutral-100 dark:bg-white/10">
+                    <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
                       <motion.div
-                        className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-violet-500"
+                        className="h-full rounded-full bg-blue-600"
                         initial={{ width: 0 }}
                         animate={{ width: `${progressionObjectif}%` }}
-                        transition={{ duration: 0.9, ease: easeOut }}
+                        transition={{ duration: 0.85, ease: easeOut }}
                       />
                     </div>
-                    <p className="mt-2 text-[11px] text-neutral-400 dark:text-neutral-500">
+                    <p className="mt-2 text-[11px] text-slate-500">
                       Cible : {formatPrix(objectifCAJour ?? 0)}
                     </p>
                   </div>
                 )}
                 {progressionObjectif === null && (
-                  <p className="mt-3 text-[12px] text-neutral-400 dark:text-neutral-500">
+                  <p className="mt-3 text-[12px] text-slate-500">
                     Définissez l&apos;objectif du jour dans{" "}
-                    <Link href="/objectifs" className="font-medium text-indigo-600 hover:underline dark:text-indigo-400">
+                    <Link
+                      href="/objectifs"
+                      className="font-medium text-blue-600 hover:underline"
+                    >
                       Objectifs
                     </Link>
                     .
@@ -472,53 +463,53 @@ export default function Home() {
                 )}
               </div>
 
-              <div className="group flex flex-col rounded-3xl bg-white/90 px-5 py-6 shadow-[0_4px_32px_-16px_rgba(0,0,0,0.1)] ring-1 ring-black/[0.03] backdrop-blur-sm transition-all duration-300 hover:shadow-[0_12px_40px_-16px_rgba(14,165,233,0.15)] dark:bg-white/[0.06] dark:ring-white/10">
+              <div className={`group flex flex-col px-5 py-6 ${card}`}>
                 <div className="mb-4 flex items-center justify-between">
-                  <span className="text-[11px] font-semibold uppercase tracking-[0.2em] text-neutral-400">
+                  <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
                     Passages
                   </span>
-                  <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-sky-500/10 text-sky-600 transition-transform duration-300 group-hover:scale-105 dark:text-sky-400">
+                  <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-100 bg-slate-50 text-blue-600 transition-transform duration-200 group-hover:scale-[1.02]">
                     <Users className="h-5 w-5" strokeWidth={1.5} />
                   </span>
                 </div>
-                <p className="text-3xl font-light tabular-nums tracking-tight text-neutral-900 dark:text-white">
+                <p className="text-3xl font-light tabular-nums tracking-tight text-slate-900">
                   {nombreEntrees !== null ? nombreEntrees : "—"}
                 </p>
-                <p className="mt-3 text-[12px] leading-relaxed text-neutral-500 dark:text-neutral-400">
+                <p className="mt-3 text-[12px] leading-relaxed text-slate-500">
                   Saisis en caisse vendeuse — flux quotidien.
                 </p>
               </div>
 
-              <div className="group flex flex-col rounded-3xl bg-white/90 px-5 py-6 shadow-[0_4px_32px_-16px_rgba(0,0,0,0.1)] ring-1 ring-black/[0.03] backdrop-blur-sm transition-all duration-300 hover:shadow-[0_12px_40px_-16px_rgba(245,158,11,0.18)] dark:bg-white/[0.06] dark:ring-white/10">
+              <div className={`group flex flex-col px-5 py-6 ${card}`}>
                 <div className="mb-4 flex items-center justify-between">
-                  <span className="text-[11px] font-semibold uppercase tracking-[0.2em] text-neutral-400">
+                  <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
                     Tâches prioritaires
                   </span>
-                  <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-amber-500/10 text-amber-700 transition-transform duration-300 group-hover:scale-105 dark:text-amber-400">
+                  <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-100 bg-slate-50 text-amber-600 transition-transform duration-200 group-hover:scale-[1.02]">
                     <Kanban className="h-5 w-5" strokeWidth={1.5} />
                   </span>
                 </div>
-                <p className="text-3xl font-light tabular-nums tracking-tight text-neutral-900 dark:text-white">
+                <p className="text-3xl font-light tabular-nums tracking-tight text-slate-900">
                   {tachesUrgentes !== null ? tachesUrgentes : "—"}
                 </p>
-                <p className="mt-3 text-[12px] leading-relaxed text-neutral-500 dark:text-neutral-400">
+                <p className="mt-3 text-[12px] leading-relaxed text-slate-500">
                   Non terminées, échéance aujourd&apos;hui ou en retard.
                 </p>
               </div>
 
-              <div className="group flex flex-col rounded-3xl bg-white/90 px-5 py-6 shadow-[0_4px_32px_-16px_rgba(0,0,0,0.1)] ring-1 ring-black/[0.03] backdrop-blur-sm transition-all duration-300 hover:shadow-[0_12px_40px_-16px_rgba(16,185,129,0.15)] dark:bg-white/[0.06] dark:ring-white/10">
+              <div className={`group flex flex-col px-5 py-6 ${card}`}>
                 <div className="mb-4 flex items-center justify-between">
-                  <span className="text-[11px] font-semibold uppercase tracking-[0.2em] text-neutral-400">
+                  <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
                     Ventes (jour)
                   </span>
-                  <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-emerald-500/10 text-emerald-600 transition-transform duration-300 group-hover:scale-105 dark:text-emerald-400">
+                  <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-100 bg-slate-50 text-emerald-600 transition-transform duration-200 group-hover:scale-[1.02]">
                     <Sparkles className="h-5 w-5" strokeWidth={1.5} />
                   </span>
                 </div>
-                <p className="text-3xl font-light tabular-nums tracking-tight text-neutral-900 dark:text-white">
+                <p className="text-3xl font-light tabular-nums tracking-tight text-slate-900">
                   {nbVentesJour}
                 </p>
-                <p className="mt-3 text-[12px] text-neutral-500 dark:text-neutral-400">
+                <p className="mt-3 text-[12px] text-slate-500">
                   Tickets enregistrés aujourd&apos;hui.
                 </p>
               </div>
@@ -526,35 +517,31 @@ export default function Home() {
           )}
         </motion.section>
 
-        {/* Bento */}
         <motion.section
           variants={bentoVariants}
           initial="hidden"
           animate="show"
           className="mb-10 grid grid-cols-1 gap-5 lg:grid-cols-12 lg:gap-6"
         >
-          <motion.div
-            variants={itemVariants}
-            className="lg:col-span-7"
-          >
-            <div className="rounded-[1.75rem] border border-white/60 bg-white/70 p-6 shadow-[0_8px_40px_-24px_rgba(0,0,0,0.15)] ring-1 ring-black/[0.04] backdrop-blur-xl dark:border-white/10 dark:bg-white/[0.05] dark:ring-white/5 md:p-8">
+          <motion.div variants={itemVariants} className="lg:col-span-7">
+            <div className={`p-6 md:p-8 ${card}`}>
               <div className="mb-6 flex items-center justify-between gap-3">
                 <div className="flex items-center gap-3">
-                  <span className="relative flex h-3 w-3">
-                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-orange-400 opacity-40" />
-                    <span className="relative inline-flex h-3 w-3 rounded-full bg-orange-500" />
+                  <span className="relative flex h-2.5 w-2.5 shrink-0">
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-500 opacity-30" />
+                    <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-red-500" />
                   </span>
                   <div>
-                    <h2 className="text-lg font-semibold tracking-tight text-neutral-900 dark:text-white">
+                    <h2 className="text-base font-semibold tracking-tight text-slate-900">
                       Action Center
                     </h2>
-                    <p className="text-xs text-neutral-500 dark:text-neutral-400">
-                      Alertes live — stock, flux, conversion, objectifs
+                    <p className="text-xs text-slate-500">
+                      Stock, flux, conversion, objectifs
                     </p>
                   </div>
                 </div>
                 {!alertsLoading && alerts.length > 0 && (
-                  <span className="rounded-full bg-neutral-900/5 px-3 py-1 text-xs font-bold tabular-nums text-neutral-600 dark:bg-white/10 dark:text-neutral-300">
+                  <span className="rounded-full border border-slate-100 bg-slate-50 px-2.5 py-0.5 text-xs font-semibold tabular-nums text-slate-700">
                     {alerts.length}
                   </span>
                 )}
@@ -564,26 +551,26 @@ export default function Home() {
           </motion.div>
 
           <motion.div variants={itemVariants} className="lg:col-span-5">
-            <h2 className="mb-4 text-[11px] font-semibold uppercase tracking-[0.2em] text-neutral-400 dark:text-neutral-500">
+            <h2 className="mb-4 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
               Accès rapides
             </h2>
-            <div className="grid grid-cols-2 gap-3 sm:gap-4">
+            <div className="grid grid-cols-2 gap-3 sm:gap-3.5">
               {QUICK_ACTIONS.map((action, i) => (
                 <motion.div
                   key={action.href + action.label}
-                  initial={{ opacity: 0, y: 20 }}
+                  initial={{ opacity: 0, y: 18 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.15 + i * 0.05, duration: 0.45, ease: easeOut }}
+                  transition={{ delay: 0.12 + i * 0.05, duration: 0.42, ease: easeOut }}
                 >
                   <Link
                     href={action.href}
-                    className={`group flex aspect-square flex-col items-center justify-center gap-3 rounded-3xl border border-white/50 bg-gradient-to-br ${action.gradient} p-4 text-center shadow-[0_4px_24px_-12px_rgba(0,0,0,0.12)] ring-1 ring-black/[0.04] backdrop-blur-md transition-all duration-300 hover:-translate-y-1 hover:shadow-xl dark:border-white/10 dark:ring-white/5`}
+                    className="group flex aspect-square flex-col items-center justify-center gap-3 rounded-2xl border border-slate-100 bg-white p-4 text-center shadow-[0_4px_20px_rgba(0,0,0,0.03)] transition-all duration-200 hover:-translate-y-0.5 hover:bg-slate-50 hover:shadow-[0_8px_28px_rgba(0,0,0,0.06)]"
                   >
                     <action.icon
-                      className={`h-11 w-11 transition-colors duration-300 ${action.iconClass}`}
+                      className={`h-10 w-10 ${action.iconClass} transition-transform duration-200 group-hover:scale-105`}
                       strokeWidth={1.35}
                     />
-                    <span className="text-[13px] font-semibold leading-tight text-neutral-800 dark:text-neutral-100">
+                    <span className="text-[13px] font-semibold leading-tight text-slate-900">
                       {action.label}
                     </span>
                   </Link>
@@ -593,51 +580,50 @@ export default function Home() {
           </motion.div>
         </motion.section>
 
-        {/* Trésorerie + dernieres ventes compact */}
         <motion.div variants={itemVariants} className="space-y-8">
           <BankWidget className="min-h-[180px]" />
 
-          <div className="overflow-hidden rounded-[1.5rem] border border-white/50 bg-white/80 shadow-[0_4px_32px_-16px_rgba(0,0,0,0.1)] ring-1 ring-black/[0.03] backdrop-blur-md dark:border-white/10 dark:bg-white/[0.04]">
-            <div className="flex items-center justify-between border-b border-neutral-100/80 px-5 py-4 dark:border-white/10 md:px-6">
+          <div className="overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-[0_4px_20px_rgba(0,0,0,0.03)]">
+            <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4 md:px-6">
               <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-neutral-900/5 dark:bg-white/10">
-                  <Receipt className="h-5 w-5 text-neutral-600 dark:text-neutral-300" />
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-100 bg-slate-50">
+                  <Receipt className="h-5 w-5 text-slate-600" />
                 </div>
                 <div>
-                  <h2 className="text-sm font-semibold text-neutral-900 dark:text-white">
+                  <h2 className="text-sm font-semibold text-slate-900">
                     Dernières ventes
                   </h2>
-                  <p className="text-xs text-neutral-500">Activité récente</p>
+                  <p className="text-xs text-slate-500">Activité récente</p>
                 </div>
               </div>
               <Link
                 href="/kpi"
-                className="text-xs font-semibold text-indigo-600 hover:underline dark:text-indigo-400"
+                className="text-xs font-semibold text-blue-600 hover:underline"
               >
                 Analyse →
               </Link>
             </div>
             {loading ? (
-              <p className="px-6 py-12 text-center text-sm text-neutral-400">
+              <p className="px-6 py-12 text-center text-sm text-slate-500">
                 Chargement…
               </p>
             ) : dernieresVentes.length === 0 ? (
-              <p className="px-6 py-12 text-center text-sm text-neutral-400">
+              <p className="px-6 py-12 text-center text-sm text-slate-500">
                 Aucune vente récente.
               </p>
             ) : (
-              <ul className="divide-y divide-neutral-100/80 dark:divide-white/5">
+              <ul className="divide-y divide-slate-100">
                 {dernieresVentes.map((v) => (
                   <li
                     key={v.id}
-                    className="flex items-center justify-between gap-4 px-5 py-3.5 transition-colors hover:bg-neutral-50/80 dark:hover:bg-white/[0.03] md:px-6"
+                    className="flex items-center justify-between gap-4 px-5 py-3.5 transition-colors hover:bg-slate-50/80 md:px-6"
                   >
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium text-neutral-900 dark:text-white">
+                      <p className="truncate text-sm font-medium text-slate-900">
                         {vendeurMap[v.vendeur_id] ?? "Vendeur"}
                       </p>
-                      <p className="mt-0.5 flex items-center gap-1.5 text-xs text-neutral-500">
-                        <Calendar className="h-3.5 w-3.5 shrink-0 opacity-60" />
+                      <p className="mt-0.5 flex items-center gap-1.5 text-xs text-slate-500">
+                        <Calendar className="h-3.5 w-3.5 shrink-0 text-slate-400" />
                         <span className="md:hidden">{formatHeure(v.created_at)}</span>
                         <span className="hidden md:inline">
                           {formatDate(v.created_at)}
@@ -646,7 +632,7 @@ export default function Home() {
                     </div>
                     <div className="flex shrink-0 items-center gap-2">
                       <MethodePaiementBadge methode={v.methode_paiement} />
-                      <p className="text-sm font-semibold tabular-nums text-neutral-900 dark:text-white">
+                      <p className="text-sm font-semibold tabular-nums text-slate-900">
                         {formatPrix(v.total)}
                       </p>
                     </div>
