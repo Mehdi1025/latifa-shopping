@@ -13,6 +13,8 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   Sparkles,
+  Banknote,
+  PieChart as PieChartIcon,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -22,6 +24,9 @@ import {
   XAxis,
   YAxis,
   Tooltip,
+  PieChart,
+  Pie,
+  Cell,
 } from "recharts";
 import { createSupabaseBrowserClient } from "@/utils/supabase/client";
 import { localDateISO } from "@/hooks/useObjectifDuJour";
@@ -35,6 +40,7 @@ type Vente = {
   total: number;
   created_at: string;
   vendeur_id: string;
+  methode_paiement?: string | null;
 };
 
 type VenteItem = {
@@ -50,6 +56,15 @@ type Produit = {
 
 const ACCENT = "#c9a98c";
 const MONTHLY_GOAL_EUR = 15000;
+
+const FRAIS_CB_RATE = 0.015;
+
+const PAYMENT_DONUT = {
+  carte: { label: "Carte", fill: "#2563eb" },
+  especes: { label: "Espèces", fill: "#059669" },
+  paypal: { label: "PayPal", fill: "#4c1d95" },
+  autre: { label: "Autre", fill: "#a3a3a3" },
+} as const;
 
 const glassCard =
   "rounded-[1.35rem] border border-white/20 bg-white/55 shadow-[0_8px_40px_-16px_rgba(0,0,0,0.12)] backdrop-blur-xl backdrop-saturate-150 dark:border-white/10";
@@ -138,6 +153,41 @@ function KpiTooltip({
       <p className="mt-0.5 text-sm font-semibold tabular-nums tracking-tight text-white">
         {typeof v === "number" ? formatPrix(v) : "—"}
       </p>
+    </div>
+  );
+}
+
+function PaymentDonutTooltip({
+  active,
+  payload,
+}: {
+  active?: boolean;
+  payload?: ReadonlyArray<{
+    name?: string;
+    value?: number;
+    payload?: { name?: string; value?: number; pct?: number };
+  }>;
+}) {
+  if (!active || !payload?.length) return null;
+  const raw = payload[0]?.payload as
+    | { name?: string; value?: number; pct?: number }
+    | undefined;
+  const name = raw?.name ?? payload[0]?.name ?? "";
+  const value = raw?.value ?? payload[0]?.value ?? 0;
+  const pct = raw?.pct;
+  return (
+    <div className="rounded-2xl border border-white/40 bg-white/80 px-4 py-3 shadow-2xl ring-1 ring-black/5 backdrop-blur-xl dark:border-white/10 dark:bg-neutral-950/75">
+      <p className="text-xs font-semibold tracking-tight text-neutral-900 dark:text-white">
+        {name}
+      </p>
+      <p className="mt-1 text-lg font-bold tabular-nums tracking-tight text-neutral-900 dark:text-white">
+        {formatPrix(value)}
+      </p>
+      {typeof pct === "number" && !Number.isNaN(pct) && (
+        <p className="mt-1 text-[11px] font-medium text-neutral-500 dark:text-neutral-400">
+          {formatPercentOneDecimal(pct)} du CA mensuel
+        </p>
+      )}
     </div>
   );
 }
@@ -240,6 +290,9 @@ export default function KPIPage() {
   const [perfVendeuses, setPerfVendeuses] = useState<
     { id: string; nom: string; total: number; count: number }[]
   >([]);
+  const [ventesJourRows, setVentesJourRows] = useState<
+    { total: number; methode_paiement?: string | null }[]
+  >([]);
 
   const [caJour, setCaJour] = useState(0);
   const [nbVentesJour, setNbVentesJour] = useState(0);
@@ -284,7 +337,7 @@ export default function KPIPage() {
         ] = await Promise.all([
           supabase
             .from("ventes")
-            .select("id, total, created_at, vendeur_id")
+            .select("id, total, created_at, vendeur_id, methode_paiement")
             .gte("created_at", monthStart)
             .lte("created_at", monthEnd),
           supabase
@@ -300,7 +353,7 @@ export default function KPIPage() {
           supabase.from("produits").select("id, nom"),
           supabase
             .from("ventes")
-            .select("total")
+            .select("total, methode_paiement")
             .gte("created_at", rToday.start)
             .lte("created_at", rToday.end),
           supabase
@@ -325,7 +378,11 @@ export default function KPIPage() {
         setVentesMoisPrec((moisPrecRes.data ?? []) as Vente[]);
         setVentes30j((ventes30Res.data ?? []) as Vente[]);
 
-        const vt = (ventesTodayRes.data ?? []) as { total: number }[];
+        const vt = (ventesTodayRes.data ?? []) as {
+          total: number;
+          methode_paiement?: string | null;
+        }[];
+        setVentesJourRows(vt);
         const vy = (ventesYestRes.data ?? []) as { total: number }[];
         setNbVentesJour(vt.length);
         setCaJour(sumTotals(vt));
@@ -397,6 +454,50 @@ export default function KPIPage() {
     () => ventesMois.reduce((s, v) => s + (v.total ?? 0), 0),
     [ventesMois]
   );
+
+  /** Liquide attendu en caisse (espèces du jour uniquement). */
+  const tiroirCaisseJour = useMemo(
+    () =>
+      ventesJourRows
+        .filter((v) => v.methode_paiement === "especes")
+        .reduce((s, v) => s + (v.total ?? 0), 0),
+    [ventesJourRows]
+  );
+
+  /** Économie théorique vs frais CB (1,5 %) sur la part espèces du jour. */
+  const fraisBancairesEvites = useMemo(
+    () => Math.round(tiroirCaisseJour * FRAIS_CB_RATE * 100) / 100,
+    [tiroirCaisseJour]
+  );
+
+  /** Données donut : CA du mois par méthode (+ part %). */
+  const paymentDonutData = useMemo(() => {
+    const sums = {
+      carte: 0,
+      especes: 0,
+      paypal: 0,
+      autre: 0,
+    };
+    ventesMois.forEach((v) => {
+      const t = v.total ?? 0;
+      const m = v.methode_paiement;
+      if (m === "carte") sums.carte += t;
+      else if (m === "especes") sums.especes += t;
+      else if (m === "paypal") sums.paypal += t;
+      else sums.autre += t;
+    });
+    const ca = caMois;
+    const row = (key: keyof typeof sums) => ({
+      name: PAYMENT_DONUT[key].label,
+      value: sums[key],
+      fill: PAYMENT_DONUT[key].fill,
+      pct: ca > 0 ? (sums[key] / ca) * 100 : 0,
+    });
+    return (["carte", "especes", "paypal", "autre"] as const)
+      .map((k) => row(k))
+      .filter((d) => d.value > 0);
+  }, [ventesMois, caMois]);
+
   const caMoisPrec = useMemo(
     () => ventesMoisPrec.reduce((s, v) => s + (v.total ?? 0), 0),
     [ventesMoisPrec]
@@ -717,6 +818,162 @@ export default function KPIPage() {
                   </div>
                 </div>
               </motion.div>
+          </motion.div>
+
+          {/* Encaissements : tiroir espèces (jour) + répartition mensuelle */}
+          <motion.div variants={itemVariants} className="space-y-3">
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-neutral-400">
+                Moyens de paiement
+              </p>
+              <p className="mt-0.5 text-sm text-neutral-500">
+                Liquide du soir · mix du mois en cours
+              </p>
+            </div>
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-5">
+              <motion.div
+                initial={{ opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.45, ease: [0.25, 0.46, 0.45, 0.94] }}
+                className={`${glassCard} relative overflow-hidden p-5 md:p-7`}
+              >
+                <div
+                  className="pointer-events-none absolute -right-8 -top-8 h-32 w-32 rounded-full bg-emerald-400/15 blur-2xl"
+                  aria-hidden
+                />
+                <div className="relative flex items-start justify-between gap-3">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-500/20 to-teal-500/10 ring-1 ring-emerald-500/20">
+                    <Banknote
+                      className="h-6 w-6 text-emerald-700"
+                      strokeWidth={1.75}
+                    />
+                  </div>
+                  <span className="text-2xl" aria-hidden>
+                    💵
+                  </span>
+                </div>
+                <p className="relative mt-4 text-[11px] font-semibold uppercase tracking-[0.18em] text-neutral-400">
+                  Tiroir-caisse · espèces (aujourd&apos;hui)
+                </p>
+                <p className="relative mt-2 text-4xl font-light tabular-nums tracking-tighter text-neutral-900 md:text-5xl">
+                  {formatPrix(tiroirCaisseJour)}
+                </p>
+                <p className="relative mt-3 text-sm leading-relaxed text-neutral-600">
+                  Montant en liquide à contrôler en fin de journée (ventes
+                  &quot;espèces&quot; uniquement).
+                </p>
+                <div className="relative mt-5 rounded-2xl border border-emerald-200/60 bg-emerald-50/50 px-4 py-3 text-sm text-emerald-900 ring-1 ring-emerald-500/10">
+                  <span className="font-semibold">Frais bancaires économisés : </span>
+                  <span className="tabular-nums font-bold">
+                    +{formatPrix(fraisBancairesEvites)}
+                  </span>
+                  <span className="ml-1 text-xs font-normal text-emerald-800/80">
+                    (équivalent 1,5 % CB sur cette part espèces)
+                  </span>
+                </div>
+              </motion.div>
+
+              <motion.div
+                initial={{ opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: 0.06, ease: [0.25, 0.46, 0.45, 0.94] }}
+                className={`${glassCard} flex flex-col p-5 md:p-7`}
+              >
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <div>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-neutral-400">
+                      Répartition du CA
+                    </p>
+                    <h3 className="mt-1 text-base font-semibold tracking-tight text-neutral-900">
+                      Par moyen de paiement
+                    </h3>
+                    <p className="mt-0.5 text-xs text-neutral-500">Mois en cours</p>
+                  </div>
+                  <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-violet-500/10">
+                    <PieChartIcon className="h-5 w-5 text-violet-700" strokeWidth={1.75} />
+                  </div>
+                </div>
+
+                {paymentDonutData.length === 0 ? (
+                  <p className="flex flex-1 items-center justify-center py-16 text-center text-sm text-neutral-500">
+                    Aucune vente ce mois-ci avec méthode renseignée.
+                  </p>
+                ) : (
+                  <>
+                    <div className="relative mx-auto mt-2 h-[260px] w-full max-w-[320px]">
+                      <motion.div
+                        className="h-full w-full"
+                        initial={{ opacity: 0, scale: 0.92 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        transition={{
+                          duration: 0.65,
+                          delay: 0.1,
+                          ease: [0.25, 0.46, 0.45, 0.94],
+                        }}
+                      >
+                        <ResponsiveContainer width="100%" height="100%">
+                          <PieChart margin={{ top: 4, right: 4, left: 4, bottom: 4 }}>
+                            <Pie
+                              data={paymentDonutData}
+                              dataKey="value"
+                              nameKey="name"
+                              cx="50%"
+                              cy="50%"
+                              innerRadius={74}
+                              outerRadius={108}
+                              paddingAngle={2.5}
+                              cornerRadius={7}
+                              stroke="rgba(255,255,255,0.85)"
+                              strokeWidth={2}
+                              animationBegin={80}
+                              animationDuration={900}
+                              animationEasing="ease-out"
+                            >
+                              {paymentDonutData.map((entry, i) => (
+                                <Cell
+                                  key={`${entry.name}-${i}`}
+                                  fill={entry.fill}
+                                  className="outline-none transition-opacity hover:opacity-90"
+                                />
+                              ))}
+                            </Pie>
+                            <Tooltip
+                              content={<PaymentDonutTooltip />}
+                              cursor={false}
+                            />
+                          </PieChart>
+                        </ResponsiveContainer>
+                      </motion.div>
+                      <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center pt-1">
+                        <span className="text-3xl font-light tabular-nums tracking-tight text-neutral-900 md:text-4xl">
+                          {nbVentesMois}
+                        </span>
+                        <span className="mt-0.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-neutral-400">
+                          transactions
+                        </span>
+                      </div>
+                    </div>
+                    <div className="mt-4 flex flex-wrap justify-center gap-x-5 gap-y-2 border-t border-neutral-100/80 pt-4">
+                      {paymentDonutData.map((d) => (
+                        <span
+                          key={d.name}
+                          className="inline-flex items-center gap-2 text-[11px] font-medium text-neutral-600"
+                        >
+                          <span
+                            className="h-2.5 w-2.5 shrink-0 rounded-full shadow-sm ring-1 ring-black/5"
+                            style={{ backgroundColor: d.fill }}
+                          />
+                          <span>{d.name}</span>
+                          <span className="tabular-nums text-neutral-900">
+                            {formatPercentOneDecimal(d.pct)}
+                          </span>
+                        </span>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </motion.div>
+            </div>
           </motion.div>
 
           <motion.div variants={itemVariants} className="w-full">
