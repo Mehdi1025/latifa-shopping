@@ -6,8 +6,6 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import {
   Euro,
-  Calendar,
-  Receipt,
   Users,
   BarChart3,
   CalendarDays,
@@ -25,9 +23,6 @@ import { createSupabaseBrowserClient } from "@/utils/supabase/client";
 import { useNotifications } from "@/contexts/NotificationsContext";
 import { playNotificationSound } from "@/lib/notification-sound";
 import { useAlerts, type AlertItem } from "@/hooks/useAlerts";
-import BankWidget from "@/components/admin/BankWidget";
-import { SalesHeatmap } from "@/components/admin/SalesHeatmap";
-import { MethodePaiementBadge } from "@/components/MethodePaiement";
 import { localDateISO, pickMontantObjectif } from "@/hooks/useObjectifDuJour";
 
 type Vente = {
@@ -37,8 +32,6 @@ type Vente = {
   created_at: string;
   methode_paiement?: string | null;
 };
-
-type VendeurMap = Record<string, string>;
 
 /** Carte type Stripe / Apple Analytics — blanc, bordure cheveu, ombre très douce */
 const card =
@@ -50,25 +43,6 @@ function formatPrix(prix: number): string {
     currency: "EUR",
     minimumFractionDigits: 2,
   }).format(prix);
-}
-
-function formatDate(iso: string): string {
-  const d = new Date(iso);
-  return new Intl.DateTimeFormat("fr-FR", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(d);
-}
-
-function formatHeure(iso: string): string {
-  const d = new Date(iso);
-  return new Intl.DateTimeFormat("fr-FR", {
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(d);
 }
 
 function startOfTodayISO(): string {
@@ -219,8 +193,6 @@ const QUICK_ACTIONS = [
 export default function Home() {
   const [caJour, setCaJour] = useState<number>(0);
   const [nbVentesJour, setNbVentesJour] = useState<number>(0);
-  const [dernieresVentes, setDernieresVentes] = useState<Vente[]>([]);
-  const [vendeurMap, setVendeurMap] = useState<VendeurMap>({});
   const [nombreEntrees, setNombreEntrees] = useState<number | null>(null);
   const [objectifCAJour, setObjectifCAJour] = useState<number | null>(null);
   const [tachesUrgentes, setTachesUrgentes] = useState<number | null>(null);
@@ -260,22 +232,11 @@ export default function Home() {
         const jourKey = localDateISO();
         const endToday = endOfTodayISO();
 
-        const [
-          jourRes,
-          lastVentesRes,
-          trafficRes,
-          objectifRes,
-          tachesRes,
-        ] = await Promise.all([
+        const [jourRes, trafficRes, objectifRes, tachesRes] = await Promise.all([
           supabase
             .from("ventes")
             .select("total, created_at")
             .gte("created_at", fromDay),
-          supabase
-            .from("ventes")
-            .select("id, vendeur_id, total, created_at, methode_paiement")
-            .order("created_at", { ascending: false })
-            .limit(8),
           supabase
             .from("daily_traffic")
             .select("nombre_entrees")
@@ -298,7 +259,6 @@ export default function Home() {
         const ca = ventesJour.reduce((acc, v) => acc + (v.total ?? 0), 0);
         setCaJour(ca);
         setNbVentesJour(ventesJour.length);
-        setDernieresVentes((lastVentesRes.data as Vente[]) ?? []);
 
         const ne = (trafficRes.data as { nombre_entrees?: number } | null)
           ?.nombre_entrees;
@@ -314,27 +274,6 @@ export default function Home() {
         setTachesUrgentes(
           typeof tc === "number" && !Number.isNaN(tc) ? tc : null
         );
-
-        const vendeurIds = [
-          ...new Set(
-            ((lastVentesRes.data ?? []) as Vente[])
-              .map((v) => v.vendeur_id)
-              .filter(Boolean)
-          ),
-        ];
-        if (vendeurIds.length > 0) {
-          const { data: profiles } = await supabase
-            .from("profiles")
-            .select("id, full_name")
-            .in("id", vendeurIds);
-          const map: VendeurMap = {};
-          (profiles ?? []).forEach((p: { id: string; full_name?: string | null }) => {
-            const name = p.full_name;
-            map[p.id] =
-              typeof name === "string" && name.trim() ? name.trim() : "Vendeur";
-          });
-          setVendeurMap(map);
-        }
       } catch {
         // silent
       } finally {
@@ -363,7 +302,6 @@ export default function Home() {
             setCaJour((prev) => prev + montant);
             setNbVentesJour((prev) => prev + 1);
           }
-          setDernieresVentes((prev) => [newVente, ...prev.slice(0, 7)]);
           void refetchAlerts();
         }
       )
@@ -579,76 +517,7 @@ export default function Home() {
               ))}
             </div>
           </motion.div>
-
-          <motion.div variants={itemVariants} className="lg:col-span-12">
-            <div className={`p-6 md:p-8 ${card}`}>
-              <SalesHeatmap />
-            </div>
-          </motion.div>
         </motion.section>
-
-        <motion.div variants={itemVariants} className="space-y-8">
-          <BankWidget className="min-h-[180px]" />
-
-          <div className="overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-[0_4px_20px_rgba(0,0,0,0.03)]">
-            <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4 md:px-6">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-100 bg-slate-50">
-                  <Receipt className="h-5 w-5 text-slate-600" />
-                </div>
-                <div>
-                  <h2 className="text-sm font-semibold text-slate-900">
-                    Dernières ventes
-                  </h2>
-                  <p className="text-xs text-slate-500">Activité récente</p>
-                </div>
-              </div>
-              <Link
-                href="/kpi"
-                className="text-xs font-semibold text-blue-600 hover:underline"
-              >
-                Analyse →
-              </Link>
-            </div>
-            {loading ? (
-              <p className="px-6 py-12 text-center text-sm text-slate-500">
-                Chargement…
-              </p>
-            ) : dernieresVentes.length === 0 ? (
-              <p className="px-6 py-12 text-center text-sm text-slate-500">
-                Aucune vente récente.
-              </p>
-            ) : (
-              <ul className="divide-y divide-slate-100">
-                {dernieresVentes.map((v) => (
-                  <li
-                    key={v.id}
-                    className="flex items-center justify-between gap-4 px-5 py-3.5 transition-colors hover:bg-slate-50/80 md:px-6"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium text-slate-900">
-                        {vendeurMap[v.vendeur_id] ?? "Vendeur"}
-                      </p>
-                      <p className="mt-0.5 flex items-center gap-1.5 text-xs text-slate-500">
-                        <Calendar className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-                        <span className="md:hidden">{formatHeure(v.created_at)}</span>
-                        <span className="hidden md:inline">
-                          {formatDate(v.created_at)}
-                        </span>
-                      </p>
-                    </div>
-                    <div className="flex shrink-0 items-center gap-2">
-                      <MethodePaiementBadge methode={v.methode_paiement} />
-                      <p className="text-sm font-semibold tabular-nums text-slate-900">
-                        {formatPrix(v.total)}
-                      </p>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        </motion.div>
       </motion.div>
     </div>
   );

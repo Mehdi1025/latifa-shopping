@@ -33,6 +33,7 @@ import { localDateISO } from "@/hooks/useObjectifDuJour";
 import CrossSellInsights from "@/components/admin/CrossSellInsights";
 import KpiFinanceIntel from "@/components/admin/KpiFinanceIntel";
 import BusinessSimulator from "@/components/admin/kpi/BusinessSimulator";
+import { SalesHeatmap } from "@/components/admin/SalesHeatmap";
 import { MOCK_SOLDE_BANCAIRE } from "@/lib/finance-kpi";
 
 type Vente = {
@@ -68,6 +69,10 @@ const PAYMENT_DONUT = {
 
 const glassCard =
   "rounded-[1.35rem] border border-white/20 bg-white/55 shadow-[0_8px_40px_-16px_rgba(0,0,0,0.12)] backdrop-blur-xl backdrop-saturate-150 dark:border-white/10";
+
+/** Carte blanche douce — alignée sur le fond clair KPI, cohérente avec la heatmap minimaliste */
+const heatmapSurfaceCard =
+  "rounded-[1.35rem] border border-neutral-200/90 bg-white p-5 shadow-[0_4px_24px_rgba(0,0,0,0.05)] md:p-7";
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -992,6 +997,12 @@ export default function KPIPage() {
               caProjeteFinMois={caProjeteFinMois}
               soldeBancaire={MOCK_SOLDE_BANCAIRE}
             />
+          </motion.div>
+
+          <motion.div variants={itemVariants} className="w-full">
+            <div className={heatmapSurfaceCard}>
+              <SalesHeatmap />
+            </div>
           </motion.div>
 
           <motion.div variants={itemVariants} className="space-y-4">

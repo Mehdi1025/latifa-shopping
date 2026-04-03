@@ -75,7 +75,7 @@ function axisHourLabel(hourIndex: number): string {
 
 function cellClasses(value: number): string {
   if (value === 0) {
-    return "border border-slate-100 bg-slate-50";
+    return "border border-neutral-100 bg-neutral-50";
   }
   if (value < 30) {
     return "bg-emerald-100";
@@ -91,7 +91,7 @@ export function SalesHeatmap() {
 
   return (
     <div className="w-full">
-      <p className="mb-5 text-[11px] font-medium uppercase tracking-[0.14em] text-slate-400">
+      <p className="mb-5 text-[11px] font-medium uppercase tracking-[0.14em] text-neutral-400">
         Météo des ventes (affluence moyenne)
       </p>
 
@@ -108,7 +108,7 @@ export function SalesHeatmap() {
           {Array.from({ length: NUM_HOURS }, (_, h) => (
             <div
               key={`h-${h}`}
-              className="flex justify-center text-[10px] font-medium tabular-nums text-slate-400"
+              className="flex justify-center text-[10px] font-medium tabular-nums text-neutral-400"
             >
               {axisHourLabel(h)}
             </div>
@@ -116,7 +116,7 @@ export function SalesHeatmap() {
 
           {matrix.map((row, d) => (
             <div key={d} className="contents">
-              <div className="flex items-center pr-1 text-[10px] font-medium text-slate-400">
+              <div className="flex items-center pr-1 text-[10px] font-medium text-neutral-400">
                 {DAY_LABELS[d]}
               </div>
               {row.map((cell, h) => {
@@ -136,21 +136,21 @@ export function SalesHeatmap() {
                     className="group relative flex items-center justify-center py-0.5"
                   >
                     <div
-                      className={`h-6 w-6 shrink-0 rounded-sm transition-transform duration-200 group-hover:z-10 group-hover:scale-110 group-hover:ring-2 group-hover:ring-slate-200/80 ${cellClasses(cell.value)}`}
+                      className={`h-6 w-6 shrink-0 rounded-sm transition-transform duration-200 group-hover:z-10 group-hover:scale-110 group-hover:ring-2 group-hover:ring-neutral-200/80 ${cellClasses(cell.value)}`}
                       title={title}
                       role="img"
                       aria-label={title}
                     />
                     <div
-                      className="pointer-events-none absolute bottom-full left-1/2 z-30 mb-2 w-max max-w-[min(18rem,calc(100vw-2rem))] -translate-x-1/2 rounded-lg border border-slate-200/80 bg-white px-3 py-2 text-left text-[11px] leading-snug text-slate-700 opacity-0 shadow-md transition-opacity duration-150 group-hover:opacity-100"
+                      className="pointer-events-none absolute bottom-full left-1/2 z-30 mb-2 w-max max-w-[min(18rem,calc(100vw-2rem))] -translate-x-1/2 rounded-lg border border-neutral-200/90 bg-white px-3 py-2 text-left text-[11px] leading-snug text-neutral-700 opacity-0 shadow-[0_4px_16px_rgba(0,0,0,0.08)] transition-opacity duration-150 group-hover:opacity-100"
                       role="tooltip"
                     >
                       {cell.value === 0 ? (
                         <>
-                          <span className="font-medium text-slate-900">
+                          <span className="font-medium text-neutral-900">
                             {dayName} {slot}
                           </span>
-                          <span className="mt-0.5 block text-slate-500">
+                          <span className="mt-0.5 block text-neutral-500">
                             Affluence très faible
                           </span>
                         </>
@@ -159,19 +159,19 @@ export function SalesHeatmap() {
                           <span className="font-semibold text-emerald-700">
                             🔥 Heure d&apos;Or
                           </span>
-                          <span className="mt-1 block text-slate-600">
+                          <span className="mt-1 block text-neutral-600">
                             {dayName} {slot}
                           </span>
-                          <span className="mt-0.5 block tabular-nums text-slate-900">
+                          <span className="mt-0.5 block tabular-nums text-neutral-900">
                             Moyenne : {cell.eurosMoyenne}€
                           </span>
                         </>
                       ) : (
                         <>
-                          <span className="font-medium text-slate-900">
+                          <span className="font-medium text-neutral-900">
                             {dayName} {slot}
                           </span>
-                          <span className="mt-0.5 block tabular-nums text-slate-600">
+                          <span className="mt-0.5 block tabular-nums text-neutral-600">
                             Moyenne : {cell.eurosMoyenne}€
                           </span>
                         </>
@@ -185,9 +185,9 @@ export function SalesHeatmap() {
         </div>
       </div>
 
-      <div className="mt-5 flex flex-wrap items-center gap-4 text-[10px] text-slate-400">
+      <div className="mt-5 flex flex-wrap items-center gap-4 text-[10px] text-neutral-400">
         <span className="flex items-center gap-1.5">
-          <span className="h-3.5 w-3.5 rounded-sm border border-slate-100 bg-slate-50" />
+          <span className="h-3.5 w-3.5 rounded-sm border border-neutral-100 bg-neutral-50" />
           Vide
         </span>
         <span className="flex items-center gap-1.5">
