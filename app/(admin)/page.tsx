@@ -26,6 +26,7 @@ import { useNotifications } from "@/contexts/NotificationsContext";
 import { playNotificationSound } from "@/lib/notification-sound";
 import { useAlerts, type AlertItem } from "@/hooks/useAlerts";
 import BankWidget from "@/components/admin/BankWidget";
+import { SalesHeatmap } from "@/components/admin/SalesHeatmap";
 import { MethodePaiementBadge } from "@/components/MethodePaiement";
 import { localDateISO, pickMontantObjectif } from "@/hooks/useObjectifDuJour";
 
@@ -576,6 +577,12 @@ export default function Home() {
                   </Link>
                 </motion.div>
               ))}
+            </div>
+          </motion.div>
+
+          <motion.div variants={itemVariants} className="lg:col-span-12">
+            <div className={`p-6 md:p-8 ${card}`}>
+              <SalesHeatmap />
             </div>
           </motion.div>
         </motion.section>
