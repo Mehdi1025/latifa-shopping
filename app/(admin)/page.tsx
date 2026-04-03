@@ -18,12 +18,14 @@ import { playNotificationSound } from "@/lib/notification-sound";
 import { useAlerts } from "@/hooks/useAlerts";
 import ActionCenter from "@/components/ActionCenter";
 import BankWidget from "@/components/admin/BankWidget";
+import { MethodePaiementBadge } from "@/components/MethodePaiement";
 
 type Vente = {
   id: string;
   vendeur_id: string;
   total: number;
   created_at: string;
+  methode_paiement?: string | null;
 };
 
 type VendeurMap = Record<string, string>;
@@ -100,7 +102,7 @@ export default function Home() {
             .gte("created_at", fromDay),
           supabase
             .from("ventes")
-            .select("id, vendeur_id, total, created_at")
+            .select("id, vendeur_id, total, created_at, methode_paiement")
             .order("created_at", { ascending: false })
             .limit(10),
         ]);
@@ -300,7 +302,8 @@ export default function Home() {
                         </span>
                       </p>
                     </div>
-                    <div className="flex shrink-0 items-center gap-3">
+                    <div className="flex shrink-0 items-center gap-2">
+                      <MethodePaiementBadge methode={v.methode_paiement} />
                       <p className="text-sm font-semibold tabular-nums text-gray-900">
                         {formatPrix(v.total)}
                       </p>

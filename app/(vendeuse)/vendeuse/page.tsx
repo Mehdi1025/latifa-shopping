@@ -12,6 +12,10 @@ import GamificationJauge from "@/components/vendeur/GamificationJauge";
 import VipRadar from "@/components/vendeur/VipRadar";
 import FluxBoutiqueCard from "@/components/vendeur/FluxBoutiqueCard";
 import { MYSTERY_VAULT_PRODUCT_ID } from "@/lib/constants/mystery-vault";
+import {
+  MoyenPaiementSelector,
+  type MethodePaiement,
+} from "@/components/MethodePaiement";
 
 type Produit = {
   id: string;
@@ -41,6 +45,7 @@ type VenteHistorique = {
   total: number;
   remise?: number;
   created_at: string;
+  methode_paiement?: MethodePaiement | string | null;
   ventes_items?: VenteItem[];
 };
 
@@ -146,6 +151,8 @@ export default function VendeusePage() {
   const [remiseModalOpen, setRemiseModalOpen] = useState(false);
   const [remiseType, setRemiseType] = useState<"percent" | "fixed">("percent");
   const [remiseValue, setRemiseValue] = useState<number>(0);
+  const [methodePaiement, setMethodePaiement] =
+    useState<MethodePaiement>("carte");
   const [clientPhone, setClientPhone] = useState("");
   const [clientNom, setClientNom] = useState("");
   const [resolvedClient, setResolvedClient] = useState<ResolvedClient | null>(null);
@@ -197,7 +204,7 @@ export default function VendeusePage() {
     setLoadingHistorique(true);
     const { data: ventes } = await supabase
       .from("ventes")
-      .select("id, total, created_at")
+      .select("id, total, created_at, methode_paiement")
       .eq("vendeur_id", user.id)
       .order("created_at", { ascending: false })
       .limit(20);
@@ -361,6 +368,7 @@ export default function VendeusePage() {
     setPanier([]);
     setRemiseValue(0);
     setRemiseType("percent");
+    setMethodePaiement("carte");
     setClientPhone("");
     setClientNom("");
     setResolvedClient(null);
@@ -468,6 +476,7 @@ export default function VendeusePage() {
           vendeur_id: user.id,
           total,
           remise: remiseAmount,
+          methode_paiement: methodePaiement,
           ...(clientId ? { client_id: clientId } : {}),
         })
         .select("id")
@@ -512,6 +521,7 @@ export default function VendeusePage() {
       setPanier([]);
       setRemiseValue(0);
       setRemiseType("percent");
+      setMethodePaiement("carte");
       setClientPhone("");
       setClientNom("");
       setResolvedClient(null);
@@ -892,6 +902,12 @@ export default function VendeusePage() {
                   lookupLoading={clientLookupLoading}
                 />
 
+                <MoyenPaiementSelector
+                  value={methodePaiement}
+                  onChange={setMethodePaiement}
+                  className="mt-6"
+                />
+
                 {/* Historique ventes du jour */}
                 <div className="mt-8 border-t border-gray-100 pt-8">
                   <h3 className="mb-4 flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-gray-500">
@@ -1110,11 +1126,16 @@ export default function VendeusePage() {
                   resolvedClient={resolvedClient}
                   lookupLoading={clientLookupLoading}
                 />
+                <MoyenPaiementSelector
+                  value={methodePaiement}
+                  onChange={setMethodePaiement}
+                  className="mt-6"
+                />
                 <button
                   type="button"
                   onClick={handleEncaisser}
                   disabled={panier.length === 0 || encaissementLoading}
-                  className="flex w-full items-center justify-center rounded-2xl bg-black py-5 text-xl font-bold text-white transition-all duration-300 hover:bg-gray-900 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="mt-6 flex w-full items-center justify-center rounded-2xl bg-black py-5 text-xl font-bold text-white transition-all duration-300 hover:bg-gray-900 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {encaissementLoading ? "Encaissement..." : `Encaisser ${formatPrix(total)}`}
                 </button>
