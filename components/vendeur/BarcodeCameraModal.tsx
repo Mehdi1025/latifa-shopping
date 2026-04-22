@@ -2,15 +2,21 @@
 
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { X, CameraOff, AlertCircle } from "lucide-react";
-import { playScanBeep } from "@/lib/scan-beep";
+import { playScanBeep, playScanErrorBeep } from "@/lib/scan-beep";
 import { normalizeEan13String } from "@/lib/produit-import";
 import type { Html5Qrcode } from "html5-qrcode";
+
+/** Retourne si l’ajout panier a réussi (bip aigu) ou non (bip grave, toast côté parent). */
+export type CameraScanOutcome = "ok" | "err";
 
 type BarcodeCameraModalProps = {
   open: boolean;
   onClose: () => void;
-  onEan13: (ean: string) => void;
+  /** Traitement EAN (panier) — ne doit pas fermer le modal. */
+  onEan13: (ean: string) => CameraScanOutcome;
 };
+
+const COOLDOWN_MS = 1800;
 
 type PermissionState = "unknown" | "granted" | "denied" | "unavailable";
 
@@ -29,7 +35,11 @@ export default function BarcodeCameraModal({
   const [permission, setPermission] = useState<PermissionState>("unknown");
   const [startError, setStartError] = useState<string | null>(null);
   const [isStarting, setIsStarting] = useState(false);
-  const processingRef = useRef(false);
+  const [frameFlash, setFrameFlash] = useState<"off" | "success" | "error">("off");
+  const [cooldownActive, setCooldownActive] = useState(false);
+  const cooldownUntilRef = useRef(0);
+  const onEan13Ref = useRef(onEan13);
+  onEan13Ref.current = onEan13;
 
   const stopScanner = useCallback(async () => {
     const s = scannerRef.current;
@@ -49,14 +59,18 @@ export default function BarcodeCameraModal({
       void stopScanner();
       setPermission("unknown");
       setStartError(null);
-      processingRef.current = false;
+      setFrameFlash("off");
+      setCooldownActive(false);
+      cooldownUntilRef.current = 0;
       return;
     }
 
     let cancelled = false;
     setIsStarting(true);
     setStartError(null);
-    processingRef.current = false;
+    setFrameFlash("off");
+    cooldownUntilRef.current = 0;
+    setCooldownActive(false);
 
     (async () => {
       if (typeof window === "undefined" || !navigator?.mediaDevices?.getUserMedia) {
@@ -103,25 +117,36 @@ export default function BarcodeCameraModal({
       if (cancelled) return;
 
       const onSuccess = (decodedText: string) => {
-        if (processingRef.current) return;
+        const now = Date.now();
+        if (now < cooldownUntilRef.current) return;
+
         const ean = normalizeEan13String(decodedText.replace(/\s/g, ""));
         if (!ean) return;
-        const now = Date.now();
-        if (ean === lastCodeRef.current && now - lastTimeRef.current < 1500) return;
+        if (ean === lastCodeRef.current && now - lastTimeRef.current < 400) {
+          return;
+        }
         lastCodeRef.current = ean;
         lastTimeRef.current = now;
-        processingRef.current = true;
 
-        void (async () => {
+        cooldownUntilRef.current = now + COOLDOWN_MS;
+        setCooldownActive(true);
+        setFrameFlash("off");
+
+        const outcome = onEan13Ref.current(ean);
+        if (outcome === "ok") {
           playScanBeep();
-          try {
-            await stopScanner();
-          } finally {
-            onClose();
-            onEan13(ean);
-            processingRef.current = false;
-          }
-        })();
+          setFrameFlash("success");
+          window.setTimeout(() => setFrameFlash("off"), 450);
+        } else {
+          playScanErrorBeep();
+          setFrameFlash("error");
+          window.setTimeout(() => setFrameFlash("off"), 450);
+        }
+
+        window.setTimeout(() => {
+          cooldownUntilRef.current = 0;
+          setCooldownActive(false);
+        }, COOLDOWN_MS);
       };
 
       const onError = () => {
@@ -255,10 +280,9 @@ export default function BarcodeCameraModal({
 
     return () => {
       cancelled = true;
-      processingRef.current = false;
       void stopScanner();
     };
-  }, [open, onClose, onEan13, regionId, stopScanner]);
+  }, [open, regionId, stopScanner]);
 
   if (!open) return null;
 
@@ -270,15 +294,7 @@ export default function BarcodeCameraModal({
       aria-modal="true"
       aria-label="Scanner un code-barres"
     >
-      <button
-        type="button"
-        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-        aria-label="Fermer"
-        onClick={() => {
-          void stopScanner();
-          onClose();
-        }}
-      />
+      <div className="pointer-events-none absolute inset-0 bg-black/60 backdrop-blur-sm" aria-hidden />
       <div className="relative z-10 w-full max-w-lg overflow-hidden rounded-3xl bg-white shadow-2xl ring-1 ring-gray-200">
         <div className="flex items-center justify-between border-b border-gray-100 px-4 py-3">
           <h2 className="text-lg font-semibold text-gray-900">📷 Scanner EAN-13</h2>
@@ -295,7 +311,7 @@ export default function BarcodeCameraModal({
           </button>
         </div>
 
-        <div className="p-3">
+        <div className="p-3 pb-4">
           {permission === "denied" && (
             <div className="mb-3 flex items-start gap-2 rounded-2xl bg-amber-50 px-3 py-3 text-sm text-amber-900 ring-1 ring-amber-200">
               <AlertCircle className="mt-0.5 h-5 w-5 shrink-0" />
@@ -319,17 +335,43 @@ export default function BarcodeCameraModal({
             </div>
           )}
 
-          <div className="relative min-h-[240px] overflow-hidden rounded-2xl bg-black">
+          <div
+            className={[
+              "relative min-h-[240px] overflow-hidden rounded-2xl bg-black transition-[box-shadow,ring] duration-200",
+              frameFlash === "success" &&
+                "ring-4 ring-emerald-400 shadow-[0_0_24px_4px_rgba(52,211,153,0.45)]",
+              frameFlash === "error" &&
+                "ring-4 ring-red-400 shadow-[0_0_20px_4px_rgba(248,113,113,0.4)]",
+            ]
+              .filter(Boolean)
+              .join(" ")}
+          >
             <div id={regionId} className="min-h-[240px] w-full" />
             {isStarting && (
               <div className="absolute inset-0 flex items-center justify-center bg-black/80 text-sm text-white">
                 Démarrage de la caméra…
               </div>
             )}
+            {cooldownActive && !isStarting && (
+              <div className="pointer-events-none absolute bottom-2 left-1/2 -translate-x-1/2 rounded-full bg-gray-900/80 px-3 py-1 text-xs font-medium text-white">
+                Pause {String(COOLDOWN_MS / 1000).replace(".", ",")}s…
+              </div>
+            )}
           </div>
           <p className="mt-3 text-center text-xs text-gray-500">
-            Cadre central : placez le code-barres (EAN-13) — lecture automatique
+            Scan en rafale : la fenêtre reste ouverte. Placez chaque EAN — bip + cadre
+            vert = OK, rouge = erreur.
           </p>
+          <button
+            type="button"
+            onClick={() => {
+              void stopScanner();
+              onClose();
+            }}
+            className="mt-4 flex min-h-14 w-full items-center justify-center rounded-2xl bg-gray-900 py-3.5 text-base font-bold text-white shadow-md transition active:scale-[0.99] hover:bg-gray-800"
+          >
+            Terminer le scan
+          </button>
         </div>
       </div>
     </div>

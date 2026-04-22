@@ -9,7 +9,9 @@ import ClientelingPanel from "@/components/vendeur/ClientelingPanel";
 import GamificationJauge from "@/components/vendeur/GamificationJauge";
 import VipRadar from "@/components/vendeur/VipRadar";
 import FluxBoutiqueCard from "@/components/vendeur/FluxBoutiqueCard";
-import BarcodeCameraModal from "@/components/vendeur/BarcodeCameraModal";
+import BarcodeCameraModal, {
+  type CameraScanOutcome,
+} from "@/components/vendeur/BarcodeCameraModal";
 import { MYSTERY_VAULT_PRODUCT_ID } from "@/lib/constants/mystery-vault";
 import {
   MoyenPaiementSelector,
@@ -173,6 +175,9 @@ export default function VendeusePage() {
   const prevPanierLen = useRef(0);
   const eanInputRef = useRef<HTMLInputElement>(null);
   const tryAddByEanRef = useRef<(raw: string) => void>(() => {});
+  const tryAddByEanWithResultRef = useRef<(raw: string) => CameraScanOutcome>(
+    () => "err"
+  );
 
   const supabase = createSupabaseBrowserClient();
 
@@ -427,30 +432,39 @@ export default function VendeusePage() {
     setTimeout(() => setToast(null), 4000);
   };
 
-  tryAddByEanRef.current = (raw: string) => {
+  tryAddByEanWithResultRef.current = (raw: string): CameraScanOutcome => {
     const ean = normalizeEan13String(raw);
     if (!ean) {
       showToast("error", "EAN invalide (13 chiffres).");
-      return;
+      return "err";
     }
     const p = produits.find((x) => (x.code_barre ?? "") === ean);
     if (!p) {
-      showToast("error", "❌ Code inconnu");
-      return;
+      showToast("error", "❌ Produit introuvable");
+      return "err";
     }
-    if (p.id === MYSTERY_VAULT_PRODUCT_ID) return;
+    if (p.id === MYSTERY_VAULT_PRODUCT_ID) {
+      showToast("error", "Cet article n'est pas ajoutable au panier");
+      return "err";
+    }
     if (p.stock < 1) {
       showToast("error", "Rupture de stock sur cette variante.");
-      return;
+      return "err";
     }
     addToPanier(p);
-    showToast("success", `✅ ${p.nom} ajouté`);
+    showToast("success", `✅ ${p.nom} ajouté au panier !`);
     setSearchQuery("");
+    return "ok";
   };
 
-  const handleCameraEan = useCallback((ean: string) => {
-    tryAddByEanRef.current(ean);
-  }, []);
+  tryAddByEanRef.current = (raw: string) => {
+    void tryAddByEanWithResultRef.current(raw);
+  };
+
+  const handleCameraEan = useCallback(
+    (ean: string): CameraScanOutcome => tryAddByEanWithResultRef.current(ean),
+    []
+  );
 
   const closeScanner = useCallback(() => setScannerOpen(false), []);
 
