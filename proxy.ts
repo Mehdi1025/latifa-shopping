@@ -13,22 +13,6 @@ function isPublicPath(pathname: string): boolean {
   );
 }
 
-/** Espace caisse / vendeuse. */
-function isVendeusePath(pathname: string): boolean {
-  return pathname === VENDEUSE_HOME || pathname.startsWith(`${VENDEUSE_HOME}/`);
-}
-
-/**
- * Espace admin : routes hors login et hors /vendeuse.
- * Le dashboard admin est à `/` (groupe `(admin)`, pas de préfixe URL `/admin`).
- * Les chemins `/admin/...` sont aussi traités comme admin si vous les ajoutez.
- */
-function isAdminAppPath(pathname: string): boolean {
-  if (isPublicPath(pathname)) return false;
-  if (isVendeusePath(pathname)) return false;
-  return true;
-}
-
 function normalizeRole(role: string | null | undefined): "admin" | "vendeuse" {
   const r = role?.toLowerCase().trim();
   return r === "admin" ? "admin" : "vendeuse";
@@ -37,6 +21,11 @@ function normalizeRole(role: string | null | undefined): "admin" | "vendeuse" {
 /**
  * Next.js 16 : le fichier attendu à la racine est `proxy.ts` (équivalent du middleware).
  * Ne pas ajouter `middleware.ts` en parallèle : le build échoue si les deux existent.
+ *
+ * Session : tout utilisateur authentifié peut ouvrir les pages du dashboard (/, /produits,
+ * /import, /vendeuse, etc.). On ne force plus la redirection « vendeuse → caisse » sur les
+ * routes hors /vendeuse : accès métier (import, stock, objectifs…) et contrôle d’accès
+ * données côté Supabase (RLS).
  */
 export async function proxy(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
@@ -45,7 +34,6 @@ export async function proxy(request: NextRequest) {
 
   const { pathname } = request.nextUrl;
 
-  // Service workers et manifest : pas de redirection (sécurité navigateur).
   if (pathname === "/sw.js" || pathname === "/manifest.json") {
     return NextResponse.next();
   }
@@ -110,12 +98,6 @@ export async function proxy(request: NextRequest) {
       const url = request.nextUrl.clone();
       url.pathname = role === "admin" ? "/" : VENDEUSE_HOME;
       url.searchParams.delete("next");
-      return NextResponse.redirect(url);
-    }
-
-    if (role === "vendeuse" && isAdminAppPath(pathname)) {
-      const url = request.nextUrl.clone();
-      url.pathname = VENDEUSE_HOME;
       return NextResponse.redirect(url);
     }
   } catch {
