@@ -1,26 +1,42 @@
 "use client";
 
 import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import { X, CameraOff, AlertCircle } from "lucide-react";
 import { playScanBeep, playScanErrorBeep } from "@/lib/scan-beep";
 import { normalizeEan13String } from "@/lib/produit-import";
 import type { Html5Qrcode } from "html5-qrcode";
 
-/** Retourne si l’ajout panier a réussi (bip aigu) ou non (bip grave, toast côté parent). */
-export type CameraScanOutcome = "ok" | "err";
+const FLASH_MS = 400;
+const GIANT_ANIM_S = 1;
+const GIANT_CLEAR_MS = Math.round(GIANT_ANIM_S * 1000) + 100;
+const MAX_HISTORY = 4;
+const COOLDOWN_MS = 1800;
+
+export type CameraScanResult =
+  | { ok: true; productLabel: string }
+  | { ok: false };
 
 type BarcodeCameraModalProps = {
   open: boolean;
   onClose: () => void;
-  /** Traitement EAN (panier) — ne doit pas fermer le modal. */
-  onEan13: (ean: string) => CameraScanOutcome;
+  onEan13: (ean: string) => CameraScanResult;
 };
-
-const COOLDOWN_MS = 1800;
 
 type PermissionState = "unknown" | "granted" | "denied" | "unavailable";
 
+type ScannedLine = { at: number; label: string };
+
 const SCAN_FPS = 8;
+
+function formatHeureCaisse(ts: number): string {
+  return new Date(ts).toLocaleTimeString("fr-FR", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  });
+}
 
 export default function BarcodeCameraModal({
   open,
@@ -35,11 +51,19 @@ export default function BarcodeCameraModal({
   const [permission, setPermission] = useState<PermissionState>("unknown");
   const [startError, setStartError] = useState<string | null>(null);
   const [isStarting, setIsStarting] = useState(false);
-  const [frameFlash, setFrameFlash] = useState<"off" | "success" | "error">("off");
+  /** Flash périphérique (vision latérale) : vert = succès, rouge = erreur */
+  const [scanFlash, setScanFlash] = useState<"off" | "success" | "error">("off");
   const [cooldownActive, setCooldownActive] = useState(false);
   const cooldownUntilRef = useRef(0);
   const onEan13Ref = useRef(onEan13);
   onEan13Ref.current = onEan13;
+
+  const [giantPulse, setGiantPulse] = useState<{
+    key: number;
+    text: string;
+  } | null>(null);
+  const giantClearRef = useRef<number | null>(null);
+  const [lastScannedItems, setLastScannedItems] = useState<ScannedLine[]>([]);
 
   const stopScanner = useCallback(async () => {
     const s = scannerRef.current;
@@ -56,10 +80,22 @@ export default function BarcodeCameraModal({
 
   useEffect(() => {
     if (!open) {
+      setScanFlash("off");
+      setGiantPulse(null);
+      setLastScannedItems([]);
+      if (giantClearRef.current) {
+        clearTimeout(giantClearRef.current);
+        giantClearRef.current = null;
+      }
+    }
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) {
       void stopScanner();
       setPermission("unknown");
       setStartError(null);
-      setFrameFlash("off");
+      setScanFlash("off");
       setCooldownActive(false);
       cooldownUntilRef.current = 0;
       return;
@@ -68,7 +104,7 @@ export default function BarcodeCameraModal({
     let cancelled = false;
     setIsStarting(true);
     setStartError(null);
-    setFrameFlash("off");
+    setScanFlash("off");
     cooldownUntilRef.current = 0;
     setCooldownActive(false);
 
@@ -82,11 +118,6 @@ export default function BarcodeCameraModal({
 
       const { Html5Qrcode, Html5QrcodeSupportedFormats } = await import("html5-qrcode");
 
-      /**
-       * iOS / Android : `getCameras()` retourne souvent [] *avant* toute demande
-       * d’autorisation. On déclenche d’abord getUserMedia pour obtenir la permission.
-       * Si « arrière » échoue, on retente avec une caméra par défaut (certaines ROM).
-       */
       let permissionOk = false;
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
@@ -130,17 +161,33 @@ export default function BarcodeCameraModal({
 
         cooldownUntilRef.current = now + COOLDOWN_MS;
         setCooldownActive(true);
-        setFrameFlash("off");
+        setScanFlash("off");
 
-        const outcome = onEan13Ref.current(ean);
-        if (outcome === "ok") {
+        const result = onEan13Ref.current(ean);
+        if (result.ok) {
           playScanBeep();
-          setFrameFlash("success");
-          window.setTimeout(() => setFrameFlash("off"), 450);
+          setScanFlash("success");
+          window.setTimeout(() => {
+            setScanFlash((f) => (f === "success" ? "off" : f));
+          }, FLASH_MS);
+          if (giantClearRef.current) clearTimeout(giantClearRef.current);
+          setGiantPulse((p) => ({
+            key: (p?.key ?? 0) + 1,
+            text: result.productLabel,
+          }));
+          giantClearRef.current = window.setTimeout(() => {
+            setGiantPulse(null);
+            giantClearRef.current = null;
+          }, GIANT_CLEAR_MS);
+          setLastScannedItems((prev) =>
+            [{ at: now, label: result.productLabel }, ...prev].slice(0, MAX_HISTORY)
+          );
         } else {
           playScanErrorBeep();
-          setFrameFlash("error");
-          window.setTimeout(() => setFrameFlash("off"), 450);
+          setScanFlash("error");
+          window.setTimeout(() => {
+            setScanFlash((f) => (f === "error" ? "off" : f));
+          }, FLASH_MS);
         }
 
         window.setTimeout(() => {
@@ -200,7 +247,7 @@ export default function BarcodeCameraModal({
           }
         }
       } catch {
-        // liste indisponible : on tentera seulement facingMode
+        // liste indisponible
       }
 
       cameraAttempts.push(
@@ -337,30 +384,99 @@ export default function BarcodeCameraModal({
 
           <div
             className={[
-              "relative min-h-[240px] overflow-hidden rounded-2xl bg-black transition-[box-shadow,ring] duration-200",
-              frameFlash === "success" &&
-                "ring-4 ring-emerald-400 shadow-[0_0_24px_4px_rgba(52,211,153,0.45)]",
-              frameFlash === "error" &&
-                "ring-4 ring-red-400 shadow-[0_0_20px_4px_rgba(248,113,113,0.4)]",
+              "relative min-h-[260px] overflow-hidden rounded-2xl bg-black transition-shadow duration-150",
+              scanFlash === "off" && "ring-0",
+              scanFlash === "success" && "ring-[5px] ring-green-500 shadow-[0_0_32px_8px_rgba(34,197,94,0.6)]",
+              scanFlash === "error" && "ring-[5px] ring-red-500 shadow-[0_0_28px_8px_rgba(248,113,113,0.55)]",
             ]
               .filter(Boolean)
               .join(" ")}
           >
-            <div id={regionId} className="min-h-[240px] w-full" />
+            <div id={regionId} className="min-h-[260px] w-full" />
+
+            {scanFlash === "success" && (
+              <div
+                className="pointer-events-none absolute inset-0 z-[2] rounded-2xl bg-green-500/30"
+                aria-hidden
+              />
+            )}
+            {scanFlash === "error" && (
+              <div
+                className="pointer-events-none absolute inset-0 z-[2] rounded-2xl bg-red-500/30"
+                aria-hidden
+              />
+            )}
+
+            {lastScannedItems.length > 0 && !isStarting && (
+              <div
+                className="pointer-events-none absolute left-2 top-2 z-[15] max-w-[min(100%,12rem)] rounded-xl border border-white/20 bg-black/60 px-2.5 py-2 text-[10px] leading-tight text-white shadow-lg backdrop-blur-sm sm:max-w-[14rem] sm:text-[11px]"
+                aria-live="polite"
+                aria-label="Derniers articles scannés"
+              >
+                <p className="mb-1.5 text-[0.65rem] font-semibold uppercase tracking-wide text-white/80">
+                  Derniers scans
+                </p>
+                <ul className="space-y-1">
+                  {lastScannedItems.map((row) => (
+                    <li key={`${row.at}-${row.label}`} className="text-white/95">
+                      <span className="font-mono text-white/70">{formatHeureCaisse(row.at)}</span>
+                      <span className="text-white/50"> — </span>
+                      <span className="font-medium [overflow-wrap:anywhere]">{row.label}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            <AnimatePresence>
+              {giantPulse && !isStarting && (
+                <motion.div
+                  key={giantPulse.key}
+                  className="pointer-events-none absolute inset-0 z-[30] flex items-center justify-center p-2 sm:p-4"
+                  initial={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                >
+                  <motion.div
+                    className="max-h-[80%] max-w-full overflow-hidden px-1 text-center [overflow-wrap:anywhere]"
+                    initial={{ scale: 0.4, opacity: 0, y: 0 }}
+                    animate={{
+                      scale: [0.4, 1, 1],
+                      opacity: [0, 1, 0],
+                      y: [0, 0, -0.22 * 260],
+                    }}
+                    transition={{
+                      duration: GIANT_ANIM_S,
+                      times: [0, 0.2, 1],
+                      ease: ["easeOut", "linear", "easeIn"],
+                    }}
+                  >
+                    <p
+                      className="text-2xl font-extrabold leading-[1.12] text-white sm:text-3xl sm:leading-tight md:text-4xl"
+                      style={{
+                        textShadow:
+                          "0 0 1px #000, 0 2px 4px #000, 0 4px 16px #000, 0 0 32px #000",
+                      }}
+                    >
+                      {giantPulse.text}
+                    </p>
+                  </motion.div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
             {isStarting && (
-              <div className="absolute inset-0 flex items-center justify-center bg-black/80 text-sm text-white">
+              <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/80 text-sm text-white">
                 Démarrage de la caméra…
               </div>
             )}
             {cooldownActive && !isStarting && (
-              <div className="pointer-events-none absolute bottom-2 left-1/2 -translate-x-1/2 rounded-full bg-gray-900/80 px-3 py-1 text-xs font-medium text-white">
+              <div className="pointer-events-none absolute bottom-2 left-1/2 z-[20] -translate-x-1/2 rounded-full bg-gray-900/80 px-3 py-1 text-xs font-medium text-white">
                 Pause {String(COOLDOWN_MS / 1000).replace(".", ",")}s…
               </div>
             )}
           </div>
           <p className="mt-3 text-center text-xs text-gray-500">
-            Scan en rafale : la fenêtre reste ouverte. Placez chaque EAN — bip + cadre
-            vert = OK, rouge = erreur.
+            Scan en rafale : vert + texte = OK, rouge = erreur. Fermer avec le bouton ci-dessous.
           </p>
           <button
             type="button"

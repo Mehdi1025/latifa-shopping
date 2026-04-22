@@ -10,7 +10,7 @@ import GamificationJauge from "@/components/vendeur/GamificationJauge";
 import VipRadar from "@/components/vendeur/VipRadar";
 import FluxBoutiqueCard from "@/components/vendeur/FluxBoutiqueCard";
 import BarcodeCameraModal, {
-  type CameraScanOutcome,
+  type CameraScanResult,
 } from "@/components/vendeur/BarcodeCameraModal";
 import { MYSTERY_VAULT_PRODUCT_ID } from "@/lib/constants/mystery-vault";
 import {
@@ -62,6 +62,11 @@ function formatVariantSubtitle(p: Produit): string | null {
   const b = p.taille?.trim() || null;
   if (!a && !b) return null;
   return [a, b].filter(Boolean).join(" • ");
+}
+
+function formatProduitLabelScan(p: Produit): string {
+  const sub = formatVariantSubtitle(p);
+  return sub ? `${p.nom} — ${sub}` : p.nom;
 }
 
 /** Téléphone stocké et recherché en chiffres (ex. 0612345678). */
@@ -175,8 +180,8 @@ export default function VendeusePage() {
   const prevPanierLen = useRef(0);
   const eanInputRef = useRef<HTMLInputElement>(null);
   const tryAddByEanRef = useRef<(raw: string) => void>(() => {});
-  const tryAddByEanWithResultRef = useRef<(raw: string) => CameraScanOutcome>(
-    () => "err"
+  const tryAddByEanWithResultRef = useRef<(raw: string) => CameraScanResult>(
+    () => ({ ok: false })
   );
 
   const supabase = createSupabaseBrowserClient();
@@ -432,29 +437,30 @@ export default function VendeusePage() {
     setTimeout(() => setToast(null), 4000);
   };
 
-  tryAddByEanWithResultRef.current = (raw: string): CameraScanOutcome => {
+  tryAddByEanWithResultRef.current = (raw: string): CameraScanResult => {
     const ean = normalizeEan13String(raw);
     if (!ean) {
       showToast("error", "EAN invalide (13 chiffres).");
-      return "err";
+      return { ok: false };
     }
     const p = produits.find((x) => (x.code_barre ?? "") === ean);
     if (!p) {
       showToast("error", "❌ Produit introuvable");
-      return "err";
+      return { ok: false };
     }
     if (p.id === MYSTERY_VAULT_PRODUCT_ID) {
       showToast("error", "Cet article n'est pas ajoutable au panier");
-      return "err";
+      return { ok: false };
     }
     if (p.stock < 1) {
       showToast("error", "Rupture de stock sur cette variante.");
-      return "err";
+      return { ok: false };
     }
+    const productLabel = formatProduitLabelScan(p);
     addToPanier(p);
     showToast("success", `✅ ${p.nom} ajouté au panier !`);
     setSearchQuery("");
-    return "ok";
+    return { ok: true, productLabel };
   };
 
   tryAddByEanRef.current = (raw: string) => {
@@ -462,7 +468,7 @@ export default function VendeusePage() {
   };
 
   const handleCameraEan = useCallback(
-    (ean: string): CameraScanOutcome => tryAddByEanWithResultRef.current(ean),
+    (ean: string): CameraScanResult => tryAddByEanWithResultRef.current(ean),
     []
   );
 
