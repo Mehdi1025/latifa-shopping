@@ -9,11 +9,12 @@ import type { Html5Qrcode } from "html5-qrcode";
 type BarcodeCameraModalProps = {
   open: boolean;
   onClose: () => void;
-  /** EAN-13 normalisé (13 chiffres) — appelé après arrêt caméra + bip, puis fermeture. */
   onEan13: (ean: string) => void;
 };
 
 type PermissionState = "unknown" | "granted" | "denied" | "unavailable";
+
+const SCAN_FPS = 8;
 
 export default function BarcodeCameraModal({
   open,
@@ -58,48 +59,48 @@ export default function BarcodeCameraModal({
     processingRef.current = false;
 
     (async () => {
-      if (typeof window === "undefined" || !navigator?.mediaDevices) {
+      if (typeof window === "undefined" || !navigator?.mediaDevices?.getUserMedia) {
         setPermission("unavailable");
-        setStartError("Caméra indisponible sur cet appareil.");
+        setStartError("Caméra indisponible (HTTPS requis sur mobile).");
         setIsStarting(false);
         return;
       }
 
       const { Html5Qrcode, Html5QrcodeSupportedFormats } = await import("html5-qrcode");
 
-      let devices: Awaited<ReturnType<typeof Html5Qrcode.getCameras>>;
+      /**
+       * iOS / Android : `getCameras()` retourne souvent [] *avant* toute demande
+       * d’autorisation. On déclenche d’abord getUserMedia pour obtenir la permission.
+       * Si « arrière » échoue, on retente avec une caméra par défaut (certaines ROM).
+       */
+      let permissionOk = false;
       try {
-        devices = await Html5Qrcode.getCameras();
-      } catch (e) {
-        if (cancelled) return;
-        const msg = e instanceof Error ? e.message : String(e);
-        if (/NotAllowed|Permission|denied/i.test(msg)) {
-          setPermission("denied");
-        } else {
-          setStartError("Impossible d’accéder à la caméra. Utilisez la saisie manuelle.");
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: "environment" } },
+          audio: false,
+        });
+        stream.getTracks().forEach((t) => t.stop());
+        permissionOk = true;
+      } catch {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({
+            video: true,
+            audio: false,
+          });
+          stream.getTracks().forEach((t) => t.stop());
+          permissionOk = true;
+        } catch {
+          permissionOk = false;
         }
+      }
+      if (!permissionOk) {
+        if (cancelled) return;
+        setPermission("denied");
         setIsStarting(false);
         return;
       }
 
       if (cancelled) return;
-      if (!devices?.length) {
-        setPermission("unavailable");
-        setStartError("Aucune caméra détectée. Utilisez le champ de recherche.");
-        setIsStarting(false);
-        return;
-      }
-
-      setPermission("granted");
-      const scanner = new Html5Qrcode(regionId, {
-        verbose: false,
-        formatsToSupport: [
-          Html5QrcodeSupportedFormats.EAN_13,
-          Html5QrcodeSupportedFormats.EAN_8,
-        ],
-        useBarCodeDetectorIfSupported: true,
-      });
-      scannerRef.current = scanner;
 
       const onSuccess = (decodedText: string) => {
         if (processingRef.current) return;
@@ -124,45 +125,130 @@ export default function BarcodeCameraModal({
       };
 
       const onError = () => {
-        // scans échoués: normal, pas d’action
+        // frame sans code : normal
       };
 
-      const camConfig: MediaTrackConstraints = { facingMode: { ideal: "environment" } };
+      const qrbox = (w: number, h: number) => {
+        const size = Math.max(120, Math.min(280, Math.floor(Math.min(w, h) * 0.72)));
+        return { width: size, height: Math.floor(size * 0.42) };
+      };
 
-      try {
+      const makeScanner = (useBarcodeDetector: boolean) =>
+        new Html5Qrcode(regionId, {
+          verbose: false,
+          formatsToSupport: [
+            Html5QrcodeSupportedFormats.EAN_13,
+            Html5QrcodeSupportedFormats.EAN_8,
+          ],
+          useBarCodeDetectorIfSupported: useBarcodeDetector,
+        });
+
+      const tryStart = async (scanner: Html5Qrcode, camera: string | MediaTrackConstraints) => {
         await scanner.start(
-          camConfig,
+          camera,
           {
-            fps: 8,
+            fps: SCAN_FPS,
             aspectRatio: 1.333,
-            qrbox: (w, h) => {
-              const size = Math.min(280, Math.floor(Math.min(w, h) * 0.72));
-              return { width: size, height: Math.floor(size * 0.42) };
-            },
+            qrbox,
           },
           onSuccess,
           onError
         );
-      } catch (e) {
-        if (cancelled) return;
-        const msg = e instanceof Error ? e.message : String(e);
-        if (/NotAllowed|Permission|denied/i.test(msg)) {
-          setPermission("denied");
-        } else {
-          setStartError("Impossible de démarrer la caméra. Essayez le champ de saisie.");
+      };
+
+      let scanner = makeScanner(true);
+      scannerRef.current = scanner;
+
+      const cameraAttempts: (string | MediaTrackConstraints)[] = [];
+
+      try {
+        const cams = await Html5Qrcode.getCameras();
+        const back = cams.find(
+          (c) =>
+            /back|rear|arrière|environment|ultra\s*wide/i.test(c.label) ||
+            /camera 0|caméra 0/i.test(c.label)
+        );
+        if (cams.length > 0) {
+          if (back) cameraAttempts.push(back.id);
+          for (const c of cams) {
+            if (!back || c.id !== back.id) cameraAttempts.push(c.id);
+          }
         }
-        setIsStarting(false);
-        return;
+      } catch {
+        // liste indisponible : on tentera seulement facingMode
+      }
+
+      cameraAttempts.push(
+        { facingMode: { ideal: "environment" } },
+        { facingMode: { ideal: "user" } },
+        { facingMode: "environment" } as MediaTrackConstraints,
+        { facingMode: "user" } as MediaTrackConstraints
+      );
+
+      let lastStartErr: Error | null = null;
+      for (const camera of cameraAttempts) {
+        if (cancelled) return;
+        try {
+          if (!scannerRef.current) {
+            scanner = makeScanner(true);
+            scannerRef.current = scanner;
+          } else {
+            scanner = scannerRef.current;
+          }
+          await tryStart(scanner, camera);
+          lastStartErr = null;
+          break;
+        } catch (e) {
+          lastStartErr = e instanceof Error ? e : new Error(String(e));
+          try {
+            if (scanner.isScanning) await scanner.stop();
+            scanner.clear();
+          } catch {
+            // ignore
+          }
+          scannerRef.current = null;
+          scanner = makeScanner(true);
+          scannerRef.current = scanner;
+        }
+      }
+
+      if (lastStartErr && !cancelled) {
+        const scanner2 = makeScanner(false);
+        scannerRef.current = scanner2;
+        try {
+          await tryStart(scanner2, { facingMode: { ideal: "environment" } });
+          lastStartErr = null;
+        } catch (e) {
+          lastStartErr = e instanceof Error ? e : new Error(String(e));
+          try {
+            if (scanner2.isScanning) await scanner2.stop();
+            scanner2.clear();
+          } catch {
+            // ignore
+          }
+          const msg = lastStartErr.message;
+          if (/NotAllowed|Permission|denied|NotFound/i.test(msg)) {
+            setPermission("denied");
+          } else {
+            setStartError(
+              "Impossible d’ouvrir la caméra. Sur iPhone, utilisez Safari et l’icône « aA » > « site web » autorisant la caméra, ou saisissez l’EAN manuellement."
+            );
+          }
+          setIsStarting(false);
+          return;
+        }
       }
 
       if (cancelled) {
         void stopScanner();
         return;
       }
+
+      setPermission("granted");
       setIsStarting(false);
     })().catch(() => {
       if (!cancelled) {
-        setStartError("Erreur au démarrage du scan.");
+        setStartError("Erreur au démarrage du scan. Réessayez ou saisissez l’EAN à la main.");
         setIsStarting(false);
       }
     });
@@ -214,15 +300,16 @@ export default function BarcodeCameraModal({
             <div className="mb-3 flex items-start gap-2 rounded-2xl bg-amber-50 px-3 py-3 text-sm text-amber-900 ring-1 ring-amber-200">
               <AlertCircle className="mt-0.5 h-5 w-5 shrink-0" />
               <p>
-                Accès à la caméra refusé. Autorisez la caméra dans les réglages du navigateur, ou
-                saisissez l&apos;EAN à la main dans le champ de recherche.
+                Accès refusé ou caméra indisponible. Sur iOS : Réglages → Safari (ou le navigateur
+                utilisé) → Caméra, ou autorisez le site en appuyant sur <strong>« aA »</strong> à
+                gauche de la barre d’adresse, puis Saisir l’EAN au clavier.
               </p>
             </div>
           )}
           {permission === "unavailable" && !startError && (
             <div className="mb-3 flex items-start gap-2 rounded-2xl bg-amber-50 px-3 py-3 text-sm text-amber-900 ring-1 ring-amber-200">
               <CameraOff className="mt-0.5 h-5 w-5 shrink-0" />
-              <p>Aucune caméra disponible. Utilisez la saisie manuelle (douchette ou clavier).</p>
+              <p>Caméra indisponible. Ouvrez l’app en HTTPS ou saisissez l’EAN manuellement.</p>
             </div>
           )}
           {startError && (
@@ -232,9 +319,7 @@ export default function BarcodeCameraModal({
             </div>
           )}
 
-          <div
-            className="relative min-h-[240px] overflow-hidden rounded-2xl bg-black"
-          >
+          <div className="relative min-h-[240px] overflow-hidden rounded-2xl bg-black">
             <div id={regionId} className="min-h-[240px] w-full" />
             {isStarting && (
               <div className="absolute inset-0 flex items-center justify-center bg-black/80 text-sm text-white">
