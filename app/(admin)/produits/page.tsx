@@ -1,39 +1,26 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
-import { AlertCircle, Plus, X } from "lucide-react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
+import { ChevronDown, ChevronRight, Pencil, Plus, X } from "lucide-react";
 import { createSupabaseBrowserClient } from "@/utils/supabase/client";
 import type { Produit } from "@/types/produit";
 import { normalizeEan13String } from "@/lib/produit-import";
-
-function StatutBadge({ stock }: { stock: number }) {
-  if (stock === 0) {
-    return (
-      <span className="inline-flex items-center gap-1.5 rounded-full bg-red-100 px-3 py-1 text-xs font-semibold text-red-700">
-        <AlertCircle className="h-3.5 w-3.5" />
-        Rupture
-      </span>
-    );
-  }
-  if (stock < 5) {
-    return (
-      <span className="inline-flex items-center rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-700">
-        Stock faible
-      </span>
-    );
-  }
-  return (
-    <span className="inline-flex items-center rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">
-      En stock
-    </span>
-  );
-}
+import {
+  groupeProduitsParNom,
+  isStockAgregTresBas,
+} from "@/lib/admin/groupe-produits-modele";
 
 function formatPrix(prix: number): string {
   return new Intl.NumberFormat("fr-FR", {
     style: "currency",
     currency: "EUR",
   }).format(prix);
+}
+
+function formatPrixRange(min: number, max: number): string {
+  if (min === max) return formatPrix(min);
+  return `${formatPrix(min)} – ${formatPrix(max)}`;
 }
 
 export default function ProduitsPage() {
@@ -56,6 +43,21 @@ export default function ProduitsPage() {
     taille: "",
     couleur: "",
   });
+
+  const [editingProduit, setEditingProduit] = useState<Produit | null>(null);
+  const [editSubmitLoading, setEditSubmitLoading] = useState(false);
+  const [editForm, setEditForm] = useState({
+    nom: "",
+    description: "",
+    prix: "",
+    stock: "",
+    categorie: "",
+    code_barre: "",
+    taille: "",
+    couleur: "",
+  });
+
+  const [expandedCles, setExpandedCles] = useState<Set<string>>(() => new Set());
 
   const supabase = createSupabaseBrowserClient();
 
@@ -118,6 +120,45 @@ export default function ProduitsPage() {
     });
   }, [produits, filterCategorie, filterTaille, filterCouleur]);
 
+  const groupesModeles = useMemo(
+    () => groupeProduitsParNom(produitsFiltres),
+    [produitsFiltres]
+  );
+
+  const ouvrirEdition = (p: Produit) => {
+    const prixStr = Number.isInteger(p.prix)
+      ? String(p.prix)
+      : p.prix.toFixed(2).replace(".", ",");
+    setEditForm({
+      nom: p.nom,
+      description: p.description ?? "",
+      prix: prixStr,
+      stock: String(p.stock),
+      categorie: p.categorie ?? "",
+      code_barre: p.code_barre ?? "",
+      taille: p.taille ?? "",
+      couleur: p.couleur ?? "",
+    });
+    setEditingProduit(p);
+  };
+
+  const toggleExpanded = (cle: string) => {
+    setExpandedCles((prev) => {
+      const n = new Set(prev);
+      if (n.has(cle)) n.delete(cle);
+      else n.add(cle);
+      return n;
+    });
+  };
+
+  const toutDeplier = useCallback(() => {
+    setExpandedCles(new Set(groupesModeles.map((g) => g.cle)));
+  }, [groupesModeles]);
+
+  const toutReplier = useCallback(() => {
+    setExpandedCles(new Set());
+  }, []);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitLoading(true);
@@ -166,20 +207,82 @@ export default function ProduitsPage() {
     setSubmitLoading(false);
   };
 
+  const handleEditSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingProduit) return;
+    setEditSubmitLoading(true);
+    setError(null);
+    const prixNum = parseFloat(editForm.prix.replace(",", "."));
+    const stockNum = parseInt(editForm.stock, 10);
+    if (isNaN(prixNum) || isNaN(stockNum)) {
+      setError("Prix et Stock doivent être des nombres valides.");
+      setEditSubmitLoading(false);
+      return;
+    }
+    const eanRaw = editForm.code_barre.trim();
+    const ean = eanRaw ? normalizeEan13String(eanRaw) : null;
+    if (eanRaw && !ean) {
+      setError("EAN-13 : saisissez exactement 13 chiffres (ou laissez vide).");
+      setEditSubmitLoading(false);
+      return;
+    }
+    const { error: upError } = await supabase
+      .from("produits")
+      .update({
+        nom: editForm.nom.trim(),
+        description: editForm.description.trim() || null,
+        prix: prixNum,
+        stock: stockNum,
+        categorie: editForm.categorie.trim() || null,
+        code_barre: ean,
+        taille: editForm.taille.trim() || null,
+        couleur: editForm.couleur.trim() || null,
+      })
+      .eq("id", editingProduit.id);
+    if (upError) {
+      setError(upError.message);
+      setEditSubmitLoading(false);
+      return;
+    }
+    setEditingProduit(null);
+    await fetchProduits();
+    setEditSubmitLoading(false);
+  };
+
   return (
     <div className="admin-container min-h-dvh p-4 sm:p-6 lg:p-8">
-      <header className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <header className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <h1 className="text-xl font-bold tracking-tight text-slate-900 sm:text-2xl md:text-3xl">
           Produits & Stock
         </h1>
-        <button
-          type="button"
-          onClick={() => setModalOpen(true)}
-          className="inline-flex h-12 min-h-12 shrink-0 items-center justify-center gap-2 rounded-lg bg-indigo-600 px-5 text-sm font-medium text-white shadow-sm transition-all duration-300 ease-in-out hover:bg-indigo-700 hover:shadow md:text-base"
-        >
-          <Plus className="h-4 w-4" />
-          Ajouter un produit
-        </button>
+        <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+          {!loading && produits.length > 0 && groupesModeles.length > 0 && (
+            <>
+              <button
+                type="button"
+                onClick={toutDeplier}
+                className="inline-flex h-10 min-h-0 items-center rounded-lg border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 shadow-sm transition hover:bg-slate-50"
+              >
+                Tout déplier
+              </button>
+              <button
+                type="button"
+                onClick={toutReplier}
+                className="inline-flex h-10 min-h-0 items-center rounded-lg border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 shadow-sm transition hover:bg-slate-50"
+              >
+                Tout replier
+              </button>
+            </>
+          )}
+          <button
+            type="button"
+            onClick={() => setModalOpen(true)}
+            className="inline-flex h-12 min-h-12 shrink-0 items-center justify-center gap-2 rounded-lg bg-indigo-600 px-5 text-sm font-medium text-white shadow-sm transition-all duration-300 ease-in-out hover:bg-indigo-700 hover:shadow md:text-base"
+          >
+            <Plus className="h-4 w-4" />
+            Ajouter un produit
+          </button>
+        </div>
       </header>
 
       {error && (
@@ -263,146 +366,307 @@ export default function ProduitsPage() {
         </div>
       ) : (
         <>
-          {/* Tableau tablette+ — défilement horizontal */}
           <div className="hidden overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm md:block">
-            <table className="min-w-[880px] w-full">
+            <table className="min-w-[700px] w-full table-fixed">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50/80">
-                  <th className="whitespace-nowrap px-4 py-4 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 md:px-6 md:py-5">
-                    Produit
+                  <th className="w-12 px-2 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 md:px-3 md:py-4" />
+                  <th className="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 md:px-5 md:py-4">
+                    Modèle
                   </th>
-                  <th className="whitespace-nowrap px-4 py-4 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 md:px-6 md:py-5">
-                    Taille
-                  </th>
-                  <th className="whitespace-nowrap px-4 py-4 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 md:px-6 md:py-5">
-                    Couleur
-                  </th>
-                  <th className="whitespace-nowrap px-4 py-4 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 md:px-6 md:py-5">
+                  <th className="w-36 px-3 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 md:px-5 md:py-4">
                     Catégorie
                   </th>
-                  <th className="whitespace-nowrap px-4 py-4 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 md:px-6 md:py-5">
+                  <th className="w-32 px-3 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 md:px-5 md:py-4">
+                    Stock total
+                  </th>
+                  <th className="w-44 px-3 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 md:px-5 md:py-4">
                     Prix
-                  </th>
-                  <th className="whitespace-nowrap px-4 py-4 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 md:px-6 md:py-5">
-                    Stock
-                  </th>
-                  <th className="whitespace-nowrap px-4 py-4 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 md:px-6 md:py-5">
-                    Statut
                   </th>
                 </tr>
               </thead>
               <tbody>
-                {produitsFiltres.map((produit, i) => (
-                  <tr
-                    key={produit.id}
-                    className={`border-b border-slate-100 transition-colors duration-300 last:border-b-0 hover:bg-indigo-50/30 ${
-                      i % 2 === 0 ? "bg-white" : "bg-slate-50/30"
-                    }`}
-                  >
-                    <td className="px-4 py-4 md:px-6 md:py-5">
-                      <div>
-                        <p className="whitespace-nowrap text-sm font-medium text-slate-900">
-                          {produit.nom}
-                        </p>
-                        {produit.code_barre && (
-                          <p className="mt-0.5 font-mono text-[11px] tabular-nums text-slate-500">
-                            {produit.code_barre}
+                {groupesModeles.map((groupe) => {
+                  const expanded = expandedCles.has(groupe.cle);
+                  const agregTresBas = isStockAgregTresBas(groupe.stockTotal);
+                  return (
+                    <Fragment key={groupe.cle}>
+                      <tr
+                        className="cursor-pointer border-b border-slate-100 transition-colors duration-200 hover:bg-indigo-50/40 data-[open=true]:bg-indigo-50/20"
+                        data-open={expanded}
+                        onClick={() => toggleExpanded(groupe.cle)}
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            toggleExpanded(groupe.cle);
+                          }
+                        }}
+                        aria-expanded={expanded}
+                      >
+                        <td className="align-middle px-2 py-3.5 pl-3 md:px-3 md:py-4">
+                          <span className="inline-flex h-8 w-8 items-center justify-center text-slate-500">
+                            {expanded ? (
+                              <ChevronDown className="h-5 w-5" aria-hidden />
+                            ) : (
+                              <ChevronRight className="h-5 w-5" aria-hidden />
+                            )}
+                          </span>
+                        </td>
+                        <td className="px-3 py-3.5 align-middle md:px-5 md:py-4">
+                          <p className="font-bold text-slate-900">{groupe.nom}</p>
+                          <p className="mt-0.5 text-xs text-slate-500">
+                            {groupe.variantesCount} variante
+                            {groupe.variantesCount > 1 ? "s" : ""}
                           </p>
-                        )}
-                        {produit.description && (
-                          <p className="mt-0.5 max-w-xs truncate text-xs text-slate-400">
-                            {produit.description}
-                          </p>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-4 py-4 md:px-6 md:py-5">
-                      {produit.taille?.trim() ? (
-                        <span className="inline-flex rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs font-medium text-slate-700">
-                          {produit.taille}
-                        </span>
-                      ) : (
-                        <span className="text-sm text-slate-400">—</span>
+                        </td>
+                        <td className="px-3 py-3.5 align-middle md:px-5 md:py-4">
+                          {groupe.categorieAffiche ? (
+                            <span
+                              className="inline-flex max-w-full items-center rounded-full border border-slate-200/80 bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-700"
+                              title={
+                                groupe.categoriesDistinctes.length > 1
+                                  ? groupe.categoriesDistinctes.join(", ")
+                                  : undefined
+                              }
+                            >
+                              {groupe.categorieAffiche}
+                            </span>
+                          ) : (
+                            <span className="text-sm text-slate-400">—</span>
+                          )}
+                        </td>
+                        <td className="px-3 py-3.5 align-middle md:px-5 md:py-4">
+                          <div className="flex items-center gap-2">
+                            {agregTresBas && (
+                              <span
+                                className="inline-block h-2.5 w-2.5 shrink-0 rounded-full bg-red-500"
+                                title="Stock total faible"
+                                aria-label="Alerte stock total faible"
+                              />
+                            )}
+                            <span className="whitespace-nowrap text-sm font-semibold tabular-nums text-slate-800">
+                              {groupe.stockTotal}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="px-3 py-3.5 align-middle text-sm font-medium text-slate-800 md:px-5 md:py-4">
+                          {formatPrixRange(groupe.prixMin, groupe.prixMax)}
+                        </td>
+                      </tr>
+                      {expanded && (
+                        <tr className="border-b border-slate-200 bg-slate-50/60">
+                          <td colSpan={5} className="p-0">
+                            <motion.div
+                              initial={{ height: 0, opacity: 0 }}
+                              animate={{ height: "auto", opacity: 1 }}
+                              transition={{ duration: 0.25, ease: [0.4, 0, 0.2, 1] }}
+                              className="overflow-hidden"
+                            >
+                              <div className="border-l-4 border-indigo-200 py-2 pl-6 pr-3 md:pl-8">
+                                <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+                                  Variantes
+                                </p>
+                                <div className="overflow-x-auto rounded-lg border border-slate-200/80 bg-slate-50/90">
+                                  <table className="w-full min-w-[560px] text-left text-sm">
+                                    <thead>
+                                      <tr className="border-b border-slate-200 bg-white/80">
+                                        <th className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+                                          EAN-13
+                                        </th>
+                                        <th className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+                                          Couleur
+                                        </th>
+                                        <th className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+                                          Taille
+                                        </th>
+                                        <th className="w-20 px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+                                          Stock
+                                        </th>
+                                        <th className="w-28 px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+                                          Action
+                                        </th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {groupe.variantes.map((v) => (
+                                        <tr
+                                          key={v.id}
+                                          className="border-b border-slate-100/90 last:border-0"
+                                        >
+                                          <td className="px-3 py-2.5 font-mono text-[11px] tabular-nums text-slate-600">
+                                            {v.code_barre ?? "—"}
+                                          </td>
+                                          <td className="px-3 py-2.5">
+                                            {v.couleur?.trim() ? (
+                                              <span className="inline-flex items-center gap-1.5 text-xs text-slate-800">
+                                                <span
+                                                  className="h-2.5 w-2.5 shrink-0 rounded-full border border-slate-200/80 bg-violet-200"
+                                                  aria-hidden
+                                                />
+                                                {v.couleur}
+                                              </span>
+                                            ) : (
+                                              <span className="text-xs text-slate-400">—</span>
+                                            )}
+                                          </td>
+                                          <td className="px-3 py-2.5">
+                                            {v.taille?.trim() ? (
+                                              <span className="inline-flex rounded-md border border-slate-200 bg-white px-1.5 py-0.5 text-[10px] font-medium text-slate-700">
+                                                {v.taille}
+                                              </span>
+                                            ) : (
+                                              <span className="text-xs text-slate-400">—</span>
+                                            )}
+                                          </td>
+                                          <td
+                                            className={`px-3 py-2.5 text-xs font-semibold tabular-nums ${
+                                              v.stock <= 1
+                                                ? "text-red-600"
+                                                : "text-slate-700"
+                                            }`}
+                                          >
+                                            {v.stock}
+                                          </td>
+                                          <td className="px-3 py-2">
+                                            <button
+                                              type="button"
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                ouvrirEdition(v);
+                                              }}
+                                              className="inline-flex h-8 min-h-0 items-center gap-1 rounded-lg border border-indigo-200 bg-white px-2.5 text-xs font-medium text-indigo-700 transition hover:bg-indigo-50"
+                                            >
+                                              <Pencil className="h-3.5 w-3.5" />
+                                              Modifier
+                                            </button>
+                                          </td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              </div>
+                            </motion.div>
+                          </td>
+                        </tr>
                       )}
-                    </td>
-                    <td className="px-4 py-4 md:px-6 md:py-5">
-                      {produit.couleur?.trim() ? (
-                        <span className="inline-flex items-center gap-1.5 text-sm text-slate-800">
-                          <span
-                            className="h-2.5 w-2.5 shrink-0 rounded-full border border-slate-200 bg-violet-100"
-                            title={produit.couleur}
-                            aria-hidden
-                          />
-                          {produit.couleur}
-                        </span>
-                      ) : (
-                        <span className="text-sm text-slate-400">—</span>
-                      )}
-                    </td>
-                    <td className="whitespace-nowrap px-4 py-4 text-sm text-slate-500 md:px-6 md:py-5">
-                      {produit.categorie ?? "—"}
-                    </td>
-                    <td className="whitespace-nowrap px-4 py-4 text-sm font-medium text-slate-700 md:px-6 md:py-5">
-                      {formatPrix(produit.prix)}
-                    </td>
-                    <td className="whitespace-nowrap px-4 py-4 text-sm text-slate-500 md:px-6 md:py-5">
-                      {produit.stock}
-                    </td>
-                    <td className="whitespace-nowrap px-4 py-4 md:px-6 md:py-5">
-                      <StatutBadge stock={produit.stock} />
-                    </td>
-                  </tr>
-                ))}
+                    </Fragment>
+                  );
+                })}
               </tbody>
             </table>
           </div>
 
-          {/* Cartes mobile */}
-          <div className="space-y-4 md:hidden">
-            {produitsFiltres.map((produit) => (
-              <article
-                key={produit.id}
-                className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition-all duration-300 ease-in-out hover:shadow-md"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0 flex-1">
-                    <h3 className="font-medium text-slate-900">{produit.nom}</h3>
-                    {produit.code_barre && (
-                      <p className="mt-0.5 font-mono text-[11px] tabular-nums text-slate-500">
-                        {produit.code_barre}
+          <div className="space-y-3 md:hidden">
+            {groupesModeles.map((groupe) => {
+              const expanded = expandedCles.has(groupe.cle);
+              const agregTresBas = isStockAgregTresBas(groupe.stockTotal);
+              return (
+                <article
+                  key={groupe.cle}
+                  className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm"
+                >
+                  <button
+                    type="button"
+                    onClick={() => toggleExpanded(groupe.cle)}
+                    className="flex w-full min-h-14 items-start gap-2 p-4 text-left transition hover:bg-slate-50/80"
+                    aria-expanded={expanded}
+                  >
+                    <span className="mt-0.5 shrink-0 text-slate-500">
+                      {expanded ? (
+                        <ChevronDown className="h-5 w-5" />
+                      ) : (
+                        <ChevronRight className="h-5 w-5" />
+                      )}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="font-bold text-slate-900">{groupe.nom}</p>
+                      <p className="mt-0.5 text-xs text-slate-500">
+                        {groupe.variantesCount} variante{groupe.variantesCount > 1 ? "s" : ""}
                       </p>
-                    )}
-                    <p className="mt-1 text-sm text-slate-500">
-                      {produit.categorie ?? "—"}
-                    </p>
-                    <div className="mt-2 flex flex-wrap items-center gap-2">
-                      {produit.taille?.trim() && (
-                        <span className="inline-flex rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs font-medium text-slate-700">
-                          {produit.taille}
+                      {groupe.categorieAffiche && (
+                        <span className="mt-1 inline-block rounded-full border border-slate-200/80 bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-700">
+                          {groupe.categorieAffiche}
                         </span>
                       )}
-                      {produit.couleur?.trim() && (
-                        <span className="text-xs text-slate-600">{produit.couleur}</span>
-                      )}
                     </div>
-                    {produit.description && (
-                      <p className="mt-1 line-clamp-2 text-xs text-slate-400">
-                        {produit.description}
+                    <div className="shrink-0 text-right text-sm">
+                      <div className="flex items-center justify-end gap-1.5">
+                        {agregTresBas && (
+                          <span
+                            className="inline-block h-2.5 w-2.5 rounded-full bg-red-500"
+                            aria-label="Alerte"
+                          />
+                        )}
+                        <span className="font-semibold text-slate-800">{groupe.stockTotal}</span>
+                        <span className="text-slate-400">u.</span>
+                      </div>
+                      <p className="mt-0.5 text-xs text-slate-500">
+                        {formatPrixRange(groupe.prixMin, groupe.prixMax)}
                       </p>
+                    </div>
+                  </button>
+                  <AnimatePresence initial={false}>
+                    {expanded && (
+                      <motion.div
+                        key={`${groupe.cle}-m`}
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: "auto", opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.25, ease: [0.4, 0, 0.2, 1] }}
+                        className="overflow-hidden border-t border-slate-200 bg-slate-50/90"
+                      >
+                        <div className="space-y-2 p-3 pl-6">
+                          {groupe.variantes.map((v) => (
+                            <div
+                              key={v.id}
+                              className="rounded-lg border border-slate-200/90 bg-white p-3 pl-3 shadow-sm"
+                            >
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="min-w-0">
+                                  {v.code_barre && (
+                                    <p className="font-mono text-[10px] tabular-nums text-slate-600">
+                                      {v.code_barre}
+                                    </p>
+                                  )}
+                                  <p className="mt-0.5 text-sm text-slate-800">
+                                    {[v.couleur, v.taille]
+                                      .map((s) => s?.trim())
+                                      .filter(Boolean)
+                                      .join(" · ") || "—"}
+                                  </p>
+                                </div>
+                                <div className="text-right text-sm">
+                                  <p
+                                    className={
+                                      v.stock <= 1 ? "font-bold text-red-600" : "font-semibold"
+                                    }
+                                  >
+                                    {v.stock} st.
+                                  </p>
+                                </div>
+                              </div>
+                              <div className="mt-2 flex items-center justify-end">
+                                <button
+                                  type="button"
+                                  onClick={() => ouvrirEdition(v)}
+                                  className="inline-flex h-9 min-h-0 items-center gap-1 rounded-lg border border-indigo-200 bg-indigo-50/50 px-3 text-xs font-medium text-indigo-800"
+                                >
+                                  <Pencil className="h-3.5 w-3.5" />
+                                  Modifier
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </motion.div>
                     )}
-                  </div>
-                  <StatutBadge stock={produit.stock} />
-                </div>
-                <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-4">
-                  <span className="text-sm text-slate-500">
-                    Prix : {formatPrix(produit.prix)}
-                  </span>
-                  <span className="text-sm font-medium text-slate-700">
-                    Stock : {produit.stock}
-                  </span>
-                </div>
-              </article>
-            ))}
+                  </AnimatePresence>
+                </article>
+              );
+            })}
           </div>
         </>
       )}
@@ -603,6 +867,210 @@ export default function ProduitsPage() {
                     className="inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
                   >
                     {submitLoading ? "Enregistrement..." : "Ajouter le produit"}
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </>
+      )}
+
+      {editingProduit && (
+        <>
+          <div
+            className="fixed inset-0 z-[60] bg-slate-900/40 backdrop-blur-sm transition-opacity"
+            onClick={() => !editSubmitLoading && setEditingProduit(null)}
+            aria-hidden="true"
+          />
+          <div
+            className="fixed right-0 top-0 z-[60] flex h-full w-full max-w-md flex-col bg-white shadow-2xl transition-transform sm:rounded-l-2xl"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="edit-panel-title"
+          >
+            <div className="flex items-center justify-between border-b border-slate-200 px-6 py-5">
+              <h2 id="edit-panel-title" className="text-lg font-semibold text-slate-900">
+                Modifier la variante
+              </h2>
+              <button
+                type="button"
+                onClick={() => !editSubmitLoading && setEditingProduit(null)}
+                disabled={editSubmitLoading}
+                className="rounded-lg p-2 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 disabled:opacity-50"
+                aria-label="Fermer"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <form
+              onSubmit={handleEditSubmit}
+              className="flex flex-1 flex-col overflow-y-auto px-6 py-5"
+            >
+              <div className="space-y-4">
+                <div>
+                  <label
+                    htmlFor="edit-nom"
+                    className="mb-1.5 block text-sm font-medium text-slate-700"
+                  >
+                    Nom *
+                  </label>
+                  <input
+                    id="edit-nom"
+                    type="text"
+                    required
+                    value={editForm.nom}
+                    onChange={(e) =>
+                      setEditForm((f) => ({ ...f, nom: e.target.value }))
+                    }
+                    className="w-full rounded-lg border border-slate-200 px-4 py-2.5 text-slate-900 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  />
+                </div>
+                <div>
+                  <label
+                    htmlFor="edit-description"
+                    className="mb-1.5 block text-sm font-medium text-slate-700"
+                  >
+                    Description
+                  </label>
+                  <textarea
+                    id="edit-description"
+                    rows={3}
+                    value={editForm.description}
+                    onChange={(e) =>
+                      setEditForm((f) => ({ ...f, description: e.target.value }))
+                    }
+                    className="w-full rounded-lg border border-slate-200 px-4 py-2.5 text-slate-900 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label
+                      htmlFor="edit-prix"
+                      className="mb-1.5 block text-sm font-medium text-slate-700"
+                    >
+                      Prix (€) *
+                    </label>
+                    <input
+                      id="edit-prix"
+                      type="text"
+                      inputMode="decimal"
+                      required
+                      value={editForm.prix}
+                      onChange={(e) =>
+                        setEditForm((f) => ({ ...f, prix: e.target.value }))
+                      }
+                      className="w-full rounded-lg border border-slate-200 px-4 py-2.5 text-slate-900 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                    />
+                  </div>
+                  <div>
+                    <label
+                      htmlFor="edit-stock"
+                      className="mb-1.5 block text-sm font-medium text-slate-700"
+                    >
+                      Stock *
+                    </label>
+                    <input
+                      id="edit-stock"
+                      type="number"
+                      min={0}
+                      required
+                      value={editForm.stock}
+                      onChange={(e) =>
+                        setEditForm((f) => ({ ...f, stock: e.target.value }))
+                      }
+                      className="w-full rounded-lg border border-slate-200 px-4 py-2.5 text-slate-900 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label
+                    htmlFor="edit-categorie"
+                    className="mb-1.5 block text-sm font-medium text-slate-700"
+                  >
+                    Catégorie
+                  </label>
+                  <input
+                    id="edit-categorie"
+                    type="text"
+                    value={editForm.categorie}
+                    onChange={(e) =>
+                      setEditForm((f) => ({ ...f, categorie: e.target.value }))
+                    }
+                    className="w-full rounded-lg border border-slate-200 px-4 py-2.5 text-slate-900 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  />
+                </div>
+                <div>
+                  <label
+                    htmlFor="edit-code_barre"
+                    className="mb-1.5 block text-sm font-medium text-slate-700"
+                  >
+                    Code-barres EAN-13 (optionnel)
+                  </label>
+                  <input
+                    id="edit-code_barre"
+                    type="text"
+                    inputMode="numeric"
+                    autoComplete="off"
+                    value={editForm.code_barre}
+                    onChange={(e) =>
+                      setEditForm((f) => ({ ...f, code_barre: e.target.value }))
+                    }
+                    className="w-full rounded-lg border border-slate-200 px-4 py-2.5 font-mono text-slate-900 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label
+                      htmlFor="edit-taille"
+                      className="mb-1.5 block text-sm font-medium text-slate-700"
+                    >
+                      Taille
+                    </label>
+                    <input
+                      id="edit-taille"
+                      type="text"
+                      value={editForm.taille}
+                      onChange={(e) =>
+                        setEditForm((f) => ({ ...f, taille: e.target.value }))
+                      }
+                      className="w-full rounded-lg border border-slate-200 px-4 py-2.5 text-slate-900 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                    />
+                  </div>
+                  <div>
+                    <label
+                      htmlFor="edit-couleur"
+                      className="mb-1.5 block text-sm font-medium text-slate-700"
+                    >
+                      Couleur
+                    </label>
+                    <input
+                      id="edit-couleur"
+                      type="text"
+                      value={editForm.couleur}
+                      onChange={(e) =>
+                        setEditForm((f) => ({ ...f, couleur: e.target.value }))
+                      }
+                      className="w-full rounded-lg border border-slate-200 px-4 py-2.5 text-slate-900 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                    />
+                  </div>
+                </div>
+              </div>
+              <div className="mt-auto border-t border-slate-200 pt-5">
+                <div className="flex justify-end gap-3">
+                  <button
+                    type="button"
+                    onClick={() => !editSubmitLoading && setEditingProduit(null)}
+                    disabled={editSubmitLoading}
+                    className="rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                  >
+                    Annuler
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={editSubmitLoading}
+                    className="inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+                  >
+                    {editSubmitLoading ? "Enregistrement..." : "Enregistrer"}
                   </button>
                 </div>
               </div>
