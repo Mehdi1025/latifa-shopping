@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useEffect, useLayoutEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useLayoutEffect, useMemo, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
-import { Plus, Minus, ShoppingBag, ChevronDown, Trash2, X, CheckCircle, AlertCircle, Search, History, Percent, RotateCcw, Gift, User } from "lucide-react";
+import { Plus, Minus, ShoppingBag, ChevronDown, Trash2, X, CheckCircle, AlertCircle, Search, History, Percent, RotateCcw, Gift, User, ScanLine } from "lucide-react";
 import { createSupabaseBrowserClient } from "@/utils/supabase/client";
 import { useAlerts } from "@/hooks/useAlerts";
 import ActionCenter from "@/components/ActionCenter";
@@ -11,6 +11,7 @@ import ClientelingPanel from "@/components/vendeur/ClientelingPanel";
 import GamificationJauge from "@/components/vendeur/GamificationJauge";
 import VipRadar from "@/components/vendeur/VipRadar";
 import FluxBoutiqueCard from "@/components/vendeur/FluxBoutiqueCard";
+import BarcodeCameraModal from "@/components/vendeur/BarcodeCameraModal";
 import { MYSTERY_VAULT_PRODUCT_ID } from "@/lib/constants/mystery-vault";
 import {
   MoyenPaiementSelector,
@@ -161,6 +162,7 @@ export default function VendeusePage() {
   const [clientelingOpen, setClientelingOpen] = useState(false);
   const [gamificationRefreshKey, setGamificationRefreshKey] = useState(0);
   const [isMdUp, setIsMdUp] = useState(false);
+  const [scannerOpen, setScannerOpen] = useState(false);
   const prevPanierLen = useRef(0);
   const eanInputRef = useRef<HTMLInputElement>(null);
   const tryAddByEanRef = useRef<(raw: string) => void>(() => {});
@@ -405,7 +407,7 @@ export default function VendeusePage() {
     }
     const p = produits.find((x) => (x.code_barre ?? "") === ean);
     if (!p) {
-      showToast("error", "Aucun article pour cet EAN.");
+      showToast("error", "❌ Code inconnu");
       return;
     }
     if (p.id === MYSTERY_VAULT_PRODUCT_ID) return;
@@ -414,9 +416,15 @@ export default function VendeusePage() {
       return;
     }
     addToPanier(p);
-    showToast("success", `${p.nom} ajouté au panier`);
+    showToast("success", `✅ ${p.nom} ajouté`);
     setSearchQuery("");
   };
+
+  const handleCameraEan = useCallback((ean: string) => {
+    tryAddByEanRef.current(ean);
+  }, []);
+
+  const closeScanner = useCallback(() => setScannerOpen(false), []);
 
   useEffect(() => {
     const t = window.setTimeout(() => eanInputRef.current?.focus(), 100);
@@ -427,7 +435,7 @@ export default function VendeusePage() {
     let buf = "";
     let debounce: ReturnType<typeof setTimeout> | null = null;
     const onKey = (e: KeyboardEvent) => {
-      if (remiseModalOpen) return;
+      if (remiseModalOpen || scannerOpen) return;
       const fromSkip = (e.target as HTMLElement | null)?.closest?.(
         "[data-skip-ean-capture]"
       );
@@ -460,7 +468,7 @@ export default function VendeusePage() {
       window.removeEventListener("keydown", onKey, true);
       if (debounce) clearTimeout(debounce);
     };
-  }, [remiseModalOpen]);
+  }, [remiseModalOpen, scannerOpen]);
 
   const handleAnnulerVente = async (vente: VenteHistorique) => {
     if (!vente.ventes_items?.length) return;
@@ -760,30 +768,40 @@ export default function VendeusePage() {
             </p>
           </div>
 
-          <div className="mb-5 flex items-center gap-3 rounded-xl bg-white px-4 py-3 ring-1 ring-gray-100/80 shadow-sm">
-            <Search className="h-5 w-5 shrink-0 text-gray-400" />
-            <input
-              ref={eanInputRef}
-              id="caisse-ean-search"
-              type="search"
-              name="search-ean"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key !== "Enter") return;
-                const digits = e.currentTarget.value.replace(/\D/g, "");
-                if (digits.length === 13) {
-                  e.preventDefault();
-                  tryAddByEanRef.current(digits);
-                }
-              }}
-              autoFocus
-              autoComplete="off"
-              inputMode="search"
-              placeholder="Scanner ou taper EAN, nom, catégorie…"
-              className="min-w-0 flex-1 bg-transparent text-gray-900 placeholder:text-gray-400 focus:outline-none"
-              aria-label="Scanner un code-barres EAN-13 ou rechercher un produit"
-            />
+          <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-stretch">
+            <div className="flex min-h-[52px] min-w-0 flex-1 items-center gap-3 rounded-xl bg-white px-4 py-3 ring-1 ring-gray-100/80 shadow-sm">
+              <Search className="h-5 w-5 shrink-0 text-gray-400" />
+              <input
+                ref={eanInputRef}
+                id="caisse-ean-search"
+                type="search"
+                name="search-ean"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key !== "Enter") return;
+                  const digits = e.currentTarget.value.replace(/\D/g, "");
+                  if (digits.length === 13) {
+                    e.preventDefault();
+                    tryAddByEanRef.current(digits);
+                  }
+                }}
+                autoFocus
+                autoComplete="off"
+                inputMode="search"
+                placeholder="Scanner ou taper EAN, nom, catégorie…"
+                className="min-w-0 flex-1 bg-transparent text-base text-gray-900 placeholder:text-gray-400 focus:outline-none"
+                aria-label="Scanner un code-barres EAN-13 ou rechercher un produit"
+              />
+            </div>
+            <button
+              type="button"
+              onClick={() => setScannerOpen(true)}
+              className="flex min-h-[52px] shrink-0 items-center justify-center gap-2.5 rounded-xl bg-gray-900 px-5 py-4 text-base font-semibold text-white shadow-md transition active:scale-[0.98] sm:min-w-[11rem] sm:px-6"
+            >
+              <ScanLine className="h-6 w-6 shrink-0" aria-hidden />
+              <span>📷 Scanner</span>
+            </button>
           </div>
 
           <div className="mb-6 flex flex-wrap gap-2">
@@ -1319,6 +1337,12 @@ export default function VendeusePage() {
         </>
       )}
 
+      <BarcodeCameraModal
+        open={scannerOpen}
+        onClose={closeScanner}
+        onEan13={handleCameraEan}
+      />
+
       {resolvedClient && (
         <ClientelingPanel
           clientId={resolvedClient.id}
@@ -1328,7 +1352,7 @@ export default function VendeusePage() {
           onClose={() => setClientelingOpen(false)}
           onAddRecommended={(produit) => {
             addToPanier(produit);
-            showToast("success", `${produit.nom} ajouté au panier`);
+            showToast("success", `✅ ${produit.nom} ajouté`);
           }}
         />
       )}
