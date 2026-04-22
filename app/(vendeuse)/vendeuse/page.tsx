@@ -5,8 +5,6 @@ import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import { Plus, Minus, ShoppingBag, ChevronDown, Trash2, X, CheckCircle, AlertCircle, Search, History, Percent, RotateCcw, Gift, User, ScanLine } from "lucide-react";
 import { createSupabaseBrowserClient } from "@/utils/supabase/client";
-import { useAlerts } from "@/hooks/useAlerts";
-import ActionCenter from "@/components/ActionCenter";
 import ClientelingPanel from "@/components/vendeur/ClientelingPanel";
 import GamificationJauge from "@/components/vendeur/GamificationJauge";
 import VipRadar from "@/components/vendeur/VipRadar";
@@ -169,15 +167,6 @@ export default function VendeusePage() {
 
   const supabase = createSupabaseBrowserClient();
 
-  const { alerts: alertesStock, loading: alertesLoading, refetch: refetchAlertes } =
-    useAlerts({
-      includeTasks: false,
-      stockLink: {
-        href: "/vendeuse/reception",
-        actionLabel: "Réception",
-      },
-    });
-
   useLayoutEffect(() => {
     const mq = window.matchMedia("(min-width: 768px)");
     const sync = () => setIsMdUp(mq.matches);
@@ -196,7 +185,6 @@ export default function VendeusePage() {
       .order("nom");
     setProduits((data as Produit[]) ?? []);
     setLoading(false);
-    void refetchAlertes();
   };
 
   useEffect(() => {
@@ -752,13 +740,6 @@ export default function VendeusePage() {
           )}
           <VipRadar />
           <FluxBoutiqueCard />
-          <ActionCenter
-            alerts={alertesStock}
-            loading={alertesLoading}
-            variant="compact"
-            title="Stock & ruptures"
-            className="mb-6"
-          />
           <div className="mb-6">
             <h1 className="text-2xl font-semibold text-gray-900">
               Catalogue

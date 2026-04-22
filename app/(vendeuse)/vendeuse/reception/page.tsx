@@ -11,6 +11,9 @@ import {
   Loader2,
 } from "lucide-react";
 import { createSupabaseBrowserClient } from "@/utils/supabase/client";
+import { useAlerts } from "@/hooks/useAlerts";
+import ActionCenter from "@/components/ActionCenter";
+import ReceptionStockQuickLinks from "@/components/vendeur/ReceptionStockQuickLinks";
 import { toast } from "sonner";
 import type { Produit } from "@/types/produit";
 import { normalizeEan13String } from "@/lib/produit-import";
@@ -25,6 +28,11 @@ function ProductThumb() {
 
 export default function ReceptionMarchandisePage() {
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
+  const { alerts, loading: alertesLoading, refetch: refetchAlertes } = useAlerts({
+    includeTasks: false,
+    includeAdminIntelligence: false,
+    stockLink: { href: "/vendeuse/reception", actionLabel: "Réception" },
+  });
   const [produits, setProduits] = useState<Produit[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -57,7 +65,8 @@ export default function ReceptionMarchandisePage() {
       setProduits((data as Produit[]) ?? []);
     }
     setLoading(false);
-  }, [supabase]);
+    void refetchAlertes();
+  }, [supabase, refetchAlertes]);
 
   useEffect(() => {
     fetchProduits();
@@ -137,6 +146,7 @@ export default function ReceptionMarchandisePage() {
       });
       setSuccessId(p.id);
       toast.success(`${qty} unité(s) ajoutée(s) — ${p.nom}`);
+      void refetchAlertes();
       window.setTimeout(() => setSuccessId((cur) => (cur === p.id ? null : cur)), 2000);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Erreur lors de la mise à jour.");
@@ -207,141 +217,159 @@ export default function ReceptionMarchandisePage() {
         </div>
       </header>
 
-      <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="relative flex-1">
-          <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
-          <input
-            type="search"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Rechercher un produit…"
-            className="w-full min-h-[52px] rounded-2xl border border-gray-200 bg-white py-3 pl-12 pr-4 text-base text-gray-900 shadow-sm placeholder:text-gray-400 focus:border-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900/10"
-            aria-label="Recherche produit"
-          />
-        </div>
-        <button
-          type="button"
-          onClick={() => setModalOpen(true)}
-          className="inline-flex min-h-[52px] shrink-0 items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-5 text-base font-semibold text-white shadow-md transition active:scale-[0.98] hover:bg-emerald-700"
-        >
-          <Plus className="h-5 w-5" />
-          Créer un nouveau produit
-        </button>
-      </div>
+      <div className="grid gap-6 lg:grid-cols-[1fr_minmax(280px,360px)] xl:grid-cols-[1fr_380px]">
+        <div className="order-2 min-w-0 space-y-5 lg:order-1">
+          <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="relative flex-1">
+              <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
+              <input
+                type="search"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Rechercher un produit…"
+                className="w-full min-h-[52px] rounded-2xl border border-gray-200 bg-white py-3 pl-12 pr-4 text-base text-gray-900 shadow-sm placeholder:text-gray-400 focus:border-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900/10"
+                aria-label="Recherche produit"
+              />
+            </div>
+            <button
+              type="button"
+              onClick={() => setModalOpen(true)}
+              className="inline-flex min-h-[52px] shrink-0 items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-5 text-base font-semibold text-white shadow-md transition active:scale-[0.98] hover:bg-emerald-700"
+            >
+              <Plus className="h-5 w-5" />
+              Créer un nouveau produit
+            </button>
+          </div>
 
-      {loading ? (
-        <div className="flex justify-center py-24">
-          <Loader2 className="h-10 w-10 animate-spin text-gray-400" />
-        </div>
-      ) : filtered.length === 0 ? (
-        <p className="rounded-2xl border border-dashed border-gray-200 bg-white py-16 text-center text-gray-500">
-          {search.trim()
-            ? "Aucun produit ne correspond à votre recherche."
-            : "Aucun produit en base."}
-        </p>
-      ) : (
-        <ul className="space-y-4">
-          {filtered.map((p) => {
-            const q = arrivage[p.id] ?? 0;
-            const busy = validatingId === p.id;
-            const ok = successId === p.id;
-            return (
-              <motion.li
-                key={p.id}
-                layout
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="rounded-3xl border border-gray-100 bg-white p-4 shadow-sm ring-1 ring-gray-100/80 md:p-5"
-              >
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
-                  <div className="flex min-w-0 flex-1 gap-4">
-                    <ProductThumb />
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-lg font-semibold text-gray-900">
-                        {p.nom}
-                      </p>
-                      {p.categorie && (
-                        <p className="mt-0.5 text-sm text-gray-400">{p.categorie}</p>
-                      )}
-                      <p className="mt-2 text-sm text-gray-600">
-                        Stock actuel :{" "}
-                        <span className="font-bold tabular-nums text-gray-900">
-                          {p.stock}
-                        </span>
-                      </p>
-                    </div>
-                  </div>
+          {loading ? (
+            <div className="flex justify-center py-24">
+              <Loader2 className="h-10 w-10 animate-spin text-gray-400" />
+            </div>
+          ) : filtered.length === 0 ? (
+            <p className="rounded-2xl border border-dashed border-gray-200 bg-white py-16 text-center text-gray-500">
+              {search.trim()
+                ? "Aucun produit ne correspond à votre recherche."
+                : "Aucun produit en base."}
+            </p>
+          ) : (
+            <ul className="space-y-4">
+              {filtered.map((p) => {
+                const q = arrivage[p.id] ?? 0;
+                const busy = validatingId === p.id;
+                const ok = successId === p.id;
+                return (
+                  <motion.li
+                    key={p.id}
+                    layout
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="rounded-3xl border border-gray-100 bg-white p-4 shadow-sm ring-1 ring-gray-100/80 md:p-5"
+                  >
+                    <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+                      <div className="flex min-w-0 flex-1 gap-4">
+                        <ProductThumb />
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-lg font-semibold text-gray-900">
+                            {p.nom}
+                          </p>
+                          {p.categorie && (
+                            <p className="mt-0.5 text-sm text-gray-400">{p.categorie}</p>
+                          )}
+                          <p className="mt-2 text-sm text-gray-600">
+                            Stock actuel :{" "}
+                            <span className="font-bold tabular-nums text-gray-900">
+                              {p.stock}
+                            </span>
+                          </p>
+                        </div>
+                      </div>
 
-                  <div className="flex flex-col gap-3 sm:items-end">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="mr-1 text-xs font-medium uppercase tracking-wide text-gray-400">
-                        Arrivage
-                      </span>
-                      <input
-                        type="number"
-                        inputMode="numeric"
-                        min={0}
-                        value={q || ""}
-                        onChange={(e) => setArrivageDirect(p.id, e.target.value)}
-                        placeholder="0"
-                        className="h-12 w-20 rounded-xl border border-gray-200 bg-gray-50/80 text-center text-lg font-bold tabular-nums text-gray-900 focus:border-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900/15"
-                      />
-                      {([1, 5, 10] as const).map((n) => (
-                        <button
-                          key={n}
+                      <div className="flex flex-col gap-3 sm:items-end">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="mr-1 text-xs font-medium uppercase tracking-wide text-gray-400">
+                            Arrivage
+                          </span>
+                          <input
+                            type="number"
+                            inputMode="numeric"
+                            min={0}
+                            value={q || ""}
+                            onChange={(e) => setArrivageDirect(p.id, e.target.value)}
+                            placeholder="0"
+                            className="h-12 w-20 rounded-xl border border-gray-200 bg-gray-50/80 text-center text-lg font-bold tabular-nums text-gray-900 focus:border-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900/15"
+                          />
+                          {([1, 5, 10] as const).map((n) => (
+                            <button
+                              key={n}
+                              type="button"
+                              onClick={() => bump(p.id, n)}
+                              className="min-h-12 min-w-[52px] rounded-xl bg-gray-100 px-3 text-sm font-bold text-gray-800 transition hover:bg-gray-200 active:scale-95"
+                            >
+                              +{n}
+                            </button>
+                          ))}
+                        </div>
+                        <motion.button
                           type="button"
-                          onClick={() => bump(p.id, n)}
-                          className="min-h-12 min-w-[52px] rounded-xl bg-gray-100 px-3 text-sm font-bold text-gray-800 transition hover:bg-gray-200 active:scale-95"
+                          disabled={busy || q <= 0}
+                          onClick={() => validerReception(p)}
+                          className={`relative flex min-h-[56px] w-full items-center justify-center overflow-hidden rounded-2xl px-6 text-base font-bold text-white shadow-md transition-colors disabled:cursor-not-allowed disabled:opacity-50 sm:min-w-[220px] ${
+                            ok ? "bg-emerald-600" : "bg-gray-900"
+                          }`}
+                          whileTap={{ scale: 0.98 }}
                         >
-                          +{n}
-                        </button>
-                      ))}
-                    </div>
-                    <motion.button
-                      type="button"
-                      disabled={busy || q <= 0}
-                      onClick={() => validerReception(p)}
-                      className={`relative flex min-h-[56px] w-full items-center justify-center overflow-hidden rounded-2xl px-6 text-base font-bold text-white shadow-md transition-colors disabled:cursor-not-allowed disabled:opacity-50 sm:min-w-[220px] ${
-                        ok ? "bg-emerald-600" : "bg-gray-900"
-                      }`}
-                      whileTap={{ scale: 0.98 }}
-                    >
-                      <AnimatePresence mode="wait" initial={false}>
-                        {ok ? (
-                          <motion.span
-                            key="ok"
-                            initial={{ opacity: 0, scale: 0.92 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            exit={{ opacity: 0 }}
-                            transition={{ duration: 0.2 }}
-                            className="absolute inset-0 flex items-center justify-center"
-                          >
-                            ✅ Fait
-                          </motion.span>
-                        ) : (
-                          <motion.span
-                            key="go"
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            exit={{ opacity: 0 }}
-                            className="flex items-center justify-center gap-2"
-                          >
-                            {busy ? (
-                              <Loader2 className="h-6 w-6 animate-spin" />
+                          <AnimatePresence mode="wait" initial={false}>
+                            {ok ? (
+                              <motion.span
+                                key="ok"
+                                initial={{ opacity: 0, scale: 0.92 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                exit={{ opacity: 0 }}
+                                transition={{ duration: 0.2 }}
+                                className="absolute inset-0 flex items-center justify-center"
+                              >
+                                ✅ Fait
+                              </motion.span>
                             ) : (
-                              "Valider la réception"
+                              <motion.span
+                                key="go"
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                exit={{ opacity: 0 }}
+                                className="flex items-center justify-center gap-2"
+                              >
+                                {busy ? (
+                                  <Loader2 className="h-6 w-6 animate-spin" />
+                                ) : (
+                                  "Valider la réception"
+                                )}
+                              </motion.span>
                             )}
-                          </motion.span>
-                        )}
-                      </AnimatePresence>
-                    </motion.button>
-                  </div>
-                </div>
-              </motion.li>
-            );
-          })}
-        </ul>
-      )}
+                          </AnimatePresence>
+                        </motion.button>
+                      </div>
+                    </div>
+                  </motion.li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+
+        <aside className="order-1 space-y-4 lg:sticky lg:top-4 lg:order-2 lg:max-h-[min(100dvh,900px)] lg:overflow-y-auto lg:self-start">
+          <ActionCenter
+            title="Alertes de stock"
+            variant="full"
+            alerts={alerts}
+            loading={alertesLoading}
+          />
+          <ReceptionStockQuickLinks
+            alerts={alerts}
+            produits={produits}
+            onAddOne={(id) => bump(id, 1)}
+          />
+        </aside>
+      </div>
 
       <AnimatePresence>
         {modalOpen && (
