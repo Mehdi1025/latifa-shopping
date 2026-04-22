@@ -15,3 +15,21 @@ export type Produit = {
   couleur: string | null;
   created_at?: string;
 };
+
+export type MouvementStockType =
+  | "VENTE"
+  | "RECEPTION"
+  | "RETOUR"
+  | "INVENTAIRE";
+
+/**
+ * Ligne du journal de traçabilité des stocks.
+ */
+export type MouvementStock = {
+  id: string;
+  produit_id: string;
+  quantite: number;
+  type_mouvement: MouvementStockType;
+  reference: string | null;
+  created_at: string;
+};

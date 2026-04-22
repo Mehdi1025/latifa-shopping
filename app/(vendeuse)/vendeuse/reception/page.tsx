@@ -17,6 +17,7 @@ import ReceptionStockQuickLinks from "@/components/vendeur/ReceptionStockQuickLi
 import { toast } from "sonner";
 import type { Produit } from "@/types/produit";
 import { normalizeEan13String } from "@/lib/produit-import";
+import { logStockMovement } from "@/lib/stock/mouvements-stock";
 
 function ProductThumb() {
   return (
@@ -134,6 +135,16 @@ export default function ReceptionMarchandisePage() {
         .eq("id", p.id);
       if (error) {
         toast.error(error.message);
+        return;
+      }
+      const { error: mvtErr } = await logStockMovement(supabase, {
+        produit_id: p.id,
+        quantite: qty,
+        type_mouvement: "RECEPTION",
+        reference: "Réception marchandise",
+      });
+      if (mvtErr) {
+        toast.error(mvtErr.message);
         return;
       }
       setProduits((list) =>

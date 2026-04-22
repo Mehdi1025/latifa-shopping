@@ -2,10 +2,12 @@
 
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { ChevronDown, ChevronRight, Pencil, Plus, X } from "lucide-react";
+import { ChevronDown, ChevronRight, History, Pencil, Plus, X } from "lucide-react";
 import { createSupabaseBrowserClient } from "@/utils/supabase/client";
 import type { Produit } from "@/types/produit";
 import { normalizeEan13String } from "@/lib/produit-import";
+import { logStockMovement } from "@/lib/stock/mouvements-stock";
+import StockMouvementsHistoriqueDialog from "@/components/admin/StockMouvementsHistoriqueDialog";
 import {
   groupeProduitsParNom,
   isStockAgregTresBas,
@@ -21,6 +23,14 @@ function formatPrix(prix: number): string {
 function formatPrixRange(min: number, max: number): string {
   if (min === max) return formatPrix(min);
   return `${formatPrix(min)} – ${formatPrix(max)}`;
+}
+
+function libelleVariantePourHistorique(p: Produit): string {
+  const parts: string[] = [p.nom.trim() || "Produit"];
+  if (p.couleur?.trim()) parts.push(p.couleur.trim());
+  if (p.taille?.trim()) parts.push(p.taille.trim());
+  if (p.code_barre) parts.push(`EAN ${p.code_barre}`);
+  return parts.join(" · ");
 }
 
 export default function ProduitsPage() {
@@ -44,6 +54,7 @@ export default function ProduitsPage() {
     couleur: "",
   });
 
+  const [mvtHistoriqueProduit, setMvtHistoriqueProduit] = useState<Produit | null>(null);
   const [editingProduit, setEditingProduit] = useState<Produit | null>(null);
   const [editSubmitLoading, setEditSubmitLoading] = useState(false);
   const [editForm, setEditForm] = useState({
@@ -243,6 +254,20 @@ export default function ProduitsPage() {
       setError(upError.message);
       setEditSubmitLoading(false);
       return;
+    }
+    const delta = stockNum - editingProduit.stock;
+    if (delta !== 0) {
+      const { error: mvtErr } = await logStockMovement(supabase, {
+        produit_id: editingProduit.id,
+        quantite: delta,
+        type_mouvement: "INVENTAIRE",
+        reference: "Ajustement manuel",
+      });
+      if (mvtErr) {
+        setError(mvtErr.message);
+        setEditSubmitLoading(false);
+        return;
+      }
     }
     setEditingProduit(null);
     await fetchProduits();
@@ -484,8 +509,8 @@ export default function ProduitsPage() {
                                         <th className="w-20 px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
                                           Stock
                                         </th>
-                                        <th className="w-28 px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
-                                          Action
+                                        <th className="min-w-[7.5rem] px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+                                          Actions
                                         </th>
                                       </tr>
                                     </thead>
@@ -529,18 +554,32 @@ export default function ProduitsPage() {
                                           >
                                             {v.stock}
                                           </td>
-                                          <td className="px-3 py-2">
-                                            <button
-                                              type="button"
-                                              onClick={(e) => {
-                                                e.stopPropagation();
-                                                ouvrirEdition(v);
-                                              }}
-                                              className="inline-flex h-8 min-h-0 items-center gap-1 rounded-lg border border-indigo-200 bg-white px-2.5 text-xs font-medium text-indigo-700 transition hover:bg-indigo-50"
-                                            >
-                                              <Pencil className="h-3.5 w-3.5" />
-                                              Modifier
-                                            </button>
+                                          <td className="px-2 py-2">
+                                            <div className="flex flex-wrap items-center gap-1.5">
+                                              <button
+                                                type="button"
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  setMvtHistoriqueProduit(v);
+                                                }}
+                                                className="inline-flex h-8 min-h-0 items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 text-[10px] font-medium text-slate-600 transition hover:bg-slate-50"
+                                                title="Historique des mouvements"
+                                              >
+                                                <History className="h-3.5 w-3.5" />
+                                                Historique
+                                              </button>
+                                              <button
+                                                type="button"
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  ouvrirEdition(v);
+                                                }}
+                                                className="inline-flex h-8 min-h-0 items-center gap-1 rounded-lg border border-indigo-200 bg-white px-2.5 text-xs font-medium text-indigo-700 transition hover:bg-indigo-50"
+                                              >
+                                                <Pencil className="h-3.5 w-3.5" />
+                                                Modifier
+                                              </button>
+                                            </div>
                                           </td>
                                         </tr>
                                       ))}
@@ -648,7 +687,15 @@ export default function ProduitsPage() {
                                   </p>
                                 </div>
                               </div>
-                              <div className="mt-2 flex items-center justify-end">
+                              <div className="mt-2 flex flex-wrap items-center justify-end gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => setMvtHistoriqueProduit(v)}
+                                  className="inline-flex h-9 min-h-0 items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-600"
+                                >
+                                  <History className="h-3.5 w-3.5" />
+                                  Historique
+                                </button>
                                 <button
                                   type="button"
                                   onClick={() => ouvrirEdition(v)}
@@ -1078,6 +1125,19 @@ export default function ProduitsPage() {
           </div>
         </>
       )}
+
+      <StockMouvementsHistoriqueDialog
+        open={mvtHistoriqueProduit !== null}
+        onOpenChange={(o) => {
+          if (!o) setMvtHistoriqueProduit(null);
+        }}
+        produitId={mvtHistoriqueProduit?.id ?? null}
+        sousTitre={
+          mvtHistoriqueProduit
+            ? libelleVariantePourHistorique(mvtHistoriqueProduit)
+            : null
+        }
+      />
     </div>
   );
 }

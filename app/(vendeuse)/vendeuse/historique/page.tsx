@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { RotateCcw, CheckCircle, AlertCircle } from "lucide-react";
 import { createSupabaseBrowserClient } from "@/utils/supabase/client";
+import { logStockMovement } from "@/lib/stock/mouvements-stock";
 
 type VenteItem = {
   produit_id: string;
@@ -112,6 +113,13 @@ export default function HistoriquePage() {
           .update({ stock: currentStock + item.quantite })
           .eq("id", item.produit_id);
         if (stockError) throw new Error(stockError.message);
+        const { error: mvtErr } = await logStockMovement(supabase, {
+          produit_id: item.produit_id,
+          quantite: item.quantite,
+          type_mouvement: "RETOUR",
+          reference: `Annulation vente · ${vente.id.slice(0, 8)}…`,
+        });
+        if (mvtErr) throw mvtErr;
       }
       await supabase.from("ventes_items").delete().eq("vente_id", vente.id);
       const { error: delError } = await supabase

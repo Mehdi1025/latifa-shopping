@@ -17,6 +17,7 @@ import {
 } from "@/components/MethodePaiement";
 import type { Produit } from "@/types/produit";
 import { normalizeEan13String } from "@/lib/produit-import";
+import { logStockMovement } from "@/lib/stock/mouvements-stock";
 import {
   groupProduitsByModele,
   type GroupeModeleCatalogue,
@@ -513,6 +514,13 @@ export default function VendeusePage() {
           .update({ stock: currentStock + item.quantite })
           .eq("id", item.produit_id);
         if (stockError) throw new Error(stockError.message);
+        const { error: mvtErr } = await logStockMovement(supabase, {
+          produit_id: item.produit_id,
+          quantite: item.quantite,
+          type_mouvement: "RETOUR",
+          reference: `Annulation vente · ${vente.id.slice(0, 8)}…`,
+        });
+        if (mvtErr) throw mvtErr;
       }
       await supabase.from("ventes_items").delete().eq("vente_id", vente.id);
       const { error: delError } = await supabase
@@ -620,6 +628,16 @@ export default function VendeusePage() {
           .eq("id", ligne.produit.id);
         if (stockError) {
           showToast("error", `Erreur stock: ${stockError.message}`);
+          return;
+        }
+        const { error: mvtErr } = await logStockMovement(supabase, {
+          produit_id: ligne.produit.id,
+          quantite: -ligne.quantite,
+          type_mouvement: "VENTE",
+          reference: `Ticket caisse · ${vente.id.slice(0, 8)}…`,
+        });
+        if (mvtErr) {
+          showToast("error", mvtErr.message);
           return;
         }
       }
