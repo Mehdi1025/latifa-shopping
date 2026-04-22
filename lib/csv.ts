@@ -64,3 +64,11 @@ export function parseCsv(text: string): string[][] {
   }
   return lines;
 }
+
+export {
+  normalizeEan13String,
+  parseVariantFromProductName,
+  buildProduitImportRow,
+  type ProduitImportRow,
+  type ProduitImportLineResult,
+} from "./produit-import";

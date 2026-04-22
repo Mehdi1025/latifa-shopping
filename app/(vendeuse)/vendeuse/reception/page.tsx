@@ -12,15 +12,8 @@ import {
 } from "lucide-react";
 import { createSupabaseBrowserClient } from "@/utils/supabase/client";
 import { toast } from "sonner";
-
-type Produit = {
-  id: string;
-  nom: string;
-  description: string | null;
-  prix: number;
-  stock: number;
-  categorie: string | null;
-};
+import type { Produit } from "@/types/produit";
+import { normalizeEan13String } from "@/lib/produit-import";
 
 function ProductThumb() {
   return (
@@ -46,13 +39,16 @@ export default function ReceptionMarchandisePage() {
     prix: "",
     categorie: "",
     stock: "",
+    code_barre: "",
+    taille: "",
+    couleur: "",
   });
 
   const fetchProduits = useCallback(async () => {
     setLoading(true);
     const { data, error } = await supabase
       .from("produits")
-      .select("id, nom, description, prix, stock, categorie")
+      .select("id, nom, description, prix, stock, categorie, code_barre, taille, couleur")
       .order("nom", { ascending: true });
     if (error) {
       toast.error(error.message);
@@ -78,11 +74,16 @@ export default function ReceptionMarchandisePage() {
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return produits;
-    return produits.filter(
-      (p) =>
+    return produits.filter((p) => {
+      const ean = p.code_barre ?? "";
+      const qDigits = q.replace(/\D/g, "");
+      return (
         p.nom.toLowerCase().includes(q) ||
-        (p.categorie ?? "").toLowerCase().includes(q)
-    );
+        (p.categorie ?? "").toLowerCase().includes(q) ||
+        (ean && ean.toLowerCase().includes(q)) ||
+        (qDigits.length >= 4 && ean.replace(/\D/g, "").includes(qDigits))
+      );
+    });
   }, [produits, search]);
 
   const bump = (id: string, delta: number) => {
@@ -160,6 +161,12 @@ export default function ReceptionMarchandisePage() {
       toast.error("Quantité initiale invalide.");
       return;
     }
+    const eanRaw = form.code_barre.trim();
+    const ean = eanRaw ? normalizeEan13String(eanRaw) : null;
+    if (eanRaw && !ean) {
+      toast.error("EAN-13 : 13 chiffres ou laissez le champ vide.");
+      return;
+    }
     setSubmitProduct(true);
     const { error } = await supabase.from("produits").insert({
       nom: form.nom.trim(),
@@ -167,6 +174,9 @@ export default function ReceptionMarchandisePage() {
       prix: prixNum,
       stock: stockNum,
       categorie: form.categorie.trim() || null,
+      code_barre: ean,
+      taille: form.taille.trim() || null,
+      couleur: form.couleur.trim() || null,
     });
     setSubmitProduct(false);
     if (error) {
@@ -174,7 +184,7 @@ export default function ReceptionMarchandisePage() {
       return;
     }
     toast.success("Produit créé.");
-    setForm({ nom: "", prix: "", categorie: "", stock: "" });
+    setForm({ nom: "", prix: "", categorie: "", stock: "", code_barre: "", taille: "", couleur: "" });
     setModalOpen(false);
     await fetchProduits();
   };
@@ -344,6 +354,7 @@ export default function ReceptionMarchandisePage() {
               onClick={() => !submitProduct && setModalOpen(false)}
             />
             <motion.div
+              data-skip-ean-capture
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 20 }}
@@ -397,6 +408,37 @@ export default function ReceptionMarchandisePage() {
                       <option key={c} value={c} />
                     ))}
                   </datalist>
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-gray-500">EAN-13 (optionnel)</label>
+                  <input
+                    value={form.code_barre}
+                    onChange={(e) => setForm((f) => ({ ...f, code_barre: e.target.value }))}
+                    inputMode="numeric"
+                    autoComplete="off"
+                    className="mt-1 min-h-[48px] w-full rounded-xl border border-gray-200 px-4 py-3 font-mono text-gray-900 focus:border-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900/10"
+                    placeholder="13 chiffres"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs font-medium text-gray-500">Taille</label>
+                    <input
+                      value={form.taille}
+                      onChange={(e) => setForm((f) => ({ ...f, taille: e.target.value }))}
+                      className="mt-1 min-h-[48px] w-full rounded-xl border border-gray-200 px-4 py-3 text-gray-900 focus:border-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900/10"
+                      placeholder="ex. T.60"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-gray-500">Couleur</label>
+                    <input
+                      value={form.couleur}
+                      onChange={(e) => setForm((f) => ({ ...f, couleur: e.target.value }))}
+                      className="mt-1 min-h-[48px] w-full rounded-xl border border-gray-200 px-4 py-3 text-gray-900 focus:border-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900/10"
+                      placeholder="ex. Blanc"
+                    />
+                  </div>
                 </div>
                 <div>
                   <label className="text-xs font-medium text-gray-500">

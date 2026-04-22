@@ -1,18 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { AlertCircle, Plus, X } from "lucide-react";
 import { createSupabaseBrowserClient } from "@/utils/supabase/client";
-
-type Produit = {
-  id: string;
-  nom: string;
-  description: string | null;
-  prix: number;
-  stock: number;
-  categorie: string | null;
-  created_at?: string;
-};
+import type { Produit } from "@/types/produit";
+import { normalizeEan13String } from "@/lib/produit-import";
 
 function StatutBadge({ stock }: { stock: number }) {
   if (stock === 0) {
@@ -50,6 +42,9 @@ export default function ProduitsPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [submitLoading, setSubmitLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [filterCategorie, setFilterCategorie] = useState("Tous");
+  const [filterTaille, setFilterTaille] = useState("Tous");
+  const [filterCouleur, setFilterCouleur] = useState("Tous");
 
   const [form, setForm] = useState({
     nom: "",
@@ -57,6 +52,9 @@ export default function ProduitsPage() {
     prix: "",
     stock: "",
     categorie: "",
+    code_barre: "",
+    taille: "",
+    couleur: "",
   });
 
   const supabase = createSupabaseBrowserClient();
@@ -81,6 +79,45 @@ export default function ProduitsPage() {
     fetchProduits();
   }, []);
 
+  const categoriesOptions = useMemo(() => {
+    const s = new Set<string>();
+    produits.forEach((p) => {
+      if (p.categorie?.trim()) s.add(p.categorie.trim());
+    });
+    return ["Tous", ...Array.from(s).sort()];
+  }, [produits]);
+
+  const taillesOptions = useMemo(() => {
+    const s = new Set<string>();
+    produits.forEach((p) => {
+      if (p.taille?.trim()) s.add(p.taille.trim());
+    });
+    return ["Tous", ...Array.from(s).sort((a, b) => a.localeCompare(b, "fr"))];
+  }, [produits]);
+
+  const couleursOptions = useMemo(() => {
+    const s = new Set<string>();
+    produits.forEach((p) => {
+      if (p.couleur?.trim()) s.add(p.couleur.trim());
+    });
+    return ["Tous", ...Array.from(s).sort((a, b) => a.localeCompare(b, "fr"))];
+  }, [produits]);
+
+  const produitsFiltres = useMemo(() => {
+    return produits.filter((p) => {
+      if (filterCategorie !== "Tous" && (p.categorie ?? "").trim() !== filterCategorie) {
+        return false;
+      }
+      if (filterTaille !== "Tous" && (p.taille ?? "").trim() !== filterTaille) {
+        return false;
+      }
+      if (filterCouleur !== "Tous" && (p.couleur ?? "").trim() !== filterCouleur) {
+        return false;
+      }
+      return true;
+    });
+  }, [produits, filterCategorie, filterTaille, filterCouleur]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitLoading(true);
@@ -92,19 +129,38 @@ export default function ProduitsPage() {
       setSubmitLoading(false);
       return;
     }
+    const eanRaw = form.code_barre.trim();
+    const ean = eanRaw ? normalizeEan13String(eanRaw) : null;
+    if (eanRaw && !ean) {
+      setError("EAN-13 : saisissez exactement 13 chiffres (ou laissez vide).");
+      setSubmitLoading(false);
+      return;
+    }
     const { error: insertError } = await supabase.from("produits").insert({
       nom: form.nom.trim(),
       description: form.description.trim() || null,
       prix: prixNum,
       stock: stockNum,
       categorie: form.categorie.trim() || null,
+      code_barre: ean,
+      taille: form.taille.trim() || null,
+      couleur: form.couleur.trim() || null,
     });
     if (insertError) {
       setError(insertError.message);
       setSubmitLoading(false);
       return;
     }
-    setForm({ nom: "", description: "", prix: "", stock: "", categorie: "" });
+    setForm({
+      nom: "",
+      description: "",
+      prix: "",
+      stock: "",
+      categorie: "",
+      code_barre: "",
+      taille: "",
+      couleur: "",
+    });
     setModalOpen(false);
     await fetchProduits();
     setSubmitLoading(false);
@@ -132,6 +188,59 @@ export default function ProduitsPage() {
         </div>
       )}
 
+      {!loading && produits.length > 0 && (
+        <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
+          <div className="min-w-0 sm:max-w-xs">
+            <label className="mb-1 block text-xs font-medium text-slate-500">
+              Catégorie
+            </label>
+            <select
+              value={filterCategorie}
+              onChange={(e) => setFilterCategorie(e.target.value)}
+              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+            >
+              {categoriesOptions.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="min-w-0 sm:max-w-xs">
+            <label className="mb-1 block text-xs font-medium text-slate-500">
+              Taille
+            </label>
+            <select
+              value={filterTaille}
+              onChange={(e) => setFilterTaille(e.target.value)}
+              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+            >
+              {taillesOptions.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="min-w-0 sm:max-w-xs">
+            <label className="mb-1 block text-xs font-medium text-slate-500">
+              Couleur
+            </label>
+            <select
+              value={filterCouleur}
+              onChange={(e) => setFilterCouleur(e.target.value)}
+              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+            >
+              {couleursOptions.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+      )}
+
       {loading ? (
         <div className="flex items-center justify-center rounded-xl border border-slate-200 bg-white py-20">
           <div className="h-8 w-8 animate-spin rounded-full border-2 border-indigo-600 border-t-transparent" />
@@ -148,15 +257,25 @@ export default function ProduitsPage() {
             Ajouter un produit
           </button>
         </div>
+      ) : produitsFiltres.length === 0 ? (
+        <div className="rounded-xl border border-amber-100 bg-amber-50/50 p-8 text-center text-slate-700">
+          Aucun produit ne correspond aux filtres sélectionnés.
+        </div>
       ) : (
         <>
           {/* Tableau tablette+ — défilement horizontal */}
           <div className="hidden overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm md:block">
-            <table className="min-w-[640px] w-full">
+            <table className="min-w-[880px] w-full">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50/80">
                   <th className="whitespace-nowrap px-4 py-4 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 md:px-6 md:py-5">
-                    Nom
+                    Produit
+                  </th>
+                  <th className="whitespace-nowrap px-4 py-4 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 md:px-6 md:py-5">
+                    Taille
+                  </th>
+                  <th className="whitespace-nowrap px-4 py-4 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 md:px-6 md:py-5">
+                    Couleur
                   </th>
                   <th className="whitespace-nowrap px-4 py-4 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 md:px-6 md:py-5">
                     Catégorie
@@ -173,7 +292,7 @@ export default function ProduitsPage() {
                 </tr>
               </thead>
               <tbody>
-                {produits.map((produit, i) => (
+                {produitsFiltres.map((produit, i) => (
                   <tr
                     key={produit.id}
                     className={`border-b border-slate-100 transition-colors duration-300 last:border-b-0 hover:bg-indigo-50/30 ${
@@ -185,12 +304,40 @@ export default function ProduitsPage() {
                         <p className="whitespace-nowrap text-sm font-medium text-slate-900">
                           {produit.nom}
                         </p>
+                        {produit.code_barre && (
+                          <p className="mt-0.5 font-mono text-[11px] tabular-nums text-slate-500">
+                            {produit.code_barre}
+                          </p>
+                        )}
                         {produit.description && (
                           <p className="mt-0.5 max-w-xs truncate text-xs text-slate-400">
                             {produit.description}
                           </p>
                         )}
                       </div>
+                    </td>
+                    <td className="px-4 py-4 md:px-6 md:py-5">
+                      {produit.taille?.trim() ? (
+                        <span className="inline-flex rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs font-medium text-slate-700">
+                          {produit.taille}
+                        </span>
+                      ) : (
+                        <span className="text-sm text-slate-400">—</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-4 md:px-6 md:py-5">
+                      {produit.couleur?.trim() ? (
+                        <span className="inline-flex items-center gap-1.5 text-sm text-slate-800">
+                          <span
+                            className="h-2.5 w-2.5 shrink-0 rounded-full border border-slate-200 bg-violet-100"
+                            title={produit.couleur}
+                            aria-hidden
+                          />
+                          {produit.couleur}
+                        </span>
+                      ) : (
+                        <span className="text-sm text-slate-400">—</span>
+                      )}
                     </td>
                     <td className="whitespace-nowrap px-4 py-4 text-sm text-slate-500 md:px-6 md:py-5">
                       {produit.categorie ?? "—"}
@@ -212,7 +359,7 @@ export default function ProduitsPage() {
 
           {/* Cartes mobile */}
           <div className="space-y-4 md:hidden">
-            {produits.map((produit) => (
+            {produitsFiltres.map((produit) => (
               <article
                 key={produit.id}
                 className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition-all duration-300 ease-in-out hover:shadow-md"
@@ -220,9 +367,24 @@ export default function ProduitsPage() {
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
                     <h3 className="font-medium text-slate-900">{produit.nom}</h3>
+                    {produit.code_barre && (
+                      <p className="mt-0.5 font-mono text-[11px] tabular-nums text-slate-500">
+                        {produit.code_barre}
+                      </p>
+                    )}
                     <p className="mt-1 text-sm text-slate-500">
                       {produit.categorie ?? "—"}
                     </p>
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      {produit.taille?.trim() && (
+                        <span className="inline-flex rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs font-medium text-slate-700">
+                          {produit.taille}
+                        </span>
+                      )}
+                      {produit.couleur?.trim() && (
+                        <span className="text-xs text-slate-600">{produit.couleur}</span>
+                      )}
+                    </div>
                     {produit.description && (
                       <p className="mt-1 line-clamp-2 text-xs text-slate-400">
                         {produit.description}
@@ -365,6 +527,64 @@ export default function ProduitsPage() {
                     placeholder="Ex : Robes, Abayas, Hijabs..."
                     className="w-full rounded-lg border border-slate-200 px-4 py-2.5 text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
                   />
+                </div>
+                <div>
+                  <label
+                    htmlFor="code_barre"
+                    className="mb-1.5 block text-sm font-medium text-slate-700"
+                  >
+                    Code-barres EAN-13 (optionnel)
+                  </label>
+                  <input
+                    id="code_barre"
+                    type="text"
+                    inputMode="numeric"
+                    autoComplete="off"
+                    value={form.code_barre}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, code_barre: e.target.value }))
+                    }
+                    placeholder="13 chiffres, ex. 366…"
+                    className="w-full rounded-lg border border-slate-200 px-4 py-2.5 font-mono text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label
+                      htmlFor="taille"
+                      className="mb-1.5 block text-sm font-medium text-slate-700"
+                    >
+                      Taille
+                    </label>
+                    <input
+                      id="taille"
+                      type="text"
+                      value={form.taille}
+                      onChange={(e) =>
+                        setForm((f) => ({ ...f, taille: e.target.value }))
+                      }
+                      placeholder="ex. T.60"
+                      className="w-full rounded-lg border border-slate-200 px-4 py-2.5 text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                    />
+                  </div>
+                  <div>
+                    <label
+                      htmlFor="couleur"
+                      className="mb-1.5 block text-sm font-medium text-slate-700"
+                    >
+                      Couleur
+                    </label>
+                    <input
+                      id="couleur"
+                      type="text"
+                      value={form.couleur}
+                      onChange={(e) =>
+                        setForm((f) => ({ ...f, couleur: e.target.value }))
+                      }
+                      placeholder="ex. Blanc"
+                      className="w-full rounded-lg border border-slate-200 px-4 py-2.5 text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                    />
+                  </div>
                 </div>
               </div>
               <div className="mt-auto border-t border-slate-200 pt-5">

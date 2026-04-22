@@ -10,15 +10,7 @@ import {
   type DuoInsight,
 } from "@/components/admin/CrossSellInsights";
 import { segmenterRfm, type RfmClient } from "@/components/admin/CrmSegmentation";
-
-type Produit = {
-  id: string;
-  nom: string;
-  description: string | null;
-  prix: number;
-  stock: number;
-  categorie: string | null;
-};
+import type { Produit } from "@/types/produit";
 
 type VenteRow = {
   id: string;
@@ -210,7 +202,9 @@ export default function ClientelingPanel({
           .select("vente_id, produit_id");
         const { data: allProduits } = await supabase
           .from("produits")
-          .select("id, nom, description, prix, stock, categorie");
+          .select(
+            "id, nom, description, prix, stock, categorie, code_barre, taille, couleur"
+          );
 
         const globalNomById = Object.fromEntries(
           ((allProduits ?? []) as { id: string; nom: string }[]).map((p) => [

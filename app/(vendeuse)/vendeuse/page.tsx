@@ -16,15 +16,8 @@ import {
   MoyenPaiementSelector,
   type MethodePaiement,
 } from "@/components/MethodePaiement";
-
-type Produit = {
-  id: string;
-  nom: string;
-  description: string | null;
-  prix: number;
-  stock: number;
-  categorie: string | null;
-};
+import type { Produit } from "@/types/produit";
+import { normalizeEan13String } from "@/lib/produit-import";
 
 type LignePanier = {
   /** Clé stable par ligne (plusieurs lots Coffre = même produit_id) */
@@ -55,6 +48,13 @@ function formatPrix(prix: number): string {
     currency: "EUR",
     minimumFractionDigits: 2,
   }).format(prix);
+}
+
+function formatVariantSubtitle(p: Produit): string | null {
+  const a = p.couleur?.trim() || null;
+  const b = p.taille?.trim() || null;
+  if (!a && !b) return null;
+  return [a, b].filter(Boolean).join(" • ");
 }
 
 /** Téléphone stocké et recherché en chiffres (ex. 0612345678). */
@@ -91,10 +91,11 @@ function ClientCaisseSection({
         <Gift className="h-4 w-4 text-violet-600" aria-hidden />
         <span>Client (Optionnel) 🎁</span>
       </div>
-      <label className="block text-xs font-medium text-gray-500">
+      <label className="block text-xs font-medium text-gray-500" htmlFor="client-phone-caisse">
         Téléphone
       </label>
       <input
+        id="client-phone-caisse"
         type="tel"
         inputMode="tel"
         autoComplete="tel"
@@ -161,6 +162,8 @@ export default function VendeusePage() {
   const [gamificationRefreshKey, setGamificationRefreshKey] = useState(0);
   const [isMdUp, setIsMdUp] = useState(false);
   const prevPanierLen = useRef(0);
+  const eanInputRef = useRef<HTMLInputElement>(null);
+  const tryAddByEanRef = useRef<(raw: string) => void>(() => {});
 
   const supabase = createSupabaseBrowserClient();
 
@@ -186,7 +189,7 @@ export default function VendeusePage() {
     setLoading(true);
     const { data } = await supabase
       .from("produits")
-      .select("id, nom, description, prix, stock, categorie")
+      .select("id, nom, description, prix, stock, categorie, code_barre, taille, couleur")
       .gt("stock", 0)
       .order("nom");
     setProduits((data as Produit[]) ?? []);
@@ -300,11 +303,17 @@ export default function VendeusePage() {
     }
     if (searchQuery.trim()) {
       const q = searchQuery.trim().toLowerCase();
-      list = list.filter(
-        (p) =>
-          (p.nom ?? "").toLowerCase().includes(q) ||
-          (p.categorie ?? "").toLowerCase().includes(q)
-      );
+      const qDigits = q.replace(/\D/g, "");
+      list = list.filter((p) => {
+        const nom = (p.nom ?? "").toLowerCase();
+        const cat = (p.categorie ?? "").toLowerCase();
+        const ean = p.code_barre ?? "";
+        const matchText =
+          nom.includes(q) || cat.includes(q) || (ean && ean.toLowerCase().includes(q));
+        const matchEan =
+          qDigits.length >= 4 && ean.length > 0 && ean.replace(/\D/g, "").includes(qDigits);
+        return matchText || matchEan;
+      });
     }
     return list;
   }, [produits, searchQuery, selectedCategorie]);
@@ -361,9 +370,6 @@ export default function VendeusePage() {
     });
   };
 
-  const lineDisplayNom = (ligne: LignePanier) =>
-    ligne.libelleOverride ?? ligne.produit.nom;
-
   const viderPanier = () => {
     setPanier([]);
     setRemiseValue(0);
@@ -390,6 +396,71 @@ export default function VendeusePage() {
     setToast({ type, message });
     setTimeout(() => setToast(null), 4000);
   };
+
+  tryAddByEanRef.current = (raw: string) => {
+    const ean = normalizeEan13String(raw);
+    if (!ean) {
+      showToast("error", "EAN invalide (13 chiffres).");
+      return;
+    }
+    const p = produits.find((x) => (x.code_barre ?? "") === ean);
+    if (!p) {
+      showToast("error", "Aucun article pour cet EAN.");
+      return;
+    }
+    if (p.id === MYSTERY_VAULT_PRODUCT_ID) return;
+    if (p.stock < 1) {
+      showToast("error", "Rupture de stock sur cette variante.");
+      return;
+    }
+    addToPanier(p);
+    showToast("success", `${p.nom} ajouté au panier`);
+    setSearchQuery("");
+  };
+
+  useEffect(() => {
+    const t = window.setTimeout(() => eanInputRef.current?.focus(), 100);
+    return () => clearTimeout(t);
+  }, []);
+
+  useEffect(() => {
+    let buf = "";
+    let debounce: ReturnType<typeof setTimeout> | null = null;
+    const onKey = (e: KeyboardEvent) => {
+      if (remiseModalOpen) return;
+      const fromSkip = (e.target as HTMLElement | null)?.closest?.(
+        "[data-skip-ean-capture]"
+      );
+      if (fromSkip) return;
+      const ae = document.activeElement;
+      if (ae === eanInputRef.current) return;
+      if (ae && (ae instanceof HTMLInputElement || ae instanceof HTMLTextAreaElement)) {
+        return;
+      }
+      if (e.key === "Enter") {
+        if (buf.length === 13 && /^\d{13}$/.test(buf)) {
+          e.preventDefault();
+          tryAddByEanRef.current(buf);
+        }
+        buf = "";
+        return;
+      }
+      if (e.key.length === 1 && e.key >= "0" && e.key <= "9") {
+        if (debounce) clearTimeout(debounce);
+        buf = (buf + e.key).slice(-20);
+        debounce = setTimeout(() => {
+          buf = "";
+        }, 100);
+        return;
+      }
+      if (!e.ctrlKey && !e.metaKey) buf = "";
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => {
+      window.removeEventListener("keydown", onKey, true);
+      if (debounce) clearTimeout(debounce);
+    };
+  }, [remiseModalOpen]);
 
   const handleAnnulerVente = async (vente: VenteHistorique) => {
     if (!vente.ventes_items?.length) return;
@@ -553,6 +624,7 @@ export default function VendeusePage() {
               className="fixed inset-0 z-[80] bg-gray-900/45 backdrop-blur-md"
             />
             <motion.div
+              data-skip-ean-capture
               initial={{ opacity: 0, scale: 0.95, y: 10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95 }}
@@ -691,12 +763,26 @@ export default function VendeusePage() {
           <div className="mb-5 flex items-center gap-3 rounded-xl bg-white px-4 py-3 ring-1 ring-gray-100/80 shadow-sm">
             <Search className="h-5 w-5 shrink-0 text-gray-400" />
             <input
+              ref={eanInputRef}
+              id="caisse-ean-search"
               type="search"
+              name="search-ean"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Rechercher par nom ou catégorie…"
+              onKeyDown={(e) => {
+                if (e.key !== "Enter") return;
+                const digits = e.currentTarget.value.replace(/\D/g, "");
+                if (digits.length === 13) {
+                  e.preventDefault();
+                  tryAddByEanRef.current(digits);
+                }
+              }}
+              autoFocus
+              autoComplete="off"
+              inputMode="search"
+              placeholder="Scanner ou taper EAN, nom, catégorie…"
               className="min-w-0 flex-1 bg-transparent text-gray-900 placeholder:text-gray-400 focus:outline-none"
-              aria-label="Rechercher un produit"
+              aria-label="Scanner un code-barres EAN-13 ou rechercher un produit"
             />
           </div>
 
@@ -736,7 +822,9 @@ export default function VendeusePage() {
         ) : (
           <div className="grid grid-cols-2 gap-4 sm:gap-5 lg:grid-cols-3 xl:gap-6">
             <AnimatePresence mode="popLayout">
-              {filteredProduits.map((produit) => (
+              {filteredProduits.map((produit) => {
+                const subVariant = formatVariantSubtitle(produit);
+                return (
                 <motion.button
                   key={produit.id}
                   layout
@@ -754,6 +842,11 @@ export default function VendeusePage() {
                   <p className="mb-2 line-clamp-2 text-lg font-semibold text-gray-900">
                     {produit.nom}
                   </p>
+                  {subVariant && (
+                    <p className="mb-1 line-clamp-1 text-xs text-gray-500">
+                      {subVariant}
+                    </p>
+                  )}
                   {produit.categorie && (
                     <p className="mb-4 text-sm text-gray-400">{produit.categorie}</p>
                   )}
@@ -767,7 +860,8 @@ export default function VendeusePage() {
                     </span>
                   </div>
                 </motion.button>
-              ))}
+                );
+              })}
             </AnimatePresence>
           </div>
         )}
@@ -820,12 +914,30 @@ export default function VendeusePage() {
                       className="flex items-center justify-between gap-3 rounded-2xl bg-gray-50/50 p-4 transition-all duration-300"
                     >
                       <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-semibold text-gray-900">
-                          {lineDisplayNom(ligne)}
-                        </p>
-                        <p className="mt-0.5 text-xs text-gray-400">
-                          {formatPrix(ligne.produit.prix)} × {ligne.quantite}
-                        </p>
+                        {ligne.libelleOverride ? (
+                          <>
+                            <p className="truncate text-sm font-semibold text-gray-900">
+                              {ligne.libelleOverride}
+                            </p>
+                            <p className="mt-0.5 text-xs text-gray-400">
+                              {formatPrix(ligne.produit.prix)} × {ligne.quantite}
+                            </p>
+                          </>
+                        ) : (
+                          <>
+                            <p className="truncate text-sm font-semibold text-gray-900">
+                              {ligne.produit.nom}
+                            </p>
+                            {formatVariantSubtitle(ligne.produit) && (
+                              <p className="mt-0.5 truncate text-[11px] text-gray-500">
+                                {formatVariantSubtitle(ligne.produit)}
+                              </p>
+                            )}
+                            <p className="mt-0.5 text-xs text-gray-400">
+                              {formatPrix(ligne.produit.prix)} × {ligne.quantite}
+                            </p>
+                          </>
+                        )}
                       </div>
                       <div className="flex shrink-0 items-center gap-1.5">
                         <button
@@ -893,14 +1005,16 @@ export default function VendeusePage() {
                     <span>{formatPrix(total)}</span>
                   </p>
                 </div>
-                <ClientCaisseSection
-                  clientPhone={clientPhone}
-                  onClientPhoneChange={setClientPhone}
-                  clientNom={clientNom}
-                  onClientNomChange={setClientNom}
-                  resolvedClient={resolvedClient}
-                  lookupLoading={clientLookupLoading}
-                />
+                <div data-skip-ean-capture>
+                  <ClientCaisseSection
+                    clientPhone={clientPhone}
+                    onClientPhoneChange={setClientPhone}
+                    clientNom={clientNom}
+                    onClientNomChange={setClientNom}
+                    resolvedClient={resolvedClient}
+                    lookupLoading={clientLookupLoading}
+                  />
+                </div>
 
                 <MoyenPaiementSelector
                   value={methodePaiement}
@@ -1052,12 +1166,30 @@ export default function VendeusePage() {
                           className="flex items-center justify-between gap-4 rounded-2xl bg-gray-50/50 p-4"
                         >
                           <div className="min-w-0 flex-1">
-                            <p className="truncate text-sm font-semibold text-gray-900">
-                              {lineDisplayNom(ligne)}
-                            </p>
-                            <p className="mt-0.5 text-xs text-gray-400">
-                              {formatPrix(ligne.produit.prix)} × {ligne.quantite}
-                            </p>
+                            {ligne.libelleOverride ? (
+                              <>
+                                <p className="truncate text-sm font-semibold text-gray-900">
+                                  {ligne.libelleOverride}
+                                </p>
+                                <p className="mt-0.5 text-xs text-gray-400">
+                                  {formatPrix(ligne.produit.prix)} × {ligne.quantite}
+                                </p>
+                              </>
+                            ) : (
+                              <>
+                                <p className="truncate text-sm font-semibold text-gray-900">
+                                  {ligne.produit.nom}
+                                </p>
+                                {formatVariantSubtitle(ligne.produit) && (
+                                  <p className="mt-0.5 truncate text-[11px] text-gray-500">
+                                    {formatVariantSubtitle(ligne.produit)}
+                                  </p>
+                                )}
+                                <p className="mt-0.5 text-xs text-gray-400">
+                                  {formatPrix(ligne.produit.prix)} × {ligne.quantite}
+                                </p>
+                              </>
+                            )}
                           </div>
                           <div className="flex shrink-0 items-center gap-1.5">
                             <button
@@ -1118,14 +1250,16 @@ export default function VendeusePage() {
                     <span>{formatPrix(total)}</span>
                   </p>
                 </div>
-                <ClientCaisseSection
-                  clientPhone={clientPhone}
-                  onClientPhoneChange={setClientPhone}
-                  clientNom={clientNom}
-                  onClientNomChange={setClientNom}
-                  resolvedClient={resolvedClient}
-                  lookupLoading={clientLookupLoading}
-                />
+                <div data-skip-ean-capture>
+                  <ClientCaisseSection
+                    clientPhone={clientPhone}
+                    onClientPhoneChange={setClientPhone}
+                    clientNom={clientNom}
+                    onClientNomChange={setClientNom}
+                    resolvedClient={resolvedClient}
+                    lookupLoading={clientLookupLoading}
+                  />
+                </div>
                 <MoyenPaiementSelector
                   value={methodePaiement}
                   onChange={setMethodePaiement}

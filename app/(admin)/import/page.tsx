@@ -4,7 +4,7 @@ import { useState, useMemo } from "react";
 import Link from "next/link";
 import { ArrowLeft, FileUp, Loader2, Package, Users } from "lucide-react";
 import { createSupabaseBrowserClient } from "@/utils/supabase/client";
-import { parseCsv } from "@/lib/csv";
+import { buildProduitImportRow, parseCsv, type ProduitImportRow } from "@/lib/csv";
 
 function normalizeHeader(h: string): string {
   return h
@@ -12,7 +12,8 @@ function normalizeHeader(h: string): string {
     .trim()
     .toLowerCase()
     .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "");
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[\s-]+/g, "_");
 }
 
 function mapHeaders(headers: string[]): Record<string, number> {
@@ -67,48 +68,52 @@ export default function ImportPage() {
         return;
       }
     }
-    const payload = rows
-      .slice(1)
-      .map((r) => {
-        const nom = String(r[idx.nom!] ?? "").trim();
-        const prix = parseFloat(String(r[idx.prix!] ?? "").replace(",", "."));
-        const stock = parseInt(String(r[idx.stock!] ?? "0"), 10);
-        const description =
-          idx.description !== undefined
-            ? String(r[idx.description] ?? "").trim() || null
-            : null;
-        const categorie =
-          idx.categorie !== undefined
-            ? String(r[idx.categorie] ?? "").trim() || null
-            : null;
-        return {
-          nom,
-          prix: Number.isFinite(prix) && prix >= 0 ? prix : 0,
-          stock: Number.isFinite(stock) && stock >= 0 ? stock : 0,
-          description,
-          categorie,
-        };
-      })
-      .filter((p) => p.nom.length > 0);
-    const valid = payload;
-    if (valid.length === 0) {
-      setError("Aucune ligne valide.");
+    const hasEan =
+      idx.code_barre !== undefined ||
+      idx.ean13 !== undefined ||
+      idx.ean !== undefined;
+    if (!hasEan) {
+      setError(
+        "Colonne EAN requise : « code_barre » (ou ean / ean13) — 13 chiffres par variante."
+      );
+      return;
+    }
+    const payload: ProduitImportRow[] = [];
+    const lineErrors: string[] = [];
+    rows.slice(1).forEach((r, i) => {
+      const res = buildProduitImportRow(r, idx);
+      if (res.ok) payload.push(res.row);
+      else lineErrors.push(`Ligne ${i + 2} : ${res.error}`);
+    });
+    if (payload.length === 0) {
+      setError(
+        lineErrors.length > 0
+          ? lineErrors.slice(0, 5).join(" · ")
+          : "Aucune ligne valide."
+      );
       return;
     }
     setLoading(true);
     setError(null);
     setOkMsg(null);
     const chunkSize = 40;
-    for (let i = 0; i < valid.length; i += chunkSize) {
-      const chunk = valid.slice(i, i + chunkSize);
-      const { error: err } = await supabase.from("produits").insert(chunk);
+    for (let i = 0; i < payload.length; i += chunkSize) {
+      const chunk = payload.slice(i, i + chunkSize);
+      const { error: err } = await supabase
+        .from("produits")
+        .upsert(chunk, { onConflict: "code_barre" });
       if (err) {
-        setError(`${err.message} (ligne ~${i + 2})`);
+        setError(`${err.message} (lot ~${i + 2})`);
         setLoading(false);
         return;
       }
     }
-    setOkMsg(`${valid.length} produit(s) importé(s).`);
+    const skipped = lineErrors.length;
+    setOkMsg(
+      `${payload.length} variante(s) enregistrée(s) (upsert par EAN).${
+        skipped > 0 ? ` ${skipped} ligne(s) ignorée(s).` : ""
+      }${skipped > 0 && lineErrors[0] ? ` Ex. : ${lineErrors[0]}` : ""}`
+    );
     setLoading(false);
   };
 
@@ -201,11 +206,14 @@ export default function ImportPage() {
       {mode === "produits" ? (
         <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
           <p className="mb-3 text-sm text-gray-600">
-            Colonnes attendues :{" "}
+            Colonnes :{" "}
             <code className="rounded bg-gray-100 px-1.5 py-0.5 text-xs">
-              nom, prix, stock, description, categorie
-            </code>{" "}
-            (description et categorie optionnels)
+              nom, prix, stock, code_barre (ou ean), taille, couleur, description, categorie
+            </code>
+            . L&apos;EAN-13 (texte) est obligatoire. Si{" "}
+            <code className="rounded bg-gray-100 px-1.5 py-0.5 text-xs">taille</code> /{" "}
+            <code className="rounded bg-gray-100 px-1.5 py-0.5 text-xs">couleur</code>{" "}
+            sont absents, le nom est parsé (ex. « Qamis 1 - Blanc - T.60 » → modèle + variantes). Import = upsert par code-barres.
           </p>
           <label className="flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-gray-200 bg-gray-50/80 px-6 py-10 transition hover:border-indigo-300 hover:bg-indigo-50/30">
             <FileUp className="mb-2 h-10 w-10 text-gray-400" />
