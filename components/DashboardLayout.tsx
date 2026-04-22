@@ -16,6 +16,7 @@ import {
   Target,
   Kanban,
   FileUp,
+  Map,
 } from "lucide-react";
 
 const bottomNavItems = [
@@ -32,6 +33,7 @@ const tabletNavItems = [
   { href: "/clients", label: "Clients", icon: Contact },
   { href: "/stock", label: "Runway", icon: Gauge },
   { href: "/produits", label: "Produits", icon: Package },
+  { href: "/map", label: "Plan", icon: Map },
   { href: "/import", label: "Import", icon: FileUp },
   { href: "/organisation", label: "Organisation", icon: Kanban },
   { href: "/parametres", label: "Réglages", icon: Settings },
