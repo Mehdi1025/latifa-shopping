@@ -17,6 +17,11 @@ import {
 } from "@/components/MethodePaiement";
 import type { Produit } from "@/types/produit";
 import { normalizeEan13String } from "@/lib/produit-import";
+import {
+  groupProduitsByModele,
+  type GroupeModeleCatalogue,
+} from "@/lib/caisse/catalogue-groupes";
+import VarianteSelectionSheet from "@/components/vendeur/VarianteSelectionSheet";
 
 type LignePanier = {
   /** Clé stable par ligne (plusieurs lots Coffre = même produit_id) */
@@ -143,7 +148,10 @@ export default function VendeusePage() {
   const [panier, setPanier] = useState<LignePanier[]>([]);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedCategorie, setSelectedCategorie] = useState<string>("Tous");
+  const [selectedCategorie, setSelectedCategorie] = useState<string>("Toutes");
+  const [modeleTiroir, setModeleTiroir] = useState<GroupeModeleCatalogue | null>(
+    null
+  );
   const [encaissementLoading, setEncaissementLoading] = useState(false);
   const [toast, setToast] = useState<{ type: ToastType; message: string } | null>(null);
   const [ventesDuJour, setVentesDuJour] = useState<VenteHistorique[]>([]);
@@ -276,37 +284,68 @@ export default function VendeusePage() {
     prevPanierLen.current = panier.length;
   }, [panier.length, resolvedClient]);
 
-  const categories = useMemo(() => {
-    const cats = new Set<string>();
-    produits.forEach((p) => {
-      if (p.categorie && p.categorie.trim()) cats.add(p.categorie.trim());
-    });
-    const arr = Array.from(cats).sort();
-    if (arr.length === 0) return ["Tous", "Abayas", "Robes", "Accessoires"];
-    return ["Tous", ...arr];
-  }, [produits]);
+  const categoriesCaisse = useMemo(
+    () => ["Toutes", "Homme", "Femme", "Enfant", "Accessoires"] as const,
+    []
+  );
 
-  const filteredProduits = useMemo(() => {
-    let list = produits.filter((p) => p.id !== MYSTERY_VAULT_PRODUCT_ID);
-    if (selectedCategorie !== "Tous") {
-      list = list.filter((p) => (p.categorie ?? "").trim() === selectedCategorie);
+  const produitsSansMystere = useMemo(
+    () => produits.filter((p) => p.id !== MYSTERY_VAULT_PRODUCT_ID),
+    [produits]
+  );
+
+  const produitsCategorieFiltre = useMemo(() => {
+    if (selectedCategorie === "Toutes") return produitsSansMystere;
+    const pill = selectedCategorie.toLowerCase();
+    return produitsSansMystere.filter(
+      (p) => (p.categorie ?? "").trim().toLowerCase() === pill
+    );
+  }, [produitsSansMystere, selectedCategorie]);
+
+  const produitsApresRecherche = useMemo(() => {
+    if (!searchQuery.trim()) return produitsCategorieFiltre;
+    const q = searchQuery.trim().toLowerCase();
+    const qDigits = q.replace(/\D/g, "");
+    return produitsCategorieFiltre.filter((p) => {
+      const nom = (p.nom ?? "").toLowerCase();
+      const cat = (p.categorie ?? "").toLowerCase();
+      const ean = p.code_barre ?? "";
+      const matchText =
+        nom.includes(q) || cat.includes(q) || (ean && ean.toLowerCase().includes(q));
+      const matchEan =
+        qDigits.length >= 4 && ean.length > 0 && ean.replace(/\D/g, "").includes(qDigits);
+      return matchText || matchEan;
+    });
+  }, [produitsCategorieFiltre, searchQuery]);
+
+  const groupesCategorieTous = useMemo(
+    () => groupProduitsByModele(produitsCategorieFiltre),
+    [produitsCategorieFiltre]
+  );
+
+  const nomsModelesApresRecherche = useMemo(() => {
+    if (!searchQuery.trim()) {
+      return new Set(groupesCategorieTous.map((g) => g.nom));
     }
-    if (searchQuery.trim()) {
-      const q = searchQuery.trim().toLowerCase();
-      const qDigits = q.replace(/\D/g, "");
-      list = list.filter((p) => {
-        const nom = (p.nom ?? "").toLowerCase();
-        const cat = (p.categorie ?? "").toLowerCase();
-        const ean = p.code_barre ?? "";
-        const matchText =
-          nom.includes(q) || cat.includes(q) || (ean && ean.toLowerCase().includes(q));
-        const matchEan =
-          qDigits.length >= 4 && ean.length > 0 && ean.replace(/\D/g, "").includes(qDigits);
-        return matchText || matchEan;
-      });
+    const noms = new Set<string>();
+    for (const p of produitsApresRecherche) {
+      noms.add(p.nom.trim() || p.id);
     }
-    return list;
-  }, [produits, searchQuery, selectedCategorie]);
+    return noms;
+  }, [searchQuery, produitsApresRecherche, groupesCategorieTous]);
+
+  const groupesModelesAffiches = useMemo(
+    () => groupesCategorieTous.filter((g) => nomsModelesApresRecherche.has(g.nom)),
+    [groupesCategorieTous, nomsModelesApresRecherche]
+  );
+
+  /** Variantes du modèle ouvert (carte) — catalogue complet pour la catégorie, sans filtre de recherche. */
+  const variantesPourTiroir = useMemo(() => {
+    if (!modeleTiroir) return [];
+    return produitsCategorieFiltre.filter(
+      (p) => p.nom.trim() === modeleTiroir.nom.trim()
+    );
+  }, [modeleTiroir, produitsCategorieFiltre]);
 
   const addToPanier = (produit: Produit) => {
     if (produit.id === MYSTERY_VAULT_PRODUCT_ID) return;
@@ -741,11 +780,10 @@ export default function VendeusePage() {
           <VipRadar />
           <FluxBoutiqueCard />
           <div className="mb-6">
-            <h1 className="text-2xl font-semibold text-gray-900">
-              Catalogue
-            </h1>
+            <h1 className="text-2xl font-semibold text-gray-900">Catalogue</h1>
             <p className="mt-1 text-sm text-gray-400">
-              Touchez un produit pour l&apos;ajouter au panier
+              Modèle → couleur → taille. Le scanner et la recherche EAN fonctionnent
+              en parallèle.
             </p>
           </div>
 
@@ -785,16 +823,16 @@ export default function VendeusePage() {
             </button>
           </div>
 
-          <div className="mb-6 flex flex-wrap gap-2">
-            {categories.map((cat) => (
+          <div className="mb-6 -mx-1 flex snap-x snap-mandatory gap-2 overflow-x-auto pb-1 [scrollbar-width:thin]">
+            {categoriesCaisse.map((cat) => (
               <button
                 key={cat}
                 type="button"
                 onClick={() => setSelectedCategorie(cat)}
-                className={`rounded-xl px-4 py-2.5 text-sm font-medium transition-all duration-200 ${
+                className={`shrink-0 snap-start rounded-full min-h-12 px-5 py-3 text-sm font-semibold transition-all duration-200 ${
                   selectedCategorie === cat
                     ? "bg-gray-900 text-white shadow-md"
-                    : "bg-white text-gray-600 ring-1 ring-gray-100 hover:bg-gray-50"
+                    : "bg-white text-gray-600 ring-1 ring-gray-200 hover:bg-gray-50"
                 }`}
               >
                 {cat}
@@ -810,52 +848,51 @@ export default function VendeusePage() {
           </div>
         ) : produits.length === 0 ? (
           <p className="py-16 text-center text-gray-400">Aucun produit en stock.</p>
-        ) : filteredProduits.length === 0 ? (
+        ) : groupesModelesAffiches.length === 0 ? (
           <p className="py-16 text-center text-gray-500">
             {searchQuery.trim() ? (
-              <>Aucun article trouvé pour &quot;{searchQuery.trim()}&quot;.</>
+              <>Aucun modèle ne correspond à &quot;{searchQuery.trim()}&quot;.</>
             ) : (
-              <>Aucune catégorie &quot;{selectedCategorie}&quot; avec des produits en stock.</>
+              <>Aucun modèle pour la catégorie « {selectedCategorie} » en stock.</>
             )}
           </p>
         ) : (
-          <div className="grid grid-cols-2 gap-4 sm:gap-5 lg:grid-cols-3 xl:gap-6">
+          <div className="grid grid-cols-1 gap-4 min-[500px]:grid-cols-2 sm:gap-5 lg:grid-cols-2 xl:grid-cols-3 xl:gap-6">
             <AnimatePresence mode="popLayout">
-              {filteredProduits.map((produit) => {
-                const subVariant = formatVariantSubtitle(produit);
+              {groupesModelesAffiches.map((groupe) => {
+                const prixDifferes = groupe.prixMin !== groupe.prixMax;
                 return (
                 <motion.button
-                  key={produit.id}
+                  key={groupe.nom}
                   layout
                   initial={{ opacity: 0, scale: 0.96 }}
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.96 }}
                   transition={{ duration: 0.2, ease: "easeOut" }}
                   type="button"
-                  onClick={() => addToPanier(produit)}
-                  className="group flex flex-col items-stretch rounded-3xl bg-white p-5 text-left ring-1 ring-gray-100/50 shadow-[0_2px_10px_-3px_rgba(6,81,237,0.1)] transition-transform duration-200 ease-out hover:-translate-y-1 hover:shadow-xl active:scale-95 active:translate-y-0 md:p-6"
+                  onClick={() => setModeleTiroir(groupe)}
+                  className="group flex min-h-0 flex-col items-stretch rounded-3xl border border-gray-200/90 bg-white p-6 text-left shadow-sm transition duration-200 ease-out hover:-translate-y-0.5 hover:border-gray-300 hover:shadow-md active:scale-[0.99] md:min-h-[200px] md:p-7"
                 >
-                  <div className="mb-4 flex aspect-square items-center justify-center rounded-2xl bg-gray-50/80 text-gray-300 transition-colors duration-300 group-hover:bg-gray-100/80">
-                    <ShoppingBag className="h-14 w-14 md:h-16 md:w-16" />
+                  <div className="mb-4 flex min-h-28 flex-1 items-center justify-center rounded-2xl bg-gradient-to-b from-gray-50 to-white text-gray-300 ring-1 ring-inset ring-gray-100">
+                    <ShoppingBag className="h-16 w-16 md:h-[4.5rem] md:w-[4.5rem]" />
                   </div>
-                  <p className="mb-2 line-clamp-2 text-lg font-semibold text-gray-900">
-                    {produit.nom}
+                  <p className="line-clamp-2 text-lg font-bold tracking-tight text-gray-900 md:text-xl">
+                    {groupe.nom}
                   </p>
-                  {subVariant && (
-                    <p className="mb-1 line-clamp-1 text-xs text-gray-500">
-                      {subVariant}
+                  {groupe.categorie && (
+                    <p className="mt-1 line-clamp-1 text-sm text-gray-500">
+                      {groupe.categorie}
                     </p>
                   )}
-                  {produit.categorie && (
-                    <p className="mb-4 text-sm text-gray-400">{produit.categorie}</p>
-                  )}
-                  <div className="mt-auto flex items-center justify-between gap-2">
-                    <span className="text-xl font-bold text-gray-900">
-                      {formatPrix(produit.prix)}
+                  <div className="mt-3 flex min-h-12 items-end justify-between gap-2">
+                    <span className="text-xl font-bold text-gray-900 tabular-nums">
+                      {prixDifferes
+                        ? `À partir de ${formatPrix(groupe.prixMin)}`
+                        : formatPrix(groupe.prixMin)}
                     </span>
-                    <span className="flex items-center gap-1.5 text-xs text-gray-400">
-                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                      {produit.stock} en stock
+                    <span className="shrink-0 rounded-full border border-gray-200/80 bg-gray-50 px-2.5 py-1 text-[11px] font-medium tabular-nums text-gray-600">
+                      {groupe.nombreVariantes} variant
+                      {groupe.nombreVariantes > 1 ? "es" : "e"}
                     </span>
                   </div>
                 </motion.button>
@@ -897,7 +934,8 @@ export default function VendeusePage() {
           </p>
           {panier.length === 0 ? (
             <p className="py-12 text-center text-sm text-gray-400">
-              Cliquez sur un produit pour l&apos;ajouter.
+              Ouvrez un modèle, choisissez la couleur et la taille pour
+              l&apos;ajouter.
             </p>
           ) : (
             <>
@@ -1317,6 +1355,24 @@ export default function VendeusePage() {
           </div>
         </>
       )}
+
+      <VarianteSelectionSheet
+        open={modeleTiroir !== null}
+        onOpenChange={(o) => {
+          if (!o) setModeleTiroir(null);
+        }}
+        modeleNom={modeleTiroir?.nom ?? ""}
+        variantes={variantesPourTiroir}
+        formatPrix={formatPrix}
+        onChoisirVariante={(p) => {
+          addToPanier(p);
+          const sub = formatVariantSubtitle(p);
+          showToast(
+            "success",
+            `✅ ${p.nom}${sub ? ` — ${sub}` : ""} ajouté`
+          );
+        }}
+      />
 
       <BarcodeCameraModal
         open={scannerOpen}
