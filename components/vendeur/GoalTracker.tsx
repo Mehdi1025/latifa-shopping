@@ -121,7 +121,7 @@ export default function GoalTracker() {
 
   return (
     <div
-      className="relative overflow-hidden rounded-3xl border border-white/15 bg-white/[0.07] p-6 shadow-[0_20px_60px_-25px_rgba(0,0,0,0.35)] backdrop-blur-xl md:p-8 dark:bg-black/25"
+      className="relative w-full max-w-full overflow-hidden rounded-3xl border border-white/15 bg-white/[0.07] p-6 shadow-[0_20px_60px_-25px_rgba(0,0,0,0.35)] backdrop-blur-xl md:p-8 lg:p-10 dark:bg-black/25"
     >
       <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-amber-500/[0.06] via-transparent to-orange-600/[0.05]" />
 
@@ -135,12 +135,12 @@ export default function GoalTracker() {
         </div>
       )}
 
-      <div className="relative mb-6 flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-white/45">
+      <div className="relative mb-6 flex flex-wrap items-start justify-between gap-4 md:mb-8 md:flex-nowrap md:items-center md:gap-6">
+        <div className="min-w-0 flex-1">
+          <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-white/45 md:text-[0.8125rem]">
             Objectif du jour
           </h2>
-          <p className="mt-1 text-xs text-slate-500 dark:text-white/40">
+          <p className="mt-1 text-xs text-slate-500 dark:text-white/40 md:text-sm">
             Somme de vos ventes encaissées aujourd&apos;hui
           </p>
         </div>
@@ -148,7 +148,7 @@ export default function GoalTracker() {
           <motion.span
             initial={{ opacity: 0, scale: 0.92 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-amber-300 via-yellow-200 to-amber-400 px-4 py-1.5 text-xs font-bold uppercase tracking-wide text-amber-950 shadow-[0_0_28px_rgba(251,191,36,0.55)]"
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-gradient-to-r from-amber-300 via-yellow-200 to-amber-400 px-4 py-1.5 text-xs font-bold uppercase tracking-wide text-amber-950 shadow-[0_0_28px_rgba(251,191,36,0.55)] md:px-5 md:py-2 md:text-[0.7rem]"
           >
             <span aria-hidden>🏆</span> Objectif Atteint
           </motion.span>
@@ -156,8 +156,8 @@ export default function GoalTracker() {
       </div>
 
       {/* Jauge liquide */}
-      <div className="relative mb-8">
-        <div className="relative h-16 overflow-hidden rounded-2xl border border-white/20 bg-slate-200/30 shadow-inner ring-1 ring-black/5 dark:bg-white/5 dark:ring-white/10 md:h-[4.5rem]">
+      <div className="relative mb-8 md:mb-10">
+        <div className="relative h-16 overflow-hidden rounded-2xl border border-white/20 bg-slate-200/30 shadow-inner ring-1 ring-black/5 dark:bg-white/5 dark:ring-white/10 md:h-[5.25rem] lg:h-24">
           <div className="absolute inset-0 bg-gradient-to-b from-white/40 to-white/5 dark:from-white/[0.08] dark:to-transparent" />
 
           <motion.div
@@ -182,7 +182,7 @@ export default function GoalTracker() {
 
           <div className="absolute inset-0 flex items-center justify-center px-4">
             <span
-              className="relative text-lg font-bold tabular-nums text-slate-800 drop-shadow-[0_1px_2px_rgba(255,255,255,0.9)] dark:text-white dark:drop-shadow-[0_2px_8px_rgba(0,0,0,0.5)] md:text-xl"
+              className="relative text-lg font-bold tabular-nums text-slate-800 drop-shadow-[0_1px_2px_rgba(255,255,255,0.9)] dark:text-white dark:drop-shadow-[0_2px_8px_rgba(0,0,0,0.5)] md:text-2xl lg:text-[1.75rem]"
               style={{
                 textShadow:
                   "0 0 20px rgba(255,255,255,0.8), 0 0 40px rgba(251,191,36,0.35)",
@@ -193,7 +193,7 @@ export default function GoalTracker() {
           </div>
         </div>
 
-        <p className="mt-3 flex flex-wrap items-center justify-center gap-2 text-center text-xs text-slate-600 dark:text-white/50">
+        <p className="mt-3 flex flex-wrap items-center justify-center gap-2 text-center text-xs text-slate-600 dark:text-white/50 md:mt-4 md:text-sm">
           <span className="font-medium text-slate-800 dark:text-white/80">
             {loading ? "…" : formatEur(totalDuJour)}
           </span>
@@ -202,30 +202,30 @@ export default function GoalTracker() {
         </p>
       </div>
 
-      <div className="relative grid gap-3 sm:grid-cols-2">
-        <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 backdrop-blur-sm dark:bg-white/[0.04]">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-500/15 text-amber-600 dark:text-amber-300">
-            <TrendingUp className="h-5 w-5" strokeWidth={2} />
+      <div className="relative grid gap-3 sm:grid-cols-2 md:gap-4">
+        <div className="flex min-h-[4.5rem] items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 backdrop-blur-sm dark:bg-white/[0.04] md:min-h-[4.75rem] md:px-5 md:py-4">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-500/15 text-amber-600 dark:text-amber-300 md:h-11 md:w-11">
+            <TrendingUp className="h-5 w-5 md:h-[1.35rem] md:w-[1.35rem]" strokeWidth={2} />
           </div>
           <div className="min-w-0">
             <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-white/40">
               Reste à vendre
             </p>
-            <p className="truncate text-sm font-semibold text-slate-900 dark:text-white">
+            <p className="truncate text-sm font-semibold text-slate-900 dark:text-white md:text-base">
               {loading ? "…" : formatEur(reste)}
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 backdrop-blur-sm dark:bg-white/[0.04]">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-orange-500/15 text-orange-600 dark:text-orange-300">
-            <Wallet className="h-5 w-5" strokeWidth={2} />
+        <div className="flex min-h-[4.5rem] items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 backdrop-blur-sm dark:bg-white/[0.04] md:min-h-[4.75rem] md:px-5 md:py-4">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-orange-500/15 text-orange-600 dark:text-orange-300 md:h-11 md:w-11">
+            <Wallet className="h-5 w-5 md:h-[1.35rem] md:w-[1.35rem]" strokeWidth={2} />
           </div>
           <div className="min-w-0">
             <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-white/40">
               Prime estimée (3&nbsp;%)
             </p>
-            <p className="truncate text-sm font-semibold text-slate-900 dark:text-white">
+            <p className="truncate text-sm font-semibold text-slate-900 dark:text-white md:text-base">
               {loading ? "…" : formatEur(primeEstimee)}
             </p>
           </div>
