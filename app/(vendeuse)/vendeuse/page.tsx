@@ -702,7 +702,7 @@ export default function VendeusePage() {
 
   return (
     <div
-      className="relative flex h-full min-h-0 w-full max-w-full flex-1 flex-col overflow-hidden overscroll-none bg-gray-50 select-none md:h-[100dvh] md:max-h-[100dvh] md:flex-none md:flex-row lg:max-w-none [&_a]:[-webkit-tap-highlight-color:transparent] [&_button]:[-webkit-tap-highlight-color:transparent]"
+      className="relative flex h-full min-h-0 w-full max-w-full flex-1 flex-col overflow-hidden overscroll-none bg-gray-50 select-none max-md:max-w-[100vw] md:h-[100dvh] md:max-h-[100dvh] md:flex-none md:flex-row lg:max-w-none [&_a]:[-webkit-tap-highlight-color:transparent] [&_button]:[-webkit-tap-highlight-color:transparent]"
     >
       {/* Modal Remise */}
       <AnimatePresence>
@@ -809,7 +809,7 @@ export default function VendeusePage() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
             transition={{ duration: 0.25 }}
-            className={`fixed top-[4.75rem] left-1/2 z-[100] flex max-w-[calc(100vw-1.5rem)] -translate-x-1/2 items-center gap-3 rounded-2xl px-4 py-3 shadow-[0_10px_40px_-10px_rgba(0,0,0,0.2)] sm:px-6 sm:py-4 lg:top-8 ${
+            className={`fixed left-1/2 top-8 z-[100] flex max-w-[calc(100vw-1.5rem)] -translate-x-1/2 items-center gap-3 rounded-2xl px-4 py-3 shadow-[0_10px_40px_-10px_rgba(0,0,0,0.2)] max-md:top-[calc(3.5rem+env(safe-area-inset-top,0px)+0.75rem)] sm:px-6 sm:py-4 lg:top-8 ${
               toast.type === "success"
                 ? "bg-emerald-600 text-white"
                 : "bg-red-50 text-red-700 ring-1 ring-red-100"
@@ -829,8 +829,8 @@ export default function VendeusePage() {
       <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden overscroll-none bg-gray-50 lg:w-[60%]">
         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
           {/* Mobile : titre + recherche + catégories collants ; desktop : flux normal */}
-          <div className="z-20 shrink-0 border-b border-transparent bg-gray-50/95 backdrop-blur-md pt-[env(safe-area-inset-top,0px)] max-md:sticky max-md:top-14 max-md:border-gray-200/80 max-md:shadow-[0_6px_24px_-12px_rgba(0,0,0,0.1)] md:static md:top-0 md:border-0 md:bg-gray-50 md:pt-0 md:shadow-none md:backdrop-blur-none">
-            <div className="px-3 pb-2 pt-2 md:px-7 md:pb-5 md:pt-8 lg:px-10 lg:pb-6">
+          <div className="z-20 w-full max-w-full shrink-0 border-b border-transparent bg-gray-50/95 backdrop-blur-md max-md:sticky max-md:left-0 max-md:right-0 max-md:top-[calc(3.5rem+env(safe-area-inset-top,0px))] max-md:border-gray-200/80 max-md:shadow-[0_6px_24px_-12px_rgba(0,0,0,0.1)] md:static md:top-0 md:border-0 md:bg-gray-50 md:shadow-none md:backdrop-blur-none">
+            <div className="px-4 pb-2 pt-2 md:px-7 md:pb-5 md:pt-8 lg:px-10 lg:pb-6">
               <div className="mb-2.5 flex items-start justify-between gap-2 md:mb-6">
                 <div>
                   <h1 className="text-base font-semibold tracking-tight text-gray-900 md:text-xl lg:text-2xl">
@@ -879,7 +879,7 @@ export default function VendeusePage() {
                 </button>
               </div>
 
-              <div className="-mx-0.5 flex snap-x snap-mandatory gap-1.5 overflow-x-auto overscroll-x-contain pb-1 [scrollbar-width:thin] md:mb-0 md:gap-2">
+              <div className="flex snap-x snap-mandatory gap-2 overflow-x-auto overscroll-x-contain pb-1 [-ms-overflow-style:none] [scrollbar-width:none] md:mb-0 md:gap-2 [&::-webkit-scrollbar]:hidden">
                 {categoriesCaisse.map((cat) => (
                   <button
                     key={cat}
@@ -898,16 +898,16 @@ export default function VendeusePage() {
             </div>
           </div>
 
-          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain scroll-smooth md:px-7 lg:px-8 xl:px-10">
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain scroll-smooth max-md:px-4 md:px-7 lg:px-8 xl:px-10">
             {!isLgUp && (
-              <details className="mx-3 mb-2 rounded-2xl border border-gray-200/80 bg-white/80 shadow-sm open:bg-white open:shadow-md lg:hidden [&_summary::-webkit-details-marker]:hidden">
-                <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-3 py-3 text-left">
+              <details className="mb-3 w-full max-w-full rounded-2xl border border-gray-200/80 bg-white/90 shadow-sm open:bg-white open:shadow-md lg:hidden [&_summary::-webkit-details-marker]:hidden">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-4 py-3.5 text-left">
                   <span className="text-xs font-semibold text-gray-800">
                     Objectifs, VIP & flux boutique
                   </span>
                   <ChevronDown className="h-4 w-4 shrink-0 text-gray-400" aria-hidden />
                 </summary>
-                <div className="space-y-3 border-t border-gray-100 px-2 pb-3 pt-2">
+                <div className="space-y-3 border-t border-gray-100 px-3 pb-3 pt-2">
                   <GamificationJauge
                     refreshKey={gamificationRefreshKey}
                     className="!mb-0"
@@ -918,7 +918,7 @@ export default function VendeusePage() {
               </details>
             )}
             {isLgUp && (
-              <div className="px-3 md:px-0">
+              <div className="md:px-0">
                 <VipRadar />
                 <FluxBoutiqueCard />
               </div>
@@ -929,11 +929,11 @@ export default function VendeusePage() {
                 <div className="h-10 w-10 animate-spin rounded-full border-2 border-gray-300 border-t-gray-900" />
               </div>
             ) : produits.length === 0 ? (
-              <p className="px-3 py-16 text-center text-gray-400 md:px-0">
+              <p className="py-16 text-center text-gray-400">
                 Aucun produit en stock.
               </p>
             ) : groupesModelesAffiches.length === 0 ? (
-              <p className="px-3 py-16 text-center text-gray-500 md:px-0">
+              <p className="py-16 text-center text-gray-500">
                 {searchQuery.trim() ? (
                   <>Aucun modèle ne correspond à &quot;{searchQuery.trim()}&quot;.</>
                 ) : (
@@ -942,10 +942,10 @@ export default function VendeusePage() {
               </p>
             ) : (
               <div
-                className={`grid grid-cols-2 gap-2.5 p-3 sm:grid-cols-3 md:grid-cols-2 md:gap-4 md:p-0 md:pb-10 lg:grid-cols-3 ${
+                className={`grid w-full max-w-full grid-cols-2 gap-2.5 pt-1 sm:grid-cols-3 md:grid-cols-2 md:gap-4 md:pt-0 md:pb-10 lg:grid-cols-3 ${
                   panier.length > 0
-                    ? "max-lg:pb-40 max-md:pb-[10rem]"
-                    : "pb-8 max-md:pb-16"
+                    ? "max-lg:pb-44 max-md:pb-[calc(7.5rem+env(safe-area-inset-bottom,0px))]"
+                    : "pb-6 max-md:pb-8"
                 }`}
               >
                 <AnimatePresence mode="popLayout">
@@ -1226,7 +1226,7 @@ export default function VendeusePage() {
         <button
           type="button"
           onClick={() => setDrawerOpen(true)}
-          className="fixed inset-x-0 z-[45] flex min-h-[58px] items-center gap-3 rounded-t-2xl border border-white/10 bg-gray-900 px-4 pb-[max(0.75rem,env(safe-area-inset-bottom,0px))] pt-3 text-left text-white shadow-[0_-12px_48px_rgba(0,0,0,0.35)] transition-colors active:bg-gray-800 [-webkit-tap-highlight-color:transparent] max-md:bottom-[calc(3.85rem+env(safe-area-inset-bottom,0px))] md:bottom-0 lg:hidden"
+          className="fixed inset-x-0 z-[45] flex min-h-[56px] max-w-[100vw] items-center gap-2.5 rounded-t-2xl border border-white/10 bg-gray-900 px-4 pb-[max(0.75rem,env(safe-area-inset-bottom,0px))] pt-3 text-left text-white shadow-[0_-12px_48px_rgba(0,0,0,0.35)] transition-colors active:bg-gray-800 [-webkit-tap-highlight-color:transparent] max-md:bottom-[calc(5.5rem+env(safe-area-inset-bottom,0px))] md:bottom-0 lg:hidden"
           aria-label="Voir le panier"
         >
           <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/12">

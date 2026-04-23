@@ -134,23 +134,25 @@ export default function VendeuseLayout({
         </div>
       </aside>
 
-      {/* Mobile: Top Bar (hidden on tablet - sidebar handles nav) */}
-      <div className="fixed left-0 right-0 top-0 z-50 flex h-14 items-center justify-between border-b border-gray-100 bg-white px-5 shadow-[0_2px_10px_-3px_rgba(0,0,0,0.04)] md:hidden">
-        <span className="flex items-center gap-2.5">
-          <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gray-900 text-xs font-bold text-white">
-            L
-          </div>
-          <span className="text-sm font-semibold text-gray-900">Latifa POS</span>
-        </span>
-        <button
-          type="button"
-          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          className="flex h-10 w-10 items-center justify-center rounded-xl text-gray-500 transition-all duration-300 hover:bg-gray-100 active:scale-95"
-          aria-label="Menu"
-        >
-          {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-        </button>
-      </div>
+      {/* Mobile: Top Bar — safe-area + hauteur fixe pour caler le scroll (sticky) sous le header */}
+      <header className="fixed left-0 right-0 top-0 z-50 border-b border-gray-100 bg-white pt-[env(safe-area-inset-top,0px)] shadow-[0_2px_10px_-3px_rgba(0,0,0,0.04)] md:hidden">
+        <div className="flex h-14 items-center justify-between px-4">
+          <span className="flex min-w-0 items-center gap-2.5">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-gray-900 text-xs font-bold text-white">
+              L
+            </div>
+            <span className="truncate text-sm font-semibold text-gray-900">Latifa POS</span>
+          </span>
+          <button
+            type="button"
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-gray-500 transition-all duration-300 hover:bg-gray-100 active:scale-95"
+            aria-label="Menu"
+          >
+            {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+          </button>
+        </div>
+      </header>
 
       {/* Mobile: Drawer Profil/Logout */}
       {mobileMenuOpen && (
@@ -160,7 +162,7 @@ export default function VendeuseLayout({
             onClick={() => setMobileMenuOpen(false)}
             aria-hidden="true"
           />
-          <div className="fixed right-0 top-14 z-40 w-64 rounded-bl-2xl border-b border-l border-gray-100 bg-white py-4 shadow-[0_10px_40px_-10px_rgba(0,0,0,0.15)] md:hidden">
+          <div className="fixed right-0 top-[calc(3.5rem+env(safe-area-inset-top,0px))] z-40 w-64 rounded-bl-2xl border-b border-l border-gray-100 bg-white py-4 shadow-[0_10px_40px_-10px_rgba(0,0,0,0.15)] md:hidden">
             <div className="flex items-center gap-3 px-5 py-3">
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gray-100">
                 <User className="h-5 w-5 text-gray-600" />
@@ -175,7 +177,7 @@ export default function VendeuseLayout({
       )}
 
       {/* Main Content */}
-      <main className="flex min-h-0 flex-1 flex-col pt-14 pb-[calc(5.5rem+env(safe-area-inset-bottom))] max-md:h-[100dvh] max-md:max-h-[100dvh] md:ml-20 md:h-auto md:max-h-none md:pt-0 md:pb-0 lg:ml-20 xl:ml-56">
+      <main className="flex min-h-0 flex-1 flex-col pb-[calc(5.5rem+env(safe-area-inset-bottom,0px))] pt-[calc(3.5rem+env(safe-area-inset-top,0px))] max-md:h-[100dvh] max-md:max-h-[100dvh] md:ml-20 md:h-auto md:max-h-none md:pb-0 md:pt-0 lg:ml-20 xl:ml-56">
         {children}
       </main>
 
