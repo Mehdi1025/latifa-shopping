@@ -175,7 +175,7 @@ export default function VendeuseLayout({
       )}
 
       {/* Main Content */}
-      <main className="flex min-h-0 flex-1 flex-col pt-14 pb-[calc(5.5rem+env(safe-area-inset-bottom))] md:ml-20 md:pt-0 md:pb-0 lg:ml-20 xl:ml-56">
+      <main className="flex min-h-0 flex-1 flex-col pt-14 pb-[calc(5.5rem+env(safe-area-inset-bottom))] max-md:h-[100dvh] max-md:max-h-[100dvh] md:ml-20 md:h-auto md:max-h-none md:pt-0 md:pb-0 lg:ml-20 xl:ml-56">
         {children}
       </main>
 

@@ -3,7 +3,23 @@
 import { useState, useEffect, useLayoutEffect, useMemo, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
-import { Plus, Minus, ShoppingBag, Trash2, X, CheckCircle, AlertCircle, Search, History, Percent, RotateCcw, Gift, User, ScanLine } from "lucide-react";
+import {
+  Plus,
+  Minus,
+  ShoppingBag,
+  Trash2,
+  X,
+  CheckCircle,
+  AlertCircle,
+  Search,
+  History,
+  Percent,
+  RotateCcw,
+  Gift,
+  User,
+  ScanLine,
+  ChevronDown,
+} from "lucide-react";
 import { createSupabaseBrowserClient } from "@/utils/supabase/client";
 import ClientelingPanel from "@/components/vendeur/ClientelingPanel";
 import GamificationJauge from "@/components/vendeur/GamificationJauge";
@@ -686,7 +702,7 @@ export default function VendeusePage() {
 
   return (
     <div
-      className="relative flex h-[100dvh] w-full max-w-full flex-col overflow-hidden overscroll-none bg-gray-50 select-none md:flex-row lg:max-w-none [&_a]:[-webkit-tap-highlight-color:transparent] [&_button]:[-webkit-tap-highlight-color:transparent]"
+      className="relative flex h-full min-h-0 w-full max-w-full flex-1 flex-col overflow-hidden overscroll-none bg-gray-50 select-none md:h-[100dvh] md:max-h-[100dvh] md:flex-none md:flex-row lg:max-w-none [&_a]:[-webkit-tap-highlight-color:transparent] [&_button]:[-webkit-tap-highlight-color:transparent]"
     >
       {/* Modal Remise */}
       <AnimatePresence>
@@ -813,19 +829,21 @@ export default function VendeusePage() {
       <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden overscroll-none bg-gray-50 lg:w-[60%]">
         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
           {/* Mobile : titre + recherche + catégories collants ; desktop : flux normal */}
-          <div className="z-20 shrink-0 border-b border-transparent bg-gray-50 pt-[env(safe-area-inset-top,0px)] max-md:sticky max-md:top-0 max-md:border-gray-200/80 max-md:shadow-[0_4px_20px_-8px_rgba(0,0,0,0.08)] md:static md:border-0 md:pt-0 md:shadow-none">
+          <div className="z-20 shrink-0 border-b border-transparent bg-gray-50/95 backdrop-blur-md pt-[env(safe-area-inset-top,0px)] max-md:sticky max-md:top-14 max-md:border-gray-200/80 max-md:shadow-[0_6px_24px_-12px_rgba(0,0,0,0.1)] md:static md:top-0 md:border-0 md:bg-gray-50 md:pt-0 md:shadow-none md:backdrop-blur-none">
             <div className="px-3 pb-2 pt-2 md:px-7 md:pb-5 md:pt-8 lg:px-10 lg:pb-6">
-              <div className="mb-3 md:mb-6">
-                <h1 className="text-lg font-semibold tracking-tight text-gray-900 md:text-xl lg:text-2xl">
-                  Catalogue
-                </h1>
-                <p className="mt-0.5 text-[11px] text-gray-400 md:mt-1 md:text-sm">
-                  Modèle → couleur → taille. Scanner et EAN en parallèle.
-                </p>
+              <div className="mb-2.5 flex items-start justify-between gap-2 md:mb-6">
+                <div>
+                  <h1 className="text-base font-semibold tracking-tight text-gray-900 md:text-xl lg:text-2xl">
+                    Catalogue
+                  </h1>
+                  <p className="mt-0.5 text-[10px] leading-snug text-gray-400 md:mt-1 md:text-sm">
+                    Touchez un modèle → variante → panier.
+                  </p>
+                </div>
               </div>
 
               <div className="mb-2 flex shrink-0 flex-row items-stretch gap-2 md:mb-5 md:gap-3">
-                <div className="flex min-h-[48px] min-w-0 flex-1 shrink-0 items-center gap-2 rounded-xl bg-white px-3 py-2 ring-1 ring-gray-100/80 shadow-sm md:min-h-[52px] md:gap-3 md:px-4 md:py-3">
+                <div className="flex min-h-[48px] min-w-0 flex-1 shrink-0 items-center gap-2 rounded-xl border border-gray-100/90 bg-white px-3 py-2 shadow-sm md:min-h-[52px] md:gap-3 md:border-0 md:px-4 md:py-3 md:ring-1 md:ring-gray-100/80">
                   <Search className="h-4 w-4 shrink-0 text-gray-400 md:h-5 md:w-5" />
                   <input
                     ref={eanInputRef}
@@ -857,17 +875,17 @@ export default function VendeusePage() {
                   aria-label="Ouvrir le scanner"
                 >
                   <ScanLine className="h-5 w-5 shrink-0 md:h-6 md:w-6" aria-hidden />
-                  <span className="hidden sm:inline">📷 Scanner</span>
+                  <span className="hidden sm:inline">Scanner</span>
                 </button>
               </div>
 
-              <div className="-mx-0.5 flex snap-x snap-mandatory gap-2 overflow-x-auto overscroll-x-contain pb-1 [scrollbar-width:thin] md:mb-0">
+              <div className="-mx-0.5 flex snap-x snap-mandatory gap-1.5 overflow-x-auto overscroll-x-contain pb-1 [scrollbar-width:thin] md:mb-0 md:gap-2">
                 {categoriesCaisse.map((cat) => (
                   <button
                     key={cat}
                     type="button"
                     onClick={() => setSelectedCategorie(cat)}
-                    className={`inline-flex min-h-[48px] min-w-[48px] shrink-0 snap-start items-center justify-center rounded-full px-4 text-xs font-semibold transition-all duration-200 [-webkit-tap-highlight-color:transparent] md:px-5 md:text-sm ${
+                    className={`inline-flex min-h-[44px] min-w-[44px] shrink-0 snap-start items-center justify-center rounded-full px-3.5 text-[11px] font-semibold transition-all duration-200 [-webkit-tap-highlight-color:transparent] md:min-h-[48px] md:min-w-[48px] md:px-5 md:text-sm ${
                       selectedCategorie === cat
                         ? "bg-gray-900 text-white shadow-md"
                         : "bg-white text-gray-600 ring-1 ring-gray-200 hover:bg-gray-50"
@@ -880,19 +898,31 @@ export default function VendeusePage() {
             </div>
           </div>
 
-          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain md:px-7 lg:px-8 xl:px-10">
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain scroll-smooth md:px-7 lg:px-8 xl:px-10">
             {!isLgUp && (
-              <div className="px-3 pt-3 md:px-0 md:pt-5">
-                <GamificationJauge
-                  refreshKey={gamificationRefreshKey}
-                  className="mb-4"
-                />
+              <details className="mx-3 mb-2 rounded-2xl border border-gray-200/80 bg-white/80 shadow-sm open:bg-white open:shadow-md lg:hidden [&_summary::-webkit-details-marker]:hidden">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-3 py-3 text-left">
+                  <span className="text-xs font-semibold text-gray-800">
+                    Objectifs, VIP & flux boutique
+                  </span>
+                  <ChevronDown className="h-4 w-4 shrink-0 text-gray-400" aria-hidden />
+                </summary>
+                <div className="space-y-3 border-t border-gray-100 px-2 pb-3 pt-2">
+                  <GamificationJauge
+                    refreshKey={gamificationRefreshKey}
+                    className="!mb-0"
+                  />
+                  <VipRadar />
+                  <FluxBoutiqueCard />
+                </div>
+              </details>
+            )}
+            {isLgUp && (
+              <div className="px-3 md:px-0">
+                <VipRadar />
+                <FluxBoutiqueCard />
               </div>
             )}
-            <div className="px-3 md:px-0">
-              <VipRadar />
-              <FluxBoutiqueCard />
-            </div>
 
             {loading ? (
               <div className="flex flex-1 items-center justify-center py-24">
@@ -911,7 +941,13 @@ export default function VendeusePage() {
                 )}
               </p>
             ) : (
-              <div className="grid grid-cols-2 gap-3 p-3 pb-24 sm:grid-cols-3 md:grid-cols-2 md:p-0 md:pb-10 lg:grid-cols-3">
+              <div
+                className={`grid grid-cols-2 gap-2.5 p-3 sm:grid-cols-3 md:grid-cols-2 md:gap-4 md:p-0 md:pb-10 lg:grid-cols-3 ${
+                  panier.length > 0
+                    ? "max-lg:pb-40 max-md:pb-[10rem]"
+                    : "pb-8 max-md:pb-16"
+                }`}
+              >
                 <AnimatePresence mode="popLayout">
                   {groupesModelesAffiches.map((groupe) => {
                     const prixDifferes = groupe.prixMin !== groupe.prixMax;
@@ -925,12 +961,12 @@ export default function VendeusePage() {
                         transition={{ duration: 0.2, ease: "easeOut" }}
                         type="button"
                         onClick={() => setModeleTiroir(groupe)}
-                        className="group flex min-h-0 flex-col items-stretch rounded-xl border border-gray-200/90 bg-white p-3 text-left shadow-sm transition duration-200 ease-out [-webkit-tap-highlight-color:transparent] active:scale-[0.99] md:min-h-[200px] md:rounded-2xl md:p-6 lg:rounded-3xl lg:p-7"
+                        className="group flex min-h-0 flex-col items-stretch rounded-lg border border-gray-200/90 bg-white p-2.5 text-left shadow-sm transition duration-200 ease-out [-webkit-tap-highlight-color:transparent] active:scale-[0.98] md:min-h-[200px] md:rounded-2xl md:p-6 md:shadow-sm lg:rounded-3xl lg:p-7"
                       >
-                        <div className="mb-2 flex min-h-[4.25rem] flex-1 items-center justify-center rounded-lg bg-gradient-to-b from-gray-50 to-white text-gray-300 ring-1 ring-inset ring-gray-100 md:mb-3 md:min-h-28 md:rounded-2xl">
-                          <ShoppingBag className="h-8 w-8 md:h-16 md:w-16 lg:h-[4.5rem] lg:w-[4.5rem]" />
+                        <div className="mb-1.5 flex min-h-[3.75rem] flex-1 items-center justify-center rounded-md bg-gradient-to-b from-gray-50 to-white text-gray-300 ring-1 ring-inset ring-gray-100/90 md:mb-3 md:min-h-28 md:rounded-2xl">
+                          <ShoppingBag className="h-7 w-7 md:h-16 md:w-16 lg:h-[4.5rem] lg:w-[4.5rem]" />
                         </div>
-                        <p className="line-clamp-2 text-sm font-bold leading-tight tracking-tight text-gray-900 md:text-lg lg:text-xl">
+                        <p className="line-clamp-2 text-[13px] font-bold leading-[1.25] tracking-tight text-gray-900 md:text-lg lg:text-xl">
                           {groupe.nom}
                         </p>
                         {groupe.categorie && (
@@ -1186,20 +1222,23 @@ export default function VendeusePage() {
       </aside>
 
       {/* Barre panier native mobile (&lt; md) — au-dessus de la bottom nav layout (z-40) */}
-      {panier.length > 0 && (
+      {panier.length > 0 && !drawerOpen && (
         <button
           type="button"
           onClick={() => setDrawerOpen(true)}
-          className="fixed inset-x-0 bottom-0 z-50 flex items-center justify-between rounded-t-3xl bg-gray-900 p-4 pb-[max(1rem,env(safe-area-inset-bottom,0px))] text-left text-white shadow-[0_-10px_40px_rgba(0,0,0,0.2)] transition active:bg-gray-800 [-webkit-tap-highlight-color:transparent] max-md:bottom-[calc(4rem+env(safe-area-inset-bottom,0px))] lg:hidden"
+          className="fixed inset-x-0 z-[45] flex min-h-[58px] items-center gap-3 rounded-t-2xl border border-white/10 bg-gray-900 px-4 pb-[max(0.75rem,env(safe-area-inset-bottom,0px))] pt-3 text-left text-white shadow-[0_-12px_48px_rgba(0,0,0,0.35)] transition-colors active:bg-gray-800 [-webkit-tap-highlight-color:transparent] max-md:bottom-[calc(3.85rem+env(safe-area-inset-bottom,0px))] md:bottom-0 lg:hidden"
           aria-label="Voir le panier"
         >
-          <span className="flex h-10 min-w-[2.5rem] items-center justify-center rounded-full bg-white/15 px-3 text-sm font-bold tabular-nums">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/12">
+            <ShoppingBag className="h-5 w-5 opacity-95" aria-hidden />
+          </span>
+          <span className="flex min-w-[2rem] items-center justify-center rounded-lg bg-emerald-500/90 px-2.5 py-1 text-sm font-bold tabular-nums text-white">
             {nbArticles}
           </span>
-          <span className="flex-1 px-3 text-center text-sm font-semibold tracking-wide">
-            Voir le panier
+          <span className="min-w-0 flex-1 text-center text-[13px] font-semibold uppercase tracking-wider text-white/95">
+            Panier
           </span>
-          <span className="shrink-0 text-base font-bold tabular-nums">
+          <span className="shrink-0 text-base font-bold tabular-nums tracking-tight">
             {formatPrix(total)}
           </span>
         </button>
@@ -1213,8 +1252,14 @@ export default function VendeusePage() {
             onClick={() => setDrawerOpen(false)}
             aria-hidden="true"
           />
-          <div className="fixed inset-x-0 bottom-0 z-[60] flex h-[90dvh] max-h-[90dvh] flex-col overflow-hidden rounded-t-3xl border-t border-gray-100 bg-white shadow-[0_-10px_50px_-15px_rgba(0,0,0,0.15)] lg:hidden">
-            <div className="flex shrink-0 items-center justify-between gap-3 border-b border-gray-100 px-4 py-3 sm:px-6">
+          <div className="fixed inset-x-0 bottom-0 z-[60] flex h-[90dvh] max-h-[90dvh] flex-col overflow-hidden rounded-t-[1.25rem] border-t border-gray-200/80 bg-white shadow-[0_-12px_48px_-8px_rgba(0,0,0,0.18)] lg:hidden">
+            <div className="flex shrink-0 flex-col items-center border-b border-gray-100 px-4 pt-2 sm:px-6">
+              <div
+                className="mb-2 h-1 w-10 shrink-0 rounded-full bg-gray-200/90"
+                aria-hidden
+              />
+            </div>
+            <div className="flex shrink-0 items-center justify-between gap-3 px-4 pb-3 pt-1 sm:px-6">
               <div className="min-w-0">
                 <h2 className="text-lg font-semibold text-gray-900">Ticket de caisse</h2>
                 <p className="text-xs text-gray-400">
