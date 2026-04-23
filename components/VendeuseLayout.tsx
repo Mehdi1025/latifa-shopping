@@ -175,12 +175,12 @@ export default function VendeuseLayout({
       )}
 
       {/* Main Content */}
-      <main className="flex min-h-0 flex-1 flex-col pt-14 pb-24 md:ml-20 md:pt-0 md:pb-0 lg:ml-20 xl:ml-56">
+      <main className="flex min-h-0 flex-1 flex-col pt-14 pb-[calc(5.5rem+env(safe-area-inset-bottom))] md:ml-20 md:pt-0 md:pb-0 lg:ml-20 xl:ml-56">
         {children}
       </main>
 
       {/* Bottom Nav Mobile uniquement (< md) */}
-      <nav className="fixed bottom-0 left-0 right-0 z-40 flex items-center justify-start gap-1 overflow-x-auto border-t border-gray-100 bg-white/95 px-2 py-2 backdrop-blur-md md:hidden [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+      <nav className="fixed bottom-0 left-0 right-0 z-40 flex items-center justify-start gap-1 overflow-x-auto border-t border-gray-100 bg-white/95 px-2 py-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] backdrop-blur-md md:hidden [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
         {navItems.map((item) => {
           const Icon = item.icon;
           const isActive = navLinkActive(pathname, item.href);

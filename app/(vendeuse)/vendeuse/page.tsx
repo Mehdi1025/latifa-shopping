@@ -175,7 +175,8 @@ export default function VendeusePage() {
   const [clientLookupLoading, setClientLookupLoading] = useState(false);
   const [clientelingOpen, setClientelingOpen] = useState(false);
   const [gamificationRefreshKey, setGamificationRefreshKey] = useState(0);
-  const [isMdUp, setIsMdUp] = useState(false);
+  /** Panier latéral + jauge : à partir de lg pour laisser tablette en pleine largeur + tiroir */
+  const [isLgUp, setIsLgUp] = useState(false);
   const [scannerOpen, setScannerOpen] = useState(false);
   const prevPanierLen = useRef(0);
   const eanInputRef = useRef<HTMLInputElement>(null);
@@ -187,8 +188,8 @@ export default function VendeusePage() {
   const supabase = createSupabaseBrowserClient();
 
   useLayoutEffect(() => {
-    const mq = window.matchMedia("(min-width: 768px)");
-    const sync = () => setIsMdUp(mq.matches);
+    const mq = window.matchMedia("(min-width: 1024px)");
+    const sync = () => setIsLgUp(mq.matches);
     sync();
     mq.addEventListener("change", sync);
     return () => mq.removeEventListener("change", sync);
@@ -684,7 +685,7 @@ export default function VendeusePage() {
   };
 
   return (
-    <div className="relative flex h-full min-h-[calc(100vh-3.5rem)] flex-1 flex-col md:min-h-0 md:flex-row md:min-h-[100dvh]">
+    <div className="relative flex min-h-0 w-full max-w-full flex-1 flex-col max-md:min-h-[calc(100dvh-3.5rem-5.5rem)] md:min-h-[100dvh] lg:min-h-0 lg:max-w-none lg:flex-row lg:min-h-[100dvh]">
       {/* Modal Remise */}
       <AnimatePresence>
         {remiseModalOpen && (
@@ -790,7 +791,7 @@ export default function VendeusePage() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
             transition={{ duration: 0.25 }}
-            className={`fixed top-20 left-1/2 z-[100] flex -translate-x-1/2 items-center gap-3 rounded-2xl px-6 py-4 shadow-[0_10px_40px_-10px_rgba(0,0,0,0.2)] md:top-8 ${
+            className={`fixed top-[4.75rem] left-1/2 z-[100] flex max-w-[calc(100vw-1.5rem)] -translate-x-1/2 items-center gap-3 rounded-2xl px-4 py-3 shadow-[0_10px_40px_-10px_rgba(0,0,0,0.2)] sm:px-6 sm:py-4 lg:top-8 ${
               toast.type === "success"
                 ? "bg-emerald-600 text-white"
                 : "bg-red-50 text-red-700 ring-1 ring-red-100"
@@ -806,10 +807,10 @@ export default function VendeusePage() {
         )}
       </AnimatePresence>
 
-      {/* Catalogue — gauche ~60% (md+) ; zone produits scrollable indépendamment du panier */}
-      <section className="flex min-h-0 flex-1 flex-col overflow-auto bg-gray-50/50 md:w-[60%] md:min-w-0 md:overflow-hidden">
-        <div className="shrink-0 p-6 pb-4 md:p-8 md:pb-5 lg:p-10 lg:pb-6">
-          {!isMdUp && (
+      {/* Catalogue — ~60% à partir de lg ; &lt; lg : pleine largeur (téléphone + tablette) */}
+      <section className="flex min-h-0 flex-1 flex-col overflow-auto bg-gray-50/50 lg:w-[60%] lg:min-w-0 lg:overflow-hidden">
+        <div className="shrink-0 p-4 pb-3 sm:p-5 sm:pb-4 md:p-7 md:pb-5 lg:p-10 lg:pb-6">
+          {!isLgUp && (
             <GamificationJauge
               refreshKey={gamificationRefreshKey}
               className="mb-5"
@@ -817,9 +818,11 @@ export default function VendeusePage() {
           )}
           <VipRadar />
           <FluxBoutiqueCard />
-          <div className="mb-6">
-            <h1 className="text-2xl font-semibold text-gray-900">Catalogue</h1>
-            <p className="mt-1 text-sm text-gray-400">
+          <div className="mb-5 md:mb-6">
+            <h1 className="text-xl font-semibold tracking-tight text-gray-900 sm:text-2xl">
+              Catalogue
+            </h1>
+            <p className="mt-1 text-xs text-gray-400 sm:text-sm">
               Modèle → couleur → taille. Le scanner et la recherche EAN fonctionnent
               en parallèle.
             </p>
@@ -879,7 +882,7 @@ export default function VendeusePage() {
           </div>
         </div>
 
-        <div className="flex-1 px-6 pb-8 md:min-h-0 md:flex-1 md:overflow-y-auto md:px-8 md:pb-10 lg:px-10">
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 max-md:pb-28 md:max-lg:pb-8 sm:px-5 md:px-7 lg:min-h-0 lg:flex-1 lg:px-8 lg:pb-10 xl:px-10">
         {loading ? (
           <div className="flex flex-1 items-center justify-center py-24">
             <div className="h-10 w-10 animate-spin rounded-full border-2 border-gray-300 border-t-gray-900" />
@@ -895,7 +898,7 @@ export default function VendeusePage() {
             )}
           </p>
         ) : (
-          <div className="grid grid-cols-1 gap-4 min-[500px]:grid-cols-2 sm:gap-5 lg:grid-cols-2 xl:grid-cols-3 xl:gap-6">
+          <div className="grid grid-cols-1 gap-3 min-[480px]:grid-cols-2 min-[480px]:gap-4 sm:gap-5 lg:grid-cols-2 xl:grid-cols-3 xl:gap-6">
             <AnimatePresence mode="popLayout">
               {groupesModelesAffiches.map((groupe) => {
                 const prixDifferes = groupe.prixMin !== groupe.prixMax;
@@ -909,12 +912,12 @@ export default function VendeusePage() {
                   transition={{ duration: 0.2, ease: "easeOut" }}
                   type="button"
                   onClick={() => setModeleTiroir(groupe)}
-                  className="group flex min-h-0 flex-col items-stretch rounded-3xl border border-gray-200/90 bg-white p-6 text-left shadow-sm transition duration-200 ease-out hover:-translate-y-0.5 hover:border-gray-300 hover:shadow-md active:scale-[0.99] md:min-h-[200px] md:p-7"
+                  className="group flex min-h-0 flex-col items-stretch rounded-2xl border border-gray-200/90 bg-white p-4 text-left shadow-sm transition duration-200 ease-out hover:-translate-y-0.5 hover:border-gray-300 hover:shadow-md active:scale-[0.99] sm:rounded-3xl sm:p-5 md:min-h-[200px] md:p-7"
                 >
-                  <div className="mb-4 flex min-h-28 flex-1 items-center justify-center rounded-2xl bg-gradient-to-b from-gray-50 to-white text-gray-300 ring-1 ring-inset ring-gray-100">
-                    <ShoppingBag className="h-16 w-16 md:h-[4.5rem] md:w-[4.5rem]" />
+                  <div className="mb-3 flex min-h-[6.5rem] flex-1 items-center justify-center rounded-xl bg-gradient-to-b from-gray-50 to-white text-gray-300 ring-1 ring-inset ring-gray-100 sm:mb-4 sm:min-h-28 sm:rounded-2xl">
+                    <ShoppingBag className="h-12 w-12 sm:h-16 sm:w-16 md:h-[4.5rem] md:w-[4.5rem]" />
                   </div>
-                  <p className="line-clamp-2 text-lg font-bold tracking-tight text-gray-900 md:text-xl">
+                  <p className="line-clamp-2 text-base font-bold tracking-tight text-gray-900 sm:text-lg md:text-xl">
                     {groupe.nom}
                   </p>
                   {groupe.categorie && (
@@ -942,11 +945,11 @@ export default function VendeusePage() {
         </div>
       </section>
 
-      {/* Ticket de caisse — droite ~40% (md+) ; pied avec Encaisser toujours accessible au pouce */}
-      <aside className="hidden min-h-0 flex-col border-l border-gray-100 bg-white/90 backdrop-blur-xl md:flex md:w-[40%] md:min-w-0 md:sticky md:top-0 md:h-[100dvh] md:max-h-[100dvh] md:shadow-[0_-4px_30px_-10px_rgba(0,0,0,0.05)]">
+      {/* Ticket — colonne ~40% à partir de lg ; sinon tiroir (FAB) */}
+      <aside className="hidden min-h-0 flex-col border-l border-gray-100 bg-white/90 backdrop-blur-xl lg:flex lg:w-[40%] lg:min-w-0 lg:sticky lg:top-0 lg:h-[100dvh] lg:max-h-[100dvh] lg:shadow-[0_-4px_30px_-10px_rgba(0,0,0,0.05)]">
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-          <div className="flex-1 overflow-y-auto p-8 pb-4">
-          {isMdUp && (
+          <div className="flex-1 overflow-y-auto p-5 pb-4 sm:p-6 lg:p-8">
+          {isLgUp && (
             <GamificationJauge
               refreshKey={gamificationRefreshKey}
               className="mb-6 shrink-0"
@@ -1159,7 +1162,7 @@ export default function VendeusePage() {
                 type="button"
                 onClick={handleEncaisser}
                 disabled={encaissementLoading}
-                className="flex min-h-[56px] w-full items-center justify-center rounded-2xl bg-black py-5 text-xl font-bold text-white shadow-lg transition-all duration-300 hover:bg-gray-900 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-70 md:min-h-[60px] md:py-6 md:text-2xl"
+                className="flex min-h-[56px] w-full items-center justify-center rounded-2xl bg-black py-5 text-xl font-bold text-white shadow-lg transition-all duration-300 hover:bg-gray-900 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-70 lg:min-h-[60px] lg:py-6 lg:text-2xl"
               >
                 {encaissementLoading ? "Encaissement..." : `Encaisser ${formatPrix(total)}`}
               </button>
@@ -1168,11 +1171,11 @@ export default function VendeusePage() {
         </div>
       </aside>
 
-      {/* Mobile: Bouton flottant panier - masqué sur tablette+ (sidebar panier visible) */}
+      {/* Panier FAB : téléphone + tablette (&lt; lg) ; masqué en vue 2 colonnes */}
       <button
         type="button"
         onClick={() => setDrawerOpen(true)}
-        className="fixed bottom-20 right-6 z-30 flex h-16 w-16 items-center justify-center rounded-2xl bg-black text-white shadow-[0_8px_30px_-6px_rgba(0,0,0,0.3)] transition-all duration-300 hover:bg-gray-900 active:scale-95 md:hidden"
+        className="fixed z-30 flex h-14 w-14 items-center justify-center rounded-2xl bg-black text-white shadow-[0_8px_30px_-6px_rgba(0,0,0,0.3)] transition-all duration-300 hover:bg-gray-900 active:scale-95 sm:h-16 sm:w-16 lg:hidden right-[max(1rem,env(safe-area-inset-right))] max-md:bottom-[max(5.25rem,calc(5.25rem+env(safe-area-inset-bottom)))] md:max-lg:bottom-[max(1.25rem,env(safe-area-inset-bottom))]"
         aria-label="Ouvrir le panier"
       >
         <ShoppingBag className="h-7 w-7" />
@@ -1183,26 +1186,31 @@ export default function VendeusePage() {
         )}
       </button>
 
-      {/* Mobile: Drawer panier - masqué sur tablette+ */}
+      {/* Tiroir panier : &lt; lg */}
       {drawerOpen && (
         <>
           <div
-            className="fixed inset-0 z-40 bg-gray-900/50 backdrop-blur-sm md:hidden"
+            className="fixed inset-0 z-40 bg-gray-900/50 backdrop-blur-sm lg:hidden"
             onClick={() => setDrawerOpen(false)}
             aria-hidden="true"
           />
-          <div className="fixed inset-x-0 bottom-0 z-50 max-h-[85vh] rounded-t-3xl border-t border-gray-100 bg-white shadow-[0_-10px_50px_-15px_rgba(0,0,0,0.15)] md:hidden">
-            <div className="flex flex-col" style={{ maxHeight: "85vh" }}>
-              <div className="flex items-center justify-between gap-2 border-b border-gray-100 px-6 py-5">
-                <div>
-                  <h2 className="text-xl font-semibold text-gray-900">
-                    Ticket de caisse
-                  </h2>
-                  <p className="mt-0.5 text-sm text-gray-400">
-                    {nbArticles} article{nbArticles > 1 ? "s" : ""}
-                  </p>
-                </div>
-                <div className="flex items-center gap-1">
+          <div className="fixed inset-x-0 bottom-0 z-50 flex max-h-[min(92dvh,920px)] flex-col rounded-t-3xl border-t border-gray-100 bg-white pb-[env(safe-area-inset-bottom)] shadow-[0_-10px_50px_-15px_rgba(0,0,0,0.15)] lg:hidden">
+            <div className="flex max-h-[min(92dvh,920px)] min-h-0 flex-1 flex-col">
+              <div className="flex shrink-0 flex-col items-center border-b border-gray-100 px-4 pt-3 pb-2 sm:px-6 sm:pt-4">
+                <div
+                  className="mb-2 h-1 w-10 shrink-0 rounded-full bg-gray-200"
+                  aria-hidden
+                />
+                <div className="flex w-full items-center justify-between gap-2 py-2">
+                  <div className="min-w-0">
+                    <h2 className="text-lg font-semibold text-gray-900 sm:text-xl">
+                      Ticket de caisse
+                    </h2>
+                    <p className="mt-0.5 text-sm text-gray-400">
+                      {nbArticles} article{nbArticles > 1 ? "s" : ""}
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-1">
                   {panier.length > 0 && (
                     <button
                       type="button"
@@ -1221,9 +1229,10 @@ export default function VendeusePage() {
                   >
                     <ChevronDown className="h-5 w-5" />
                   </button>
+                  </div>
                 </div>
               </div>
-              <div className="flex-1 overflow-auto p-6">
+              <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 sm:px-6 sm:py-5">
                 {panier.length === 0 ? (
                   <p className="py-12 text-center text-gray-400">
                     Panier vide.
@@ -1300,7 +1309,7 @@ export default function VendeusePage() {
                   </div>
                 )}
               </div>
-              <div className="border-t border-gray-100 bg-white p-6">
+              <div className="shrink-0 border-t border-gray-100 bg-white/95 px-4 py-4 backdrop-blur-md sm:px-6 sm:py-5">
                 <button
                   type="button"
                   onClick={() => setRemiseModalOpen(true)}
