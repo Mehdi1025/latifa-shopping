@@ -1060,7 +1060,7 @@ export default function VendeusePage() {
           onClick={() => setDrawerOpen(true)}
           aria-label="Ouvrir le panier"
           whileTap={{ scale: 0.94 }}
-          className="fixed right-6 top-1/2 z-40 hidden h-[4.25rem] w-[4.25rem] -translate-y-1/2 items-center justify-center rounded-full bg-black text-white shadow-2xl [-webkit-tap-highlight-color:transparent] md:flex"
+          className="fixed bottom-8 right-6 z-50 hidden h-[4.25rem] w-[4.25rem] items-center justify-center rounded-full bg-black text-white shadow-2xl [-webkit-tap-highlight-color:transparent] md:bottom-12 md:right-10 md:flex"
         >
           <ShoppingBag className="h-8 w-8" strokeWidth={2.25} aria-hidden />
           {nbArticles > 0 && (
