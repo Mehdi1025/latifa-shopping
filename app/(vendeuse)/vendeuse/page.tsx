@@ -3,7 +3,7 @@
 import { useState, useEffect, useLayoutEffect, useMemo, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
-import { Plus, Minus, ShoppingBag, ChevronDown, Trash2, X, CheckCircle, AlertCircle, Search, History, Percent, RotateCcw, Gift, User, ScanLine } from "lucide-react";
+import { Plus, Minus, ShoppingBag, Trash2, X, CheckCircle, AlertCircle, Search, History, Percent, RotateCcw, Gift, User, ScanLine } from "lucide-react";
 import { createSupabaseBrowserClient } from "@/utils/supabase/client";
 import ClientelingPanel from "@/components/vendeur/ClientelingPanel";
 import GamificationJauge from "@/components/vendeur/GamificationJauge";
@@ -114,7 +114,7 @@ function ClientCaisseSection({
         value={clientPhone}
         onChange={(e) => onClientPhoneChange(e.target.value)}
         placeholder="ex. 06 12 34 56 78"
-        className="mt-1 w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-gray-900 placeholder:text-gray-400 focus:border-violet-400 focus:outline-none focus:ring-2 focus:ring-violet-100"
+        className="mt-1 w-full select-text rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-gray-900 placeholder:text-gray-400 focus:border-violet-400 focus:outline-none focus:ring-2 focus:ring-violet-100"
       />
       {lookupLoading && digits.length >= 8 && (
         <p className="mt-2 text-xs text-violet-600">Recherche du client…</p>
@@ -136,7 +136,7 @@ function ClientCaisseSection({
             value={clientNom}
             onChange={(e) => onClientNomChange(e.target.value)}
             placeholder="Prénom Nom"
-            className="mt-1 w-full rounded-xl border border-amber-200 bg-amber-50/50 px-3 py-2.5 text-gray-900 placeholder:text-gray-400 focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-100"
+            className="mt-1 w-full select-text rounded-xl border border-amber-200 bg-amber-50/50 px-3 py-2.5 text-gray-900 placeholder:text-gray-400 focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-100"
           />
           <p className="mt-1.5 text-xs text-amber-800/80">
             Ce numéro n&apos;est pas encore en base : le nom sera enregistré avec la
@@ -685,7 +685,9 @@ export default function VendeusePage() {
   };
 
   return (
-    <div className="relative flex min-h-0 w-full max-w-full flex-1 flex-col max-md:min-h-[calc(100dvh-3.5rem-5.5rem)] md:min-h-[100dvh] lg:min-h-0 lg:max-w-none lg:flex-row lg:min-h-[100dvh]">
+    <div
+      className="relative flex h-[100dvh] w-full max-w-full flex-col overflow-hidden overscroll-none bg-gray-50 select-none md:flex-row lg:max-w-none [&_a]:[-webkit-tap-highlight-color:transparent] [&_button]:[-webkit-tap-highlight-color:transparent]"
+    >
       {/* Modal Remise */}
       <AnimatePresence>
         {remiseModalOpen && (
@@ -703,14 +705,14 @@ export default function VendeusePage() {
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95 }}
               transition={{ duration: 0.2 }}
-              className="fixed left-1/2 top-1/2 z-[90] w-[calc(100%-2rem)] max-h-[min(90dvh,640px)] max-w-md -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl ring-1 ring-gray-100 md:max-w-lg"
+              className="fixed left-1/2 top-1/2 z-[90] w-[calc(100%-2rem)] max-h-[min(90dvh,640px)] max-w-md -translate-x-1/2 -translate-y-1/2 overflow-y-auto overscroll-contain rounded-2xl bg-white p-6 shadow-2xl ring-1 ring-gray-100 md:max-w-lg"
             >
               <div className="mb-5 flex items-center justify-between">
                 <h3 className="text-lg font-semibold text-gray-900">Appliquer une remise</h3>
                 <button
                   type="button"
                   onClick={() => setRemiseModalOpen(false)}
-                  className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
+                  className="flex h-12 w-12 min-h-[48px] min-w-[48px] shrink-0 items-center justify-center rounded-full text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 [-webkit-tap-highlight-color:transparent]"
                   aria-label="Fermer"
                 >
                   <X className="h-6 w-6" />
@@ -720,7 +722,7 @@ export default function VendeusePage() {
                 <button
                   type="button"
                   onClick={() => setRemiseType("percent")}
-                  className={`flex-1 rounded-xl py-2.5 text-sm font-medium transition-all ${
+                  className={`min-h-[48px] flex-1 rounded-xl py-2.5 text-sm font-medium transition-all [-webkit-tap-highlight-color:transparent] ${
                     remiseType === "percent"
                       ? "bg-white text-emerald-700 shadow-sm"
                       : "text-gray-600 hover:text-gray-900"
@@ -731,7 +733,7 @@ export default function VendeusePage() {
                 <button
                   type="button"
                   onClick={() => setRemiseType("fixed")}
-                  className={`flex-1 rounded-xl py-2.5 text-sm font-medium transition-all ${
+                  className={`min-h-[48px] flex-1 rounded-xl py-2.5 text-sm font-medium transition-all [-webkit-tap-highlight-color:transparent] ${
                     remiseType === "fixed"
                       ? "bg-white text-emerald-700 shadow-sm"
                       : "text-gray-600 hover:text-gray-900"
@@ -747,7 +749,7 @@ export default function VendeusePage() {
                       key={p}
                       type="button"
                       onClick={() => setRemiseValue(remiseValue === p ? 0 : p)}
-                      className={`rounded-2xl px-4 py-2.5 text-sm font-semibold transition-all ${
+                      className={`inline-flex min-h-[48px] min-w-[48px] items-center justify-center rounded-2xl px-4 text-sm font-semibold transition-all [-webkit-tap-highlight-color:transparent] ${
                         remiseValue === p
                           ? "bg-emerald-600 text-white"
                           : "bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
@@ -767,7 +769,7 @@ export default function VendeusePage() {
                     value={remiseValue || ""}
                     onChange={(e) => setRemiseValue(Math.max(0, parseFloat(e.target.value) || 0))}
                     placeholder="0"
-                    className="w-full rounded-2xl border border-gray-200 px-4 py-3 text-gray-900 focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-100"
+                    className="w-full select-text rounded-2xl border border-gray-200 px-4 py-3 text-gray-900 focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-100"
                   />
                   <span className="text-gray-500">€</span>
                 </div>
@@ -807,148 +809,160 @@ export default function VendeusePage() {
         )}
       </AnimatePresence>
 
-      {/* Catalogue — ~60% à partir de lg ; &lt; lg : pleine largeur (téléphone + tablette) */}
-      <section className="flex min-h-0 flex-1 flex-col overflow-auto bg-gray-50/50 lg:w-[60%] lg:min-w-0 lg:overflow-hidden">
-        <div className="shrink-0 p-4 pb-3 sm:p-5 sm:pb-4 md:p-7 md:pb-5 lg:p-10 lg:pb-6">
-          {!isLgUp && (
-            <GamificationJauge
-              refreshKey={gamificationRefreshKey}
-              className="mb-5"
-            />
-          )}
-          <VipRadar />
-          <FluxBoutiqueCard />
-          <div className="mb-5 md:mb-6">
-            <h1 className="text-xl font-semibold tracking-tight text-gray-900 sm:text-2xl">
-              Catalogue
-            </h1>
-            <p className="mt-1 text-xs text-gray-400 sm:text-sm">
-              Modèle → couleur → taille. Le scanner et la recherche EAN fonctionnent
-              en parallèle.
-            </p>
-          </div>
+      {/* Catalogue — ~60% à partir de lg ; sticky filtres sur mobile */}
+      <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden overscroll-none bg-gray-50 lg:w-[60%]">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+          {/* Mobile : titre + recherche + catégories collants ; desktop : flux normal */}
+          <div className="z-20 shrink-0 border-b border-transparent bg-gray-50 pt-[env(safe-area-inset-top,0px)] max-md:sticky max-md:top-0 max-md:border-gray-200/80 max-md:shadow-[0_4px_20px_-8px_rgba(0,0,0,0.08)] md:static md:border-0 md:pt-0 md:shadow-none">
+            <div className="px-3 pb-2 pt-2 md:px-7 md:pb-5 md:pt-8 lg:px-10 lg:pb-6">
+              <div className="mb-3 md:mb-6">
+                <h1 className="text-lg font-semibold tracking-tight text-gray-900 md:text-xl lg:text-2xl">
+                  Catalogue
+                </h1>
+                <p className="mt-0.5 text-[11px] text-gray-400 md:mt-1 md:text-sm">
+                  Modèle → couleur → taille. Scanner et EAN en parallèle.
+                </p>
+              </div>
 
-          <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-stretch">
-            <div className="flex min-h-[52px] min-w-0 flex-1 items-center gap-3 rounded-xl bg-white px-4 py-3 ring-1 ring-gray-100/80 shadow-sm">
-              <Search className="h-5 w-5 shrink-0 text-gray-400" />
-              <input
-                ref={eanInputRef}
-                id="caisse-ean-search"
-                type="search"
-                name="search-ean"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key !== "Enter") return;
-                  const digits = e.currentTarget.value.replace(/\D/g, "");
-                  if (digits.length === 13) {
-                    e.preventDefault();
-                    tryAddByEanRef.current(digits);
-                  }
-                }}
-                autoFocus
-                autoComplete="off"
-                inputMode="search"
-                placeholder="Scanner ou taper EAN, nom, catégorie…"
-                className="min-w-0 flex-1 bg-transparent text-base text-gray-900 placeholder:text-gray-400 focus:outline-none"
-                aria-label="Scanner un code-barres EAN-13 ou rechercher un produit"
-              />
-            </div>
-            <button
-              type="button"
-              onClick={() => setScannerOpen(true)}
-              className="flex min-h-[52px] shrink-0 items-center justify-center gap-2.5 rounded-xl bg-gray-900 px-5 py-4 text-base font-semibold text-white shadow-md transition active:scale-[0.98] sm:min-w-[11rem] sm:px-6"
-            >
-              <ScanLine className="h-6 w-6 shrink-0" aria-hidden />
-              <span>📷 Scanner</span>
-            </button>
-          </div>
-
-          <div className="mb-6 -mx-1 flex snap-x snap-mandatory gap-2 overflow-x-auto pb-1 [scrollbar-width:thin]">
-            {categoriesCaisse.map((cat) => (
-              <button
-                key={cat}
-                type="button"
-                onClick={() => setSelectedCategorie(cat)}
-                className={`shrink-0 snap-start rounded-full min-h-12 px-5 py-3 text-sm font-semibold transition-all duration-200 ${
-                  selectedCategorie === cat
-                    ? "bg-gray-900 text-white shadow-md"
-                    : "bg-white text-gray-600 ring-1 ring-gray-200 hover:bg-gray-50"
-                }`}
-              >
-                {cat}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="min-h-0 flex-1 overflow-y-auto px-4 max-md:pb-28 md:max-lg:pb-8 sm:px-5 md:px-7 lg:min-h-0 lg:flex-1 lg:px-8 lg:pb-10 xl:px-10">
-        {loading ? (
-          <div className="flex flex-1 items-center justify-center py-24">
-            <div className="h-10 w-10 animate-spin rounded-full border-2 border-gray-300 border-t-gray-900" />
-          </div>
-        ) : produits.length === 0 ? (
-          <p className="py-16 text-center text-gray-400">Aucun produit en stock.</p>
-        ) : groupesModelesAffiches.length === 0 ? (
-          <p className="py-16 text-center text-gray-500">
-            {searchQuery.trim() ? (
-              <>Aucun modèle ne correspond à &quot;{searchQuery.trim()}&quot;.</>
-            ) : (
-              <>Aucun modèle pour la catégorie « {selectedCategorie} » en stock.</>
-            )}
-          </p>
-        ) : (
-          <div className="grid grid-cols-1 gap-3 min-[480px]:grid-cols-2 min-[480px]:gap-4 sm:gap-5 lg:grid-cols-2 xl:grid-cols-3 xl:gap-6">
-            <AnimatePresence mode="popLayout">
-              {groupesModelesAffiches.map((groupe) => {
-                const prixDifferes = groupe.prixMin !== groupe.prixMax;
-                return (
-                <motion.button
-                  key={groupe.nom}
-                  layout
-                  initial={{ opacity: 0, scale: 0.96 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.96 }}
-                  transition={{ duration: 0.2, ease: "easeOut" }}
+              <div className="mb-2 flex shrink-0 flex-row items-stretch gap-2 md:mb-5 md:gap-3">
+                <div className="flex min-h-[48px] min-w-0 flex-1 shrink-0 items-center gap-2 rounded-xl bg-white px-3 py-2 ring-1 ring-gray-100/80 shadow-sm md:min-h-[52px] md:gap-3 md:px-4 md:py-3">
+                  <Search className="h-4 w-4 shrink-0 text-gray-400 md:h-5 md:w-5" />
+                  <input
+                    ref={eanInputRef}
+                    id="caisse-ean-search"
+                    type="search"
+                    name="search-ean"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key !== "Enter") return;
+                      const digits = e.currentTarget.value.replace(/\D/g, "");
+                      if (digits.length === 13) {
+                        e.preventDefault();
+                        tryAddByEanRef.current(digits);
+                      }
+                    }}
+                    autoFocus
+                    autoComplete="off"
+                    inputMode="search"
+                    placeholder="EAN, nom, catégorie…"
+                    className="min-w-0 flex-1 select-text bg-transparent text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none md:text-base"
+                    aria-label="Scanner un code-barres EAN-13 ou rechercher un produit"
+                  />
+                </div>
+                <button
                   type="button"
-                  onClick={() => setModeleTiroir(groupe)}
-                  className="group flex min-h-0 flex-col items-stretch rounded-2xl border border-gray-200/90 bg-white p-4 text-left shadow-sm transition duration-200 ease-out hover:-translate-y-0.5 hover:border-gray-300 hover:shadow-md active:scale-[0.99] sm:rounded-3xl sm:p-5 md:min-h-[200px] md:p-7"
+                  onClick={() => setScannerOpen(true)}
+                  className="flex min-h-[48px] min-w-[48px] shrink-0 items-center justify-center gap-2 rounded-xl bg-gray-900 px-3 text-base font-semibold text-white shadow-md transition active:scale-[0.98] [-webkit-tap-highlight-color:transparent] md:min-h-[52px] md:min-w-[11rem] md:px-6 md:py-4"
+                  aria-label="Ouvrir le scanner"
                 >
-                  <div className="mb-3 flex min-h-[6.5rem] flex-1 items-center justify-center rounded-xl bg-gradient-to-b from-gray-50 to-white text-gray-300 ring-1 ring-inset ring-gray-100 sm:mb-4 sm:min-h-28 sm:rounded-2xl">
-                    <ShoppingBag className="h-12 w-12 sm:h-16 sm:w-16 md:h-[4.5rem] md:w-[4.5rem]" />
-                  </div>
-                  <p className="line-clamp-2 text-base font-bold tracking-tight text-gray-900 sm:text-lg md:text-xl">
-                    {groupe.nom}
-                  </p>
-                  {groupe.categorie && (
-                    <p className="mt-1 line-clamp-1 text-sm text-gray-500">
-                      {groupe.categorie}
-                    </p>
-                  )}
-                  <div className="mt-3 flex min-h-12 items-end justify-between gap-2">
-                    <span className="text-xl font-bold text-gray-900 tabular-nums">
-                      {prixDifferes
-                        ? `À partir de ${formatPrix(groupe.prixMin)}`
-                        : formatPrix(groupe.prixMin)}
-                    </span>
-                    <span className="shrink-0 rounded-full border border-gray-200/80 bg-gray-50 px-2.5 py-1 text-[11px] font-medium tabular-nums text-gray-600">
-                      {groupe.nombreVariantes} variant
-                      {groupe.nombreVariantes > 1 ? "es" : "e"}
-                    </span>
-                  </div>
-                </motion.button>
-                );
-              })}
-            </AnimatePresence>
+                  <ScanLine className="h-5 w-5 shrink-0 md:h-6 md:w-6" aria-hidden />
+                  <span className="hidden sm:inline">📷 Scanner</span>
+                </button>
+              </div>
+
+              <div className="-mx-0.5 flex snap-x snap-mandatory gap-2 overflow-x-auto overscroll-x-contain pb-1 [scrollbar-width:thin] md:mb-0">
+                {categoriesCaisse.map((cat) => (
+                  <button
+                    key={cat}
+                    type="button"
+                    onClick={() => setSelectedCategorie(cat)}
+                    className={`inline-flex min-h-[48px] min-w-[48px] shrink-0 snap-start items-center justify-center rounded-full px-4 text-xs font-semibold transition-all duration-200 [-webkit-tap-highlight-color:transparent] md:px-5 md:text-sm ${
+                      selectedCategorie === cat
+                        ? "bg-gray-900 text-white shadow-md"
+                        : "bg-white text-gray-600 ring-1 ring-gray-200 hover:bg-gray-50"
+                    }`}
+                  >
+                    {cat}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
-        )}
+
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain md:px-7 lg:px-8 xl:px-10">
+            {!isLgUp && (
+              <div className="px-3 pt-3 md:px-0 md:pt-5">
+                <GamificationJauge
+                  refreshKey={gamificationRefreshKey}
+                  className="mb-4"
+                />
+              </div>
+            )}
+            <div className="px-3 md:px-0">
+              <VipRadar />
+              <FluxBoutiqueCard />
+            </div>
+
+            {loading ? (
+              <div className="flex flex-1 items-center justify-center py-24">
+                <div className="h-10 w-10 animate-spin rounded-full border-2 border-gray-300 border-t-gray-900" />
+              </div>
+            ) : produits.length === 0 ? (
+              <p className="px-3 py-16 text-center text-gray-400 md:px-0">
+                Aucun produit en stock.
+              </p>
+            ) : groupesModelesAffiches.length === 0 ? (
+              <p className="px-3 py-16 text-center text-gray-500 md:px-0">
+                {searchQuery.trim() ? (
+                  <>Aucun modèle ne correspond à &quot;{searchQuery.trim()}&quot;.</>
+                ) : (
+                  <>Aucun modèle pour la catégorie « {selectedCategorie} » en stock.</>
+                )}
+              </p>
+            ) : (
+              <div className="grid grid-cols-2 gap-3 p-3 pb-24 sm:grid-cols-3 md:grid-cols-2 md:p-0 md:pb-10 lg:grid-cols-3">
+                <AnimatePresence mode="popLayout">
+                  {groupesModelesAffiches.map((groupe) => {
+                    const prixDifferes = groupe.prixMin !== groupe.prixMax;
+                    return (
+                      <motion.button
+                        key={groupe.nom}
+                        layout
+                        initial={{ opacity: 0, scale: 0.96 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.96 }}
+                        transition={{ duration: 0.2, ease: "easeOut" }}
+                        type="button"
+                        onClick={() => setModeleTiroir(groupe)}
+                        className="group flex min-h-0 flex-col items-stretch rounded-xl border border-gray-200/90 bg-white p-3 text-left shadow-sm transition duration-200 ease-out [-webkit-tap-highlight-color:transparent] active:scale-[0.99] md:min-h-[200px] md:rounded-2xl md:p-6 lg:rounded-3xl lg:p-7"
+                      >
+                        <div className="mb-2 flex min-h-[4.25rem] flex-1 items-center justify-center rounded-lg bg-gradient-to-b from-gray-50 to-white text-gray-300 ring-1 ring-inset ring-gray-100 md:mb-3 md:min-h-28 md:rounded-2xl">
+                          <ShoppingBag className="h-8 w-8 md:h-16 md:w-16 lg:h-[4.5rem] lg:w-[4.5rem]" />
+                        </div>
+                        <p className="line-clamp-2 text-sm font-bold leading-tight tracking-tight text-gray-900 md:text-lg lg:text-xl">
+                          {groupe.nom}
+                        </p>
+                        {groupe.categorie && (
+                          <p className="mt-0.5 line-clamp-1 text-[10px] text-gray-500 md:text-sm">
+                            {groupe.categorie}
+                          </p>
+                        )}
+                        <div className="mt-2 flex min-h-0 items-end justify-between gap-1.5 md:mt-3 md:min-h-12">
+                          <span className="text-sm font-bold tabular-nums text-gray-900 md:text-xl">
+                            {prixDifferes
+                              ? `À partir de ${formatPrix(groupe.prixMin)}`
+                              : formatPrix(groupe.prixMin)}
+                          </span>
+                          <span className="shrink-0 rounded-full border border-gray-200/80 bg-gray-50 px-1.5 py-0.5 text-[9px] font-medium tabular-nums text-gray-600 md:px-2.5 md:py-1 md:text-[11px]">
+                            {groupe.nombreVariantes} variant
+                            {groupe.nombreVariantes > 1 ? "es" : "e"}
+                          </span>
+                        </div>
+                      </motion.button>
+                    );
+                  })}
+                </AnimatePresence>
+              </div>
+            )}
+          </div>
         </div>
       </section>
 
       {/* Ticket — colonne ~40% à partir de lg ; sinon tiroir (FAB) */}
       <aside className="hidden min-h-0 flex-col border-l border-gray-100 bg-white/90 backdrop-blur-xl lg:flex lg:w-[40%] lg:min-w-0 lg:sticky lg:top-0 lg:h-[100dvh] lg:max-h-[100dvh] lg:shadow-[0_-4px_30px_-10px_rgba(0,0,0,0.05)]">
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-          <div className="flex-1 overflow-y-auto p-5 pb-4 sm:p-6 lg:p-8">
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-5 pb-4 sm:p-6 lg:p-8">
           {isLgUp && (
             <GamificationJauge
               refreshKey={gamificationRefreshKey}
@@ -963,7 +977,7 @@ export default function VendeusePage() {
               <button
                 type="button"
                 onClick={viderPanier}
-                className="flex min-h-[44px] items-center gap-1.5 rounded-xl px-2 text-sm text-gray-400 transition-colors hover:text-red-500"
+                className="inline-flex min-h-[48px] min-w-[48px] items-center justify-center gap-1.5 rounded-xl px-3 text-sm text-gray-400 transition-colors [-webkit-tap-highlight-color:transparent] hover:text-red-500"
               >
                 <Trash2 className="h-4 w-4" />
                 Vider
@@ -1024,7 +1038,7 @@ export default function VendeusePage() {
                             e.stopPropagation();
                             removeFromPanier(ligne.panierLineId);
                           }}
-                          className="flex size-[48px] min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-full bg-gray-100 text-gray-700 transition-transform duration-200 hover:bg-gray-200 active:scale-95"
+                          className="flex size-[48px] min-h-[48px] min-w-[48px] shrink-0 items-center justify-center rounded-full bg-gray-100 text-gray-700 transition-transform duration-200 [-webkit-tap-highlight-color:transparent] hover:bg-gray-200 active:scale-95"
                         >
                           <Minus className="h-5 w-5" />
                         </button>
@@ -1038,7 +1052,7 @@ export default function VendeusePage() {
                             addOneToLine(ligne.panierLineId);
                           }}
                           disabled={ligne.quantite >= ligne.produit.stock}
-                          className="flex size-[48px] min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-full bg-gray-100 text-gray-700 transition-transform duration-200 hover:bg-gray-200 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+                          className="flex size-[48px] min-h-[48px] min-w-[48px] shrink-0 items-center justify-center rounded-full bg-gray-100 text-gray-700 transition-transform duration-200 [-webkit-tap-highlight-color:transparent] hover:bg-gray-200 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
                         >
                           <Plus className="h-5 w-5" />
                         </button>
@@ -1048,7 +1062,7 @@ export default function VendeusePage() {
                             e.stopPropagation();
                             removeItemCompletely(ligne.panierLineId);
                           }}
-                          className="flex size-[44px] min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-full text-gray-300 transition-transform duration-200 hover:bg-red-50 hover:text-red-500 active:scale-95"
+                          className="flex size-[48px] min-h-[48px] min-w-[48px] shrink-0 items-center justify-center rounded-full text-gray-300 transition-transform duration-200 [-webkit-tap-highlight-color:transparent] hover:bg-red-50 hover:text-red-500 active:scale-95"
                           aria-label="Supprimer"
                         >
                           <X className="h-5 w-5" />
@@ -1062,7 +1076,7 @@ export default function VendeusePage() {
                 <button
                   type="button"
                   onClick={() => setRemiseModalOpen(true)}
-                  className="mb-4 flex min-h-[44px] w-full items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-emerald-200 bg-emerald-50/50 py-3 text-sm font-semibold text-emerald-700 transition-all duration-300 hover:border-emerald-300 hover:bg-emerald-100/80"
+                  className="mb-4 flex min-h-[48px] w-full items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-emerald-200 bg-emerald-50/50 py-3 text-sm font-semibold text-emerald-700 transition-all duration-300 [-webkit-tap-highlight-color:transparent] hover:border-emerald-300 hover:bg-emerald-100/80"
                 >
                   <Percent className="h-4 w-4" />
                   Appliquer une remise
@@ -1097,7 +1111,7 @@ export default function VendeusePage() {
                 <MoyenPaiementSelector
                   value={methodePaiement}
                   onChange={setMethodePaiement}
-                  className="mt-6"
+                  className="mt-6 [&_button]:min-h-[48px] [&_button]:min-w-[48px] [&_button]:[-webkit-tap-highlight-color:transparent]"
                 />
 
                 {/* Historique ventes du jour */}
@@ -1140,7 +1154,7 @@ export default function VendeusePage() {
                             <button
                               type="button"
                               onClick={() => handleAnnulerVente(v)}
-                              className="flex items-center gap-1.5 rounded-2xl bg-red-50 px-3 py-2 text-xs font-semibold text-red-600 transition-all duration-200 hover:bg-red-100 active:scale-95"
+                              className="inline-flex min-h-[48px] min-w-[48px] shrink-0 items-center justify-center gap-1.5 rounded-2xl bg-red-50 px-3 text-xs font-semibold text-red-600 transition-all duration-200 [-webkit-tap-highlight-color:transparent] hover:bg-red-100 active:scale-95"
                               title="Annuler cette vente"
                             >
                               <RotateCcw className="h-3.5 w-3.5" />
@@ -1157,12 +1171,12 @@ export default function VendeusePage() {
           )}
           </div>
           {panier.length > 0 && (
-            <div className="sticky bottom-0 z-10 shrink-0 border-t border-gray-100 bg-white/95 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-[0_-8px_32px_-12px_rgba(0,0,0,0.08)] backdrop-blur-md">
+            <div className="sticky bottom-0 z-10 shrink-0 border-t border-gray-100 bg-white/95 p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] shadow-[0_-8px_32px_-12px_rgba(0,0,0,0.08)] backdrop-blur-md">
               <button
                 type="button"
                 onClick={handleEncaisser}
                 disabled={encaissementLoading}
-                className="flex min-h-[56px] w-full items-center justify-center rounded-2xl bg-black py-5 text-xl font-bold text-white shadow-lg transition-all duration-300 hover:bg-gray-900 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-70 lg:min-h-[60px] lg:py-6 lg:text-2xl"
+                className="flex min-h-[48px] w-full items-center justify-center rounded-2xl bg-black py-5 text-xl font-bold text-white shadow-lg transition-all duration-300 [-webkit-tap-highlight-color:transparent] hover:bg-gray-900 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-70 lg:min-h-[60px] lg:py-6 lg:text-2xl"
               >
                 {encaissementLoading ? "Encaissement..." : `Encaisser ${formatPrix(total)}`}
               </button>
@@ -1171,74 +1185,73 @@ export default function VendeusePage() {
         </div>
       </aside>
 
-      {/* Panier FAB : téléphone + tablette (&lt; lg) ; masqué en vue 2 colonnes */}
-      <button
-        type="button"
-        onClick={() => setDrawerOpen(true)}
-        className="fixed z-30 flex h-14 w-14 items-center justify-center rounded-2xl bg-black text-white shadow-[0_8px_30px_-6px_rgba(0,0,0,0.3)] transition-all duration-300 hover:bg-gray-900 active:scale-95 sm:h-16 sm:w-16 lg:hidden right-[max(1rem,env(safe-area-inset-right))] max-md:bottom-[max(5.25rem,calc(5.25rem+env(safe-area-inset-bottom)))] md:max-lg:bottom-[max(1.25rem,env(safe-area-inset-bottom))]"
-        aria-label="Ouvrir le panier"
-      >
-        <ShoppingBag className="h-7 w-7" />
-        {nbArticles > 0 && (
-          <span className="absolute -right-1 -top-1 flex h-6 w-6 items-center justify-center rounded-full bg-white text-xs font-bold text-gray-900 shadow-sm">
+      {/* Barre panier native mobile (&lt; md) — au-dessus de la bottom nav layout (z-40) */}
+      {panier.length > 0 && (
+        <button
+          type="button"
+          onClick={() => setDrawerOpen(true)}
+          className="fixed inset-x-0 bottom-0 z-50 flex items-center justify-between rounded-t-3xl bg-gray-900 p-4 pb-[max(1rem,env(safe-area-inset-bottom,0px))] text-left text-white shadow-[0_-10px_40px_rgba(0,0,0,0.2)] transition active:bg-gray-800 [-webkit-tap-highlight-color:transparent] max-md:bottom-[calc(4rem+env(safe-area-inset-bottom,0px))] lg:hidden"
+          aria-label="Voir le panier"
+        >
+          <span className="flex h-10 min-w-[2.5rem] items-center justify-center rounded-full bg-white/15 px-3 text-sm font-bold tabular-nums">
             {nbArticles}
           </span>
-        )}
-      </button>
+          <span className="flex-1 px-3 text-center text-sm font-semibold tracking-wide">
+            Voir le panier
+          </span>
+          <span className="shrink-0 text-base font-bold tabular-nums">
+            {formatPrix(total)}
+          </span>
+        </button>
+      )}
 
-      {/* Tiroir panier : &lt; lg */}
+      {/* Tiroir panier plein écran mobile : scroll = lignes + options ; pied = encaissement uniquement */}
       {drawerOpen && (
         <>
           <div
-            className="fixed inset-0 z-40 bg-gray-900/50 backdrop-blur-sm lg:hidden"
+            className="fixed inset-0 z-[55] bg-gray-900/50 backdrop-blur-sm lg:hidden"
             onClick={() => setDrawerOpen(false)}
             aria-hidden="true"
           />
-          <div className="fixed inset-x-0 bottom-0 z-50 flex max-h-[min(92dvh,920px)] flex-col rounded-t-3xl border-t border-gray-100 bg-white pb-[env(safe-area-inset-bottom)] shadow-[0_-10px_50px_-15px_rgba(0,0,0,0.15)] lg:hidden">
-            <div className="flex max-h-[min(92dvh,920px)] min-h-0 flex-1 flex-col">
-              <div className="flex shrink-0 flex-col items-center border-b border-gray-100 px-4 pt-3 pb-2 sm:px-6 sm:pt-4">
-                <div
-                  className="mb-2 h-1 w-10 shrink-0 rounded-full bg-gray-200"
-                  aria-hidden
-                />
-                <div className="flex w-full items-center justify-between gap-2 py-2">
-                  <div className="min-w-0">
-                    <h2 className="text-lg font-semibold text-gray-900 sm:text-xl">
-                      Ticket de caisse
-                    </h2>
-                    <p className="mt-0.5 text-sm text-gray-400">
-                      {nbArticles} article{nbArticles > 1 ? "s" : ""}
-                    </p>
-                  </div>
-                  <div className="flex shrink-0 items-center gap-1">
-                  {panier.length > 0 && (
-                    <button
-                      type="button"
-                      onClick={viderPanier}
-                      className="flex items-center gap-1.5 rounded-lg px-2 py-2 text-sm text-gray-400 transition-colors hover:text-red-500"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                      Vider
-                    </button>
-                  )}
+          <div className="fixed inset-x-0 bottom-0 z-[60] flex h-[90dvh] max-h-[90dvh] flex-col overflow-hidden rounded-t-3xl border-t border-gray-100 bg-white shadow-[0_-10px_50px_-15px_rgba(0,0,0,0.15)] lg:hidden">
+            <div className="flex shrink-0 items-center justify-between gap-3 border-b border-gray-100 px-4 py-3 sm:px-6">
+              <div className="min-w-0">
+                <h2 className="text-lg font-semibold text-gray-900">Ticket de caisse</h2>
+                <p className="text-xs text-gray-400">
+                  {nbArticles} article{nbArticles > 1 ? "s" : ""}
+                </p>
+              </div>
+              <div className="flex shrink-0 items-center gap-1">
+                {panier.length > 0 && (
                   <button
                     type="button"
-                    onClick={() => setDrawerOpen(false)}
-                    className="rounded-full p-2.5 text-gray-400 transition-all duration-300 hover:bg-gray-100"
-                    aria-label="Fermer"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      viderPanier();
+                    }}
+                    className="inline-flex min-h-[48px] min-w-[48px] items-center justify-center gap-1 rounded-lg px-2 text-sm text-gray-500 [-webkit-tap-highlight-color:transparent] hover:text-red-500"
                   >
-                    <ChevronDown className="h-5 w-5" />
+                    <Trash2 className="h-4 w-4" />
+                    <span className="hidden sm:inline">Vider</span>
                   </button>
-                  </div>
-                </div>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setDrawerOpen(false)}
+                  className="inline-flex min-h-[48px] min-w-[48px] items-center justify-center rounded-full text-gray-500 [-webkit-tap-highlight-color:transparent] hover:bg-gray-100"
+                  aria-label="Fermer"
+                >
+                  <X className="h-5 w-5" />
+                </button>
               </div>
-              <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 sm:px-6 sm:py-5">
-                {panier.length === 0 ? (
-                  <p className="py-12 text-center text-gray-400">
-                    Panier vide.
-                  </p>
-                ) : (
-                  <div className="space-y-4">
+            </div>
+
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 sm:px-6">
+              {panier.length === 0 ? (
+                <p className="py-12 text-center text-gray-400">Panier vide.</p>
+              ) : (
+                <>
+                  <div className="space-y-3">
                     <AnimatePresence mode="wait">
                       {panier.map((ligne) => (
                         <motion.div
@@ -1247,7 +1260,7 @@ export default function VendeusePage() {
                           initial={{ opacity: 1 }}
                           exit={{ opacity: 0, scale: 0.98 }}
                           transition={{ duration: 0.2 }}
-                          className="flex items-center justify-between gap-4 rounded-2xl bg-gray-50/50 p-4"
+                          className="flex items-center justify-between gap-3 rounded-2xl bg-gray-50/50 p-3"
                         >
                           <div className="min-w-0 flex-1">
                             {ligne.libelleOverride ? (
@@ -1275,29 +1288,29 @@ export default function VendeusePage() {
                               </>
                             )}
                           </div>
-                          <div className="flex shrink-0 items-center gap-1.5">
+                          <div className="flex shrink-0 items-center gap-1">
                             <button
                               type="button"
                               onClick={() => removeFromPanier(ligne.panierLineId)}
-                              className="flex size-[48px] min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-full bg-gray-100 text-gray-700 transition-transform duration-200 hover:bg-gray-200 active:scale-95"
+                              className="flex size-[48px] min-h-[48px] min-w-[48px] shrink-0 items-center justify-center rounded-full bg-gray-100 text-gray-700 [-webkit-tap-highlight-color:transparent] active:scale-95"
                             >
                               <Minus className="h-5 w-5" />
                             </button>
-                            <span className="min-w-[2.5rem] text-center text-base font-bold text-gray-900">
+                            <span className="min-w-[2rem] text-center text-sm font-bold text-gray-900">
                               {ligne.quantite}
                             </span>
                             <button
                               type="button"
                               onClick={() => addOneToLine(ligne.panierLineId)}
                               disabled={ligne.quantite >= ligne.produit.stock}
-                              className="flex size-[48px] min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-full bg-gray-100 text-gray-700 transition-transform duration-200 hover:bg-gray-200 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+                              className="flex size-[48px] min-h-[48px] min-w-[48px] shrink-0 items-center justify-center rounded-full bg-gray-100 text-gray-700 [-webkit-tap-highlight-color:transparent] active:scale-95 disabled:opacity-50"
                             >
                               <Plus className="h-5 w-5" />
                             </button>
                             <button
                               type="button"
                               onClick={() => removeItemCompletely(ligne.panierLineId)}
-                              className="flex size-[44px] min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-full text-gray-300 transition-transform duration-200 hover:bg-red-50 hover:text-red-500 active:scale-95"
+                              className="flex size-[48px] min-h-[48px] min-w-[48px] shrink-0 items-center justify-center rounded-full text-gray-300 [-webkit-tap-highlight-color:transparent] hover:bg-red-50 hover:text-red-500"
                               aria-label="Supprimer"
                             >
                               <X className="h-5 w-5" />
@@ -1307,98 +1320,103 @@ export default function VendeusePage() {
                       ))}
                     </AnimatePresence>
                   </div>
-                )}
-              </div>
-              <div className="shrink-0 border-t border-gray-100 bg-white/95 px-4 py-4 backdrop-blur-md sm:px-6 sm:py-5">
-                <button
-                  type="button"
-                  onClick={() => setRemiseModalOpen(true)}
-                  className="mb-4 flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-emerald-200 bg-emerald-50/50 py-3 text-sm font-semibold text-emerald-700 transition-all duration-300 hover:bg-emerald-100/80"
-                >
-                  <Percent className="h-4 w-4" />
-                  Appliquer une remise
-                </button>
-                <div className="mb-4 space-y-2">
-                  <p className="flex justify-between text-sm text-gray-500">
-                    <span>Sous-total</span>
-                    <span>{formatPrix(sousTotal)}</span>
-                  </p>
-                  {remiseAmount > 0 && (
-                    <p className="flex justify-between text-sm font-medium text-emerald-600">
-                      <span>Remise</span>
-                      <span>-{formatPrix(remiseAmount)}</span>
+
+                  <button
+                    type="button"
+                    onClick={() => setRemiseModalOpen(true)}
+                    className="mt-5 flex min-h-[48px] w-full items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-emerald-200 bg-emerald-50/50 py-3 text-sm font-semibold text-emerald-700 [-webkit-tap-highlight-color:transparent] active:bg-emerald-100/80"
+                  >
+                    <Percent className="h-4 w-4" />
+                    Appliquer une remise
+                  </button>
+                  <div className="mt-4 space-y-2 border-t border-gray-100 pt-4">
+                    <p className="flex justify-between text-sm text-gray-500">
+                      <span>Sous-total</span>
+                      <span>{formatPrix(sousTotal)}</span>
                     </p>
-                  )}
-                  <p className="mb-4 flex justify-between text-xl font-bold text-gray-900">
-                    <span>Total à payer</span>
-                    <span>{formatPrix(total)}</span>
-                  </p>
-                </div>
-                <div data-skip-ean-capture>
-                  <ClientCaisseSection
-                    clientPhone={clientPhone}
-                    onClientPhoneChange={setClientPhone}
-                    clientNom={clientNom}
-                    onClientNomChange={setClientNom}
-                    resolvedClient={resolvedClient}
-                    lookupLoading={clientLookupLoading}
+                    {remiseAmount > 0 && (
+                      <p className="flex justify-between text-sm font-medium text-emerald-600">
+                        <span>Remise</span>
+                        <span>-{formatPrix(remiseAmount)}</span>
+                      </p>
+                    )}
+                    <p className="flex justify-between text-base font-bold text-gray-900">
+                      <span>Total à payer</span>
+                      <span>{formatPrix(total)}</span>
+                    </p>
+                  </div>
+                  <div className="mt-4" data-skip-ean-capture>
+                    <ClientCaisseSection
+                      clientPhone={clientPhone}
+                      onClientPhoneChange={setClientPhone}
+                      clientNom={clientNom}
+                      onClientNomChange={setClientNom}
+                      resolvedClient={resolvedClient}
+                      lookupLoading={clientLookupLoading}
+                    />
+                  </div>
+                  <MoyenPaiementSelector
+                    value={methodePaiement}
+                    onChange={setMethodePaiement}
+                    className="mt-6 [&_button]:min-h-[48px] [&_button]:min-w-[48px] [&_button]:[-webkit-tap-highlight-color:transparent]"
                   />
-                </div>
-                <MoyenPaiementSelector
-                  value={methodePaiement}
-                  onChange={setMethodePaiement}
-                  className="mt-6"
-                />
+                  {ventesDuJour.length > 0 && (
+                    <div className="mt-6 border-t border-gray-100 pt-4">
+                      <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-gray-500">
+                        Dernières ventes
+                      </h3>
+                      <div className="max-h-36 space-y-2 overflow-y-auto overscroll-contain">
+                        <AnimatePresence mode="popLayout">
+                          {ventesDuJour.slice(0, 5).map((v) => (
+                            <motion.div
+                              key={v.id}
+                              layout
+                              initial={{ opacity: 0, y: 8 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              exit={{ opacity: 0, scale: 0.98 }}
+                              className="flex flex-wrap items-center justify-between gap-2 rounded-2xl bg-gray-50 px-3 py-2 ring-1 ring-gray-100"
+                            >
+                              <span className="text-sm text-gray-600">
+                                {new Date(v.created_at).toLocaleTimeString("fr-FR", {
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                })}
+                              </span>
+                              <span className="text-xs text-gray-500">
+                                {(v.ventes_items?.reduce((s, i) => s + i.quantite, 0) ?? 0)} art.
+                              </span>
+                              <span className="text-sm font-bold">{formatPrix(v.total)}</span>
+                              <button
+                                type="button"
+                                onClick={() => handleAnnulerVente(v)}
+                                className="inline-flex min-h-[48px] min-w-[48px] items-center justify-center rounded-xl bg-red-50 px-2 text-xs font-semibold text-red-600 [-webkit-tap-highlight-color:transparent] active:scale-95"
+                              >
+                                Annuler
+                              </button>
+                            </motion.div>
+                          ))}
+                        </AnimatePresence>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+
+            {panier.length > 0 && (
+              <div className="shrink-0 border-t border-gray-200 bg-white p-4 pb-[max(1rem,env(safe-area-inset-bottom,0px))]">
                 <button
                   type="button"
                   onClick={handleEncaisser}
-                  disabled={panier.length === 0 || encaissementLoading}
-                  className="mt-6 flex w-full items-center justify-center rounded-2xl bg-black py-5 text-xl font-bold text-white transition-all duration-300 hover:bg-gray-900 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={encaissementLoading}
+                  className="flex min-h-[52px] w-full items-center justify-center rounded-2xl bg-black py-4 text-lg font-bold text-white [-webkit-tap-highlight-color:transparent] active:scale-[0.98] disabled:opacity-50"
                 >
-                  {encaissementLoading ? "Encaissement..." : `Encaisser ${formatPrix(total)}`}
+                  {encaissementLoading
+                    ? "Encaissement..."
+                    : `Encaisser ${formatPrix(total)}`}
                 </button>
-                {ventesDuJour.length > 0 && (
-                  <div className="mt-6 border-t border-gray-100 pt-4">
-                    <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-gray-500">
-                      Dernières ventes
-                    </h3>
-                    <div className="max-h-32 space-y-2 overflow-auto">
-                      <AnimatePresence mode="popLayout">
-                        {ventesDuJour.slice(0, 5).map((v) => (
-                          <motion.div
-                            key={v.id}
-                            layout
-                            initial={{ opacity: 0, y: 8 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, scale: 0.98 }}
-                            className="flex items-center justify-between gap-2 rounded-2xl bg-gray-50 px-3 py-2 ring-1 ring-gray-100"
-                          >
-                            <span className="text-sm text-gray-600">
-                              {new Date(v.created_at).toLocaleTimeString("fr-FR", {
-                                hour: "2-digit",
-                                minute: "2-digit",
-                              })}
-                            </span>
-                            <span className="text-xs text-gray-500">
-                              {(v.ventes_items?.reduce((s, i) => s + i.quantite, 0) ?? 0)} article
-                              {(v.ventes_items?.reduce((s, i) => s + i.quantite, 0) ?? 0) > 1 ? "s" : ""}
-                            </span>
-                            <span className="text-sm font-bold">{formatPrix(v.total)}</span>
-                            <button
-                              type="button"
-                              onClick={() => handleAnnulerVente(v)}
-                              className="rounded-xl bg-red-50 px-2 py-1.5 text-xs font-semibold text-red-600 transition-all hover:bg-red-100 active:scale-95"
-                            >
-                              Annuler
-                            </button>
-                          </motion.div>
-                        ))}
-                      </AnimatePresence>
-                    </div>
-                  </div>
-                )}
               </div>
-            </div>
+            )}
           </div>
         </>
       )}
