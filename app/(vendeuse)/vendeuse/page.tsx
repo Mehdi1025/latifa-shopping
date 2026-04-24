@@ -41,6 +41,7 @@ import {
   type GroupeModeleCatalogue,
 } from "@/lib/caisse/catalogue-groupes";
 import VarianteSelectionSheet from "@/components/vendeur/VarianteSelectionSheet";
+import { useWedgeEan13Listener } from "@/hooks/useWedgeEan13Listener";
 
 type LignePanier = {
   /** Clé stable par ligne (plusieurs lots Coffre = même produit_id) */
@@ -263,6 +264,7 @@ export default function VendeusePage() {
   const tryAddByEanWithResultRef = useRef<(raw: string) => CameraScanResult>(
     () => ({ ok: false })
   );
+  const onWedgeEanRef = useRef<(ean: string) => void>(() => {});
 
   const supabase = createSupabaseBrowserClient();
 
@@ -599,6 +601,14 @@ export default function VendeusePage() {
     void tryAddByEanWithResultRef.current(raw);
   };
 
+  onWedgeEanRef.current = (ean: string) => tryAddByEanRef.current(ean);
+
+  useWedgeEan13Listener({
+    inputRef: eanInputRef,
+    blocked: remiseModalOpen || scannerOpen,
+    onEan13Ref: onWedgeEanRef,
+  });
+
   const handleCameraEan = useCallback(
     (ean: string): CameraScanResult => tryAddByEanWithResultRef.current(ean),
     []
@@ -610,97 +620,6 @@ export default function VendeusePage() {
     const t = window.setTimeout(() => eanInputRef.current?.focus(), 100);
     return () => clearTimeout(t);
   }, []);
-
-  useEffect(() => {
-    /** Entre deux chiffres douchette : court délai ; au-delà on considère une frappe humaine. */
-    const BUFFER_FLUSH_MS = 50;
-    let buf = "";
-    let flushTimer: ReturnType<typeof setTimeout> | null = null;
-
-    const clearFlushTimer = () => {
-      if (flushTimer) {
-        clearTimeout(flushTimer);
-        flushTimer = null;
-      }
-    };
-
-    const scheduleBufferFlush = () => {
-      clearFlushTimer();
-      flushTimer = setTimeout(() => {
-        buf = "";
-        flushTimer = null;
-      }, BUFFER_FLUSH_MS);
-    };
-
-    const wedgeDigitFromEvent = (e: KeyboardEvent): string | null => {
-      if (e.key.length === 1 && e.key >= "0" && e.key <= "9") return e.key;
-      const c = e.code;
-      if (/^Digit[0-9]$/.test(c)) return c.slice(-1);
-      if (/^Numpad[0-9]$/.test(c)) return c.slice(-1);
-      return null;
-    };
-
-    const isTypingInField = (el: EventTarget | null): boolean => {
-      if (!el || !(el instanceof HTMLElement)) return false;
-      if (el.isContentEditable) return true;
-      const t = el.tagName;
-      return t === "INPUT" || t === "TEXTAREA" || t === "SELECT";
-    };
-
-    const onKey = (e: KeyboardEvent) => {
-      if (remiseModalOpen || scannerOpen) return;
-      if (e.isComposing) return;
-
-      const fromSkip = (e.target as HTMLElement | null)?.closest?.(
-        "[data-skip-ean-capture]"
-      );
-      if (fromSkip) return;
-
-      if (e.ctrlKey || e.altKey || e.metaKey) {
-        buf = "";
-        clearFlushTimer();
-        return;
-      }
-
-      const ae = document.activeElement;
-
-      /* Barre recherche / EAN : la douchette remplit le champ ; Enter → onKeyDown du input uniquement (pas de double ajout). */
-      if (ae === eanInputRef.current) return;
-
-      if (isTypingInField(ae)) return;
-
-      if (e.key === "Enter") {
-        if (buf.length === 13 && /^\d{13}$/.test(buf)) {
-          e.preventDefault();
-          tryAddByEanRef.current(buf);
-        } else if (buf.length > 0) {
-          /* Fin de séquence type scanner sans 13 chiffres : ne pas déclencher l’action par défaut (bouton, etc.). */
-          e.preventDefault();
-        }
-        buf = "";
-        clearFlushTimer();
-        return;
-      }
-
-      const digit = wedgeDigitFromEvent(e);
-      if (digit !== null) {
-        if (e.repeat) return;
-        clearFlushTimer();
-        buf = (buf + digit).slice(-20);
-        scheduleBufferFlush();
-        return;
-      }
-
-      buf = "";
-      clearFlushTimer();
-    };
-
-    window.addEventListener("keydown", onKey, true);
-    return () => {
-      window.removeEventListener("keydown", onKey, true);
-      clearFlushTimer();
-    };
-  }, [remiseModalOpen, scannerOpen]);
 
   const handleAnnulerVente = async (vente: VenteHistorique) => {
     if (!vente.ventes_items?.length) return;

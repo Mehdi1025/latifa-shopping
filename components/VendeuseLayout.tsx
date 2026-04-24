@@ -3,12 +3,13 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ShoppingCart, History, Target, Menu, X, User, CheckSquare, BookOpen, Package } from "lucide-react";
+import { ShoppingCart, History, Target, Menu, X, User, CheckSquare, BookOpen, Package, Boxes } from "lucide-react";
 import LogoutButton from "./LogoutButton";
 import { Toaster } from "sonner";
 
 const navItems = [
   { href: "/vendeuse", label: "Nouvelle Vente", icon: ShoppingCart },
+  { href: "/vendeuse/stock", label: "Stocks", icon: Boxes },
   { href: "/vendeuse/reception", label: "Réception", icon: Package },
   { href: "/vendeuse/taches", label: "Mes Missions", icon: CheckSquare },
   { href: "/vendeuse/process", label: "Guide Interne", icon: BookOpen },
@@ -17,7 +18,9 @@ const navItems = [
 ];
 
 function navLinkActive(pathname: string, href: string) {
-  if (href === "/vendeuse") return pathname === "/vendeuse";
+  if (href === "/vendeuse") {
+    return pathname === "/vendeuse" || pathname === "/vendeuse/";
+  }
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
@@ -188,6 +191,7 @@ export default function VendeuseLayout({
           const isActive = navLinkActive(pathname, item.href);
           const shortLabels: Record<string, string> = {
             "Nouvelle Vente": "Vente",
+            Stocks: "Stock",
             Réception: "Récep.",
             "Mes Missions": "Missions",
             "Guide Interne": "Guide",
