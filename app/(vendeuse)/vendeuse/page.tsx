@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useLayoutEffect, useMemo, useRef, useCallback } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion, type Variants } from "framer-motion";
 import {
@@ -19,6 +20,7 @@ import {
   User,
   ScanLine,
   ChevronDown,
+  Boxes,
 } from "lucide-react";
 import { createSupabaseBrowserClient } from "@/utils/supabase/client";
 import ClientelingPanel from "@/components/vendeur/ClientelingPanel";
@@ -935,7 +937,7 @@ export default function VendeusePage() {
           <div className="z-20 w-full max-w-full shrink-0 border-b border-transparent bg-gray-50/95 backdrop-blur-md max-md:sticky max-md:left-0 max-md:right-0 max-md:top-[calc(3.5rem+env(safe-area-inset-top,0px))] max-md:border-gray-200/80 max-md:shadow-[0_6px_24px_-12px_rgba(0,0,0,0.1)] md:static md:top-0 md:border-0 md:bg-gray-50 md:shadow-none md:backdrop-blur-none">
             <div className="px-4 pb-2 pt-2 md:px-7 md:pb-5 md:pt-8 lg:px-10 lg:pb-6">
               <div className="mb-2.5 flex items-start justify-between gap-2 md:mb-6">
-                <div>
+                <div className="min-w-0">
                   <h1 className="text-base font-semibold tracking-tight text-gray-900 md:text-xl lg:text-2xl">
                     Catalogue
                   </h1>
@@ -943,6 +945,13 @@ export default function VendeusePage() {
                     Touchez un modèle → variante → panier.
                   </p>
                 </div>
+                <Link
+                  href="/stock"
+                  className="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-800 shadow-sm transition hover:bg-gray-50 active:scale-[0.98] md:px-4 md:text-sm"
+                >
+                  <Boxes className="h-4 w-4" aria-hidden />
+                  Stocks
+                </Link>
               </div>
 
               <div className="mb-2 flex shrink-0 flex-row items-stretch gap-2 md:mb-5 md:gap-3">

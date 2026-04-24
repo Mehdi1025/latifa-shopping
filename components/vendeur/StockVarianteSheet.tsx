@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { ChevronLeft, X } from "lucide-react";
+import { X } from "lucide-react";
 import type { Produit } from "@/types/produit";
 import {
   CAISSE_COULEUR_DEFAUT,
@@ -15,7 +15,6 @@ type StockVarianteSheetProps = {
   onOpenChange: (open: boolean) => void;
   modeleNom: string;
   variantes: Produit[];
-  formatPrix: (n: number) => string;
 };
 
 export default function StockVarianteSheet({
@@ -23,60 +22,19 @@ export default function StockVarianteSheet({
   onOpenChange,
   modeleNom,
   variantes,
-  formatPrix,
 }: StockVarianteSheetProps) {
-  const [step, setStep] = useState<1 | 2>(1);
-  const [colorSelected, setColorSelected] = useState<string | null>(null);
-
-  const couleursToutes = useMemo(() => {
-    const set = new Set<string>();
-    for (const v of variantes) {
-      set.add(labelCouleurProduit(v));
-    }
-    return Array.from(set).sort((a, b) =>
-      a.localeCompare(b, "fr", { sensitivity: "base" })
-    );
+  const lignesTriees = useMemo(() => {
+    return [...variantes].sort((a, b) => {
+      const ca = labelCouleurProduit(a);
+      const cb = labelCouleurProduit(b);
+      const cmpC = ca.localeCompare(cb, "fr", { sensitivity: "base" });
+      if (cmpC !== 0) return cmpC;
+      return labelTailleProduit(a).localeCompare(labelTailleProduit(b), "fr", {
+        numeric: true,
+        sensitivity: "base",
+      });
+    });
   }, [variantes]);
-
-  const prixAffiche = useMemo(() => {
-    if (variantes.length === 0) return { kind: "single" as const, value: 0 };
-    const ps = variantes.map((v) => v.prix);
-    const a = Math.min(...ps);
-    const b = Math.max(...ps);
-    if (a === b) return { kind: "single" as const, value: a };
-    return { kind: "range" as const, min: a, max: b };
-  }, [variantes]);
-
-  const variantesPourCouleur = useMemo(() => {
-    if (colorSelected == null) return [];
-    return variantes
-      .filter((v) => labelCouleurProduit(v) === colorSelected)
-      .sort((a, b) =>
-        labelTailleProduit(a).localeCompare(labelTailleProduit(b), "fr", {
-          numeric: true,
-          sensitivity: "base",
-        })
-      );
-  }, [variantes, colorSelected]);
-
-  const reset = useCallback(() => {
-    setStep(1);
-    setColorSelected(null);
-  }, []);
-
-  useEffect(() => {
-    if (!open) {
-      reset();
-      return;
-    }
-    if (couleursToutes.length === 1) {
-      setColorSelected(couleursToutes[0]!);
-      setStep(2);
-    } else {
-      setStep(1);
-      setColorSelected(null);
-    }
-  }, [open, couleursToutes, reset]);
 
   useEffect(() => {
     if (!open) return;
@@ -134,14 +92,8 @@ export default function StockVarianteSheet({
                 >
                   {modeleNom}
                 </h2>
-                <p className="mt-0.5 text-sm text-gray-500">
-                  {prixAffiche.kind === "range" ? (
-                    <>
-                      {formatPrix(prixAffiche.min)} — {formatPrix(prixAffiche.max)}
-                    </>
-                  ) : (
-                    formatPrix(prixAffiche.value)
-                  )}
+                <p className="mt-1 text-xs text-amber-800/90">
+                  Fermez ce panneau pour scanner un autre article.
                 </p>
               </div>
               <button
@@ -155,117 +107,63 @@ export default function StockVarianteSheet({
             </div>
 
             <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-5">
-              {step === 2 && couleursToutes.length > 1 && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setStep(1);
-                    setColorSelected(null);
-                  }}
-                  className="mb-4 flex min-h-12 items-center gap-2 rounded-2xl px-1 text-sm font-semibold text-gray-600 transition hover:text-gray-900"
-                >
-                  <ChevronLeft className="h-5 w-5" />
-                  Changer de couleur
-                </button>
-              )}
-
-              {step === 1 && (
-                <div>
-                  <p className="mb-3 text-sm font-semibold text-gray-700">Couleur</p>
-                  {couleursToutes.length === 0 ? (
-                    <p className="rounded-2xl border border-amber-100 bg-amber-50/60 px-4 py-3 text-sm text-amber-900">
-                      Aucune variante pour ce modèle.
-                    </p>
-                  ) : (
-                    <ul className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
-                      {couleursToutes.map((c) => {
-                        const stockCouleur = variantes
-                          .filter((v) => labelCouleurProduit(v) === c)
-                          .reduce((s, v) => s + v.stock, 0);
-                        return (
-                          <li key={c}>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setColorSelected(c);
-                                setStep(2);
-                              }}
-                              className="flex min-h-14 w-full flex-col items-center justify-center gap-0.5 rounded-2xl border-2 border-gray-200 bg-gray-50/80 px-4 py-3 text-center transition hover:border-gray-900 hover:bg-white active:scale-[0.99]"
-                            >
-                              <span className="text-base font-semibold text-gray-900">
-                                {c === CAISSE_COULEUR_DEFAUT ? (
-                                  <span className="text-gray-600">{c}</span>
-                                ) : (
-                                  c
-                                )}
-                              </span>
-                              <span
-                                className={`text-xs font-medium ${
-                                  stockCouleur > 0 ? "text-emerald-600" : "text-red-600"
-                                }`}
-                              >
-                                Σ stock {stockCouleur}
-                              </span>
-                            </button>
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  )}
-                </div>
-              )}
-
-              {step === 2 && colorSelected != null && (
-                <div>
-                  <p className="mb-1 text-sm font-semibold text-gray-700">Tailles & stock</p>
-                  <p className="mb-4 text-xs text-gray-500">
-                    Couleur :{" "}
-                    <span className="font-medium text-gray-800">{colorSelected}</span>
-                  </p>
-                  {variantesPourCouleur.length === 0 ? (
-                    <p className="text-sm text-gray-500">Aucune ligne pour cette couleur.</p>
-                  ) : (
-                    <ul className="space-y-3">
-                      {variantesPourCouleur.map((produit) => {
-                        const st = produit.stock;
-                        const ok = st > 0;
-                        return (
-                          <li
-                            key={produit.id}
-                            className="flex items-center gap-3 rounded-2xl border border-gray-100 bg-gray-50/80 px-4 py-3"
+              <p className="mb-3 text-sm font-semibold text-gray-700">
+                Variantes (couleur · taille)
+              </p>
+              {lignesTriees.length === 0 ? (
+                <p className="rounded-2xl border border-amber-100 bg-amber-50/60 px-4 py-3 text-sm text-amber-900">
+                  Aucune variante pour ce modèle.
+                </p>
+              ) : (
+                <ul className="space-y-3">
+                  {lignesTriees.map((produit) => {
+                    const st = produit.stock;
+                    const ok = st > 0;
+                    const couleur = labelCouleurProduit(produit);
+                    const couleurAff =
+                      couleur === CAISSE_COULEUR_DEFAUT ? (
+                        <span className="text-gray-600">{couleur}</span>
+                      ) : (
+                        couleur
+                      );
+                    return (
+                      <li
+                        key={produit.id}
+                        className="flex items-center gap-3 rounded-2xl border border-gray-100 bg-gray-50/80 px-4 py-3"
+                      >
+                        <div
+                          className={`h-3.5 w-3.5 shrink-0 rounded-full ring-2 ring-white ${
+                            ok ? "bg-emerald-500" : "bg-red-600"
+                          }`}
+                          aria-hidden
+                          title={ok ? "En stock" : "Rupture"}
+                        />
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-semibold text-gray-900">
+                            <span>{couleurAff}</span>
+                            <span className="text-gray-400"> · </span>
+                            <span>Taille {labelTailleProduit(produit)}</span>
+                          </p>
+                          <p className="mt-0.5 text-xs text-gray-500">
+                            EAN {produit.code_barre?.trim() || "—"}
+                          </p>
+                        </div>
+                        <div className="shrink-0 text-right">
+                          <p
+                            className={`text-3xl font-black tabular-nums leading-none ${
+                              ok ? "text-emerald-700" : "text-red-600"
+                            }`}
                           >
-                            <div
-                              className={`h-3 w-3 shrink-0 rounded-full ${
-                                ok ? "bg-emerald-500" : "bg-red-500"
-                              }`}
-                              aria-hidden
-                            />
-                            <div className="min-w-0 flex-1">
-                              <p className="text-sm font-semibold text-gray-900">
-                                Taille {labelTailleProduit(produit)}
-                              </p>
-                              <p className="text-xs text-gray-500">
-                                EAN {produit.code_barre?.trim() || "—"}
-                              </p>
-                            </div>
-                            <div className="shrink-0 text-right">
-                              <p
-                                className={`text-2xl font-black tabular-nums ${
-                                  ok ? "text-emerald-700" : "text-red-600"
-                                }`}
-                              >
-                                {st}
-                              </p>
-                              <p className="text-[10px] font-medium uppercase tracking-wide text-gray-400">
-                                en stock
-                              </p>
-                            </div>
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  )}
-                </div>
+                            {st}
+                          </p>
+                          <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-gray-400">
+                            stock
+                          </p>
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
               )}
             </div>
           </motion.aside>

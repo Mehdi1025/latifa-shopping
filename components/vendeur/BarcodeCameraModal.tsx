@@ -21,6 +21,11 @@ type BarcodeCameraModalProps = {
   open: boolean;
   onClose: () => void;
   onEan13: (ean: string) => CameraScanResult;
+  /**
+   * Une seule lecture réussie puis arrêt caméra + fermeture (inventaire).
+   * La caisse laisse `false` pour le scan en rafale.
+   */
+  singleScan?: boolean;
 };
 
 type PermissionState = "unknown" | "granted" | "denied" | "unavailable";
@@ -42,6 +47,7 @@ export default function BarcodeCameraModal({
   open,
   onClose,
   onEan13,
+  singleScan = false,
 }: BarcodeCameraModalProps) {
   const reactId = useId();
   const regionId = `barcode-caisse-${reactId.replace(/:/g, "")}`;
@@ -57,6 +63,10 @@ export default function BarcodeCameraModal({
   const cooldownUntilRef = useRef(0);
   const onEan13Ref = useRef(onEan13);
   onEan13Ref.current = onEan13;
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+  const singleScanRef = useRef(singleScan);
+  singleScanRef.current = singleScan;
 
   const [giantPulse, setGiantPulse] = useState<{
     key: number;
@@ -164,6 +174,12 @@ export default function BarcodeCameraModal({
         setScanFlash("off");
 
         const result = onEan13Ref.current(ean);
+        if (result.ok && singleScanRef.current) {
+          playScanBeep();
+          void stopScanner();
+          onCloseRef.current();
+          return;
+        }
         if (result.ok) {
           playScanBeep();
           setScanFlash("success");
@@ -476,7 +492,9 @@ export default function BarcodeCameraModal({
             )}
           </div>
           <p className="mt-3 text-center text-xs text-gray-500">
-            Scan en rafale : vert + texte = OK, rouge = erreur. Fermer avec le bouton ci-dessous.
+            {singleScan
+              ? "Un code lu avec succès ferme la caméra. Rouge = erreur (EAN invalide ou inconnu)."
+              : "Scan en rafale : vert + texte = OK, rouge = erreur. Fermer avec le bouton ci-dessous."}
           </p>
           <button
             type="button"
@@ -486,7 +504,7 @@ export default function BarcodeCameraModal({
             }}
             className="mt-4 flex min-h-14 w-full items-center justify-center rounded-2xl bg-gray-900 py-3.5 text-base font-bold text-white shadow-md transition active:scale-[0.99] hover:bg-gray-800"
           >
-            Terminer le scan
+            {singleScan ? "Fermer" : "Terminer le scan"}
           </button>
         </div>
       </div>

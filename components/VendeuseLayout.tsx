@@ -9,7 +9,7 @@ import { Toaster } from "sonner";
 
 const navItems = [
   { href: "/vendeuse", label: "Nouvelle Vente", icon: ShoppingCart },
-  { href: "/vendeuse/stock", label: "Stocks", icon: Boxes },
+  { href: "/stock", label: "Stocks", icon: Boxes },
   { href: "/vendeuse/reception", label: "Réception", icon: Package },
   { href: "/vendeuse/taches", label: "Mes Missions", icon: CheckSquare },
   { href: "/vendeuse/process", label: "Guide Interne", icon: BookOpen },
