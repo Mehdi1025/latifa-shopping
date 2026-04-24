@@ -342,10 +342,14 @@ export default function VendeusePage() {
     prevPanierLen.current = panier.length;
   }, [panier.length, resolvedClient]);
 
-  const categoriesCaisse = useMemo(
-    () => ["Toutes", "Homme", "Femme", "Enfant", "Accessoires"] as const,
-    []
-  );
+  const categoriesCaisse = useMemo(() => {
+    const uniqueCats = new Set(
+      produits
+        .map((p) => p.categorie?.trim())
+        .filter((c): c is string => Boolean(c))
+    );
+    return ["Toutes", ...Array.from(uniqueCats).sort()];
+  }, [produits]);
 
   const produitsSansMystere = useMemo(
     () => produits.filter((p) => p.id !== MYSTERY_VAULT_PRODUCT_ID),
