@@ -26,7 +26,6 @@ import GamificationJauge from "@/components/vendeur/GamificationJauge";
 import VipRadar from "@/components/vendeur/VipRadar";
 import FluxBoutiqueCard from "@/components/vendeur/FluxBoutiqueCard";
 import BarcodeCameraModal, {
-  type CameraScanHandler,
   type CameraScanResult,
 } from "@/components/vendeur/BarcodeCameraModal";
 import { MYSTERY_VAULT_PRODUCT_ID } from "@/lib/constants/mystery-vault";
@@ -236,11 +235,6 @@ export default function VendeusePage() {
   const [modeleTiroir, setModeleTiroir] = useState<GroupeModeleCatalogue | null>(
     null
   );
-  /** Variantes complètes (toutes catégories / y compris rupture) pour le tiroir « Info stock ». */
-  const [variantesInfoTiroir, setVariantesInfoTiroir] = useState<Produit[] | null>(
-    null
-  );
-  const [scanMode, setScanMode] = useState<"vente" | "info">("vente");
   const [encaissementLoading, setEncaissementLoading] = useState(false);
   const [toast, setToast] = useState<{ type: ToastType; message: string } | null>(null);
   const [ventesDuJour, setVentesDuJour] = useState<VenteHistorique[]>([]);
@@ -266,8 +260,8 @@ export default function VendeusePage() {
   const prevPanierLen = useRef(0);
   const eanInputRef = useRef<HTMLInputElement>(null);
   const tryAddByEanRef = useRef<(raw: string) => void>(() => {});
-  const tryAddByEanWithResultRef = useRef<(raw: string) => Promise<CameraScanResult>>(
-    async () => ({ ok: false })
+  const tryAddByEanWithResultRef = useRef<(raw: string) => CameraScanResult>(
+    () => ({ ok: false })
   );
 
   const supabase = createSupabaseBrowserClient();
@@ -453,14 +447,13 @@ export default function VendeusePage() {
     [groupesCategorieTous, nomsModelesApresRecherche]
   );
 
-  /** Variantes du modèle ouvert (carte) — catalogue filtré, ou liste « Info stock » (scan). */
+  /** Variantes du modèle ouvert (carte) — catalogue complet pour la catégorie, sans filtre de recherche. */
   const variantesPourTiroir = useMemo(() => {
     if (!modeleTiroir) return [];
-    if (variantesInfoTiroir !== null) return variantesInfoTiroir;
     return produitsCategorieFiltre.filter(
       (p) => p.nom.trim() === modeleTiroir.nom.trim()
     );
-  }, [modeleTiroir, produitsCategorieFiltre, variantesInfoTiroir]);
+  }, [modeleTiroir, produitsCategorieFiltre]);
 
   const addToPanier = (produit: Produit) => {
     if (produit.id === MYSTERY_VAULT_PRODUCT_ID) return;
@@ -521,9 +514,6 @@ export default function VendeusePage() {
     setMethodePaiement("carte");
     setMontantDonne("");
     setMontantEspecesMixte("");
-    setScanMode("vente");
-    setVariantesInfoTiroir(null);
-    setModeleTiroir(null);
     setClientPhone("");
     setClientNom("");
     setResolvedClient(null);
@@ -579,24 +569,13 @@ export default function VendeusePage() {
     setTimeout(() => setToast(null), 4000);
   };
 
-  tryAddByEanWithResultRef.current = async (raw: string): Promise<CameraScanResult> => {
+  tryAddByEanWithResultRef.current = (raw: string): CameraScanResult => {
     const ean = normalizeEan13String(raw);
     if (!ean) {
       showToast("error", "EAN invalide (13 chiffres).");
       return { ok: false };
     }
-    let p: Produit | null =
-      produits.find((x) => (x.code_barre ?? "") === ean) ?? null;
-    if (!p && scanMode === "info") {
-      const { data } = await supabase
-        .from("produits")
-        .select(
-          "id, nom, description, prix, stock, categorie, code_barre, taille, couleur"
-        )
-        .eq("code_barre", ean)
-        .maybeSingle();
-      p = (data as Produit | null) ?? null;
-    }
+    const p = produits.find((x) => (x.code_barre ?? "") === ean);
     if (!p) {
       showToast("error", "❌ Produit introuvable");
       return { ok: false };
@@ -605,34 +584,6 @@ export default function VendeusePage() {
       showToast("error", "Cet article n'est pas ajoutable au panier");
       return { ok: false };
     }
-
-    if (scanMode === "info") {
-      const nomCle = (p.nom.trim() || p.id).trim();
-      const { data: rows } = await supabase
-        .from("produits")
-        .select(
-          "id, nom, description, prix, stock, categorie, code_barre, taille, couleur"
-        )
-        .eq("nom", nomCle);
-      let variantesCatalogue = ((rows as Produit[]) ?? []).filter(
-        (pr) => pr.id !== MYSTERY_VAULT_PRODUCT_ID
-      );
-      if (variantesCatalogue.length === 0) variantesCatalogue = [p];
-      const gl = groupProduitsByModele(variantesCatalogue);
-      const groupe = gl[0] ?? null;
-      if (!groupe) {
-        showToast("error", "Impossible de charger les variantes.");
-        setScanMode("vente");
-        return { ok: false };
-      }
-      setVariantesInfoTiroir(groupe.variantes);
-      setModeleTiroir(groupe);
-      setSearchQuery("");
-      setScanMode("vente");
-      showToast("success", `ℹ️ Stocks affichés pour ${p.nom}`);
-      return { ok: true, productLabel: p.nom };
-    }
-
     if (p.stock < 1) {
       showToast("error", "Rupture de stock sur cette variante.");
       return { ok: false };
@@ -648,8 +599,8 @@ export default function VendeusePage() {
     void tryAddByEanWithResultRef.current(raw);
   };
 
-  const handleCameraEan = useCallback<CameraScanHandler>(
-    (ean: string) => tryAddByEanWithResultRef.current(ean),
+  const handleCameraEan = useCallback(
+    (ean: string): CameraScanResult => tryAddByEanWithResultRef.current(ean),
     []
   );
 
@@ -1075,8 +1026,8 @@ export default function VendeusePage() {
                 </div>
               </div>
 
-              <div className="mb-2 flex min-w-0 shrink-0 flex-row flex-wrap items-stretch gap-2 md:mb-5 md:gap-3">
-                <div className="flex min-h-[48px] min-w-0 flex-1 shrink-0 basis-[min(100%,12rem)] items-center gap-2 rounded-xl border border-gray-100/90 bg-white px-3 py-2 shadow-sm md:min-h-[52px] md:min-w-[12rem] md:gap-3 md:border-0 md:px-4 md:py-3 md:ring-1 md:ring-gray-100/80">
+              <div className="mb-2 flex shrink-0 flex-row items-stretch gap-2 md:mb-5 md:gap-3">
+                <div className="flex min-h-[48px] min-w-0 flex-1 shrink-0 items-center gap-2 rounded-xl border border-gray-100/90 bg-white px-3 py-2 shadow-sm md:min-h-[52px] md:gap-3 md:border-0 md:px-4 md:py-3 md:ring-1 md:ring-gray-100/80">
                   <Search className="h-4 w-4 shrink-0 text-gray-400 md:h-5 md:w-5" />
                   <input
                     ref={eanInputRef}
@@ -1102,34 +1053,6 @@ export default function VendeusePage() {
                     className="min-w-0 flex-1 select-text bg-transparent text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none md:text-base"
                     aria-label="Scanner un code-barres EAN-13 ou rechercher un produit"
                   />
-                </div>
-                <div
-                  className="flex shrink-0 items-center gap-0.5 rounded-xl bg-gray-100 p-1"
-                  role="group"
-                  aria-label="Mode de scan"
-                >
-                  <button
-                    type="button"
-                    onClick={() => setScanMode("vente")}
-                    className={`min-h-[44px] flex-1 rounded-lg px-3 text-xs font-semibold transition md:min-h-[48px] md:px-4 md:text-sm [-webkit-tap-highlight-color:transparent] ${
-                      scanMode === "vente"
-                        ? "bg-white text-gray-900 shadow-sm"
-                        : "text-gray-500"
-                    }`}
-                  >
-                    🛒 Vente
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setScanMode("info")}
-                    className={`min-h-[44px] flex-1 rounded-lg px-3 text-xs font-semibold transition md:min-h-[48px] md:px-4 md:text-sm [-webkit-tap-highlight-color:transparent] ${
-                      scanMode === "info"
-                        ? "bg-blue-600 text-white shadow-sm"
-                        : "text-gray-500"
-                    }`}
-                  >
-                    🔍 Info
-                  </button>
                 </div>
                 <button
                   type="button"
@@ -1223,10 +1146,7 @@ export default function VendeusePage() {
                         exit={{ opacity: 0, scale: 0.96 }}
                         transition={{ duration: 0.2, ease: "easeOut" }}
                         type="button"
-                        onClick={() => {
-                          setVariantesInfoTiroir(null);
-                          setModeleTiroir(groupe);
-                        }}
+                        onClick={() => setModeleTiroir(groupe)}
                         className="group flex min-h-0 flex-col items-stretch rounded-lg border border-gray-200/90 bg-white p-2.5 text-left shadow-sm transition duration-200 ease-out [-webkit-tap-highlight-color:transparent] active:scale-[0.98] md:min-h-[200px] md:rounded-2xl md:p-6 md:shadow-sm lg:rounded-3xl lg:p-7"
                       >
                         <div className="mb-1.5 flex min-h-[3.75rem] flex-1 items-center justify-center rounded-md bg-gradient-to-b from-gray-50 to-white text-gray-300 ring-1 ring-inset ring-gray-100/90 md:mb-3 md:min-h-28 md:rounded-2xl">
@@ -1645,15 +1565,11 @@ export default function VendeusePage() {
       <VarianteSelectionSheet
         open={modeleTiroir !== null}
         onOpenChange={(o) => {
-          if (!o) {
-            setModeleTiroir(null);
-            setVariantesInfoTiroir(null);
-          }
+          if (!o) setModeleTiroir(null);
         }}
         modeleNom={modeleTiroir?.nom ?? ""}
         variantes={variantesPourTiroir}
         formatPrix={formatPrix}
-        modeConsultationStock={variantesInfoTiroir !== null}
         onChoisirVariante={(p) => {
           addToPanier(p);
           const sub = formatVariantSubtitle(p);
