@@ -73,6 +73,45 @@ function formatPrix(prix: number): string {
   }).format(prix);
 }
 
+/** Saisie caisse FR (virgule ou point). */
+function parseMontantFrancais(raw: string): number {
+  const s = raw.trim().replace(/\s/g, "").replace(",", ".");
+  if (s === "") return 0;
+  const n = Number.parseFloat(s);
+  return Number.isFinite(n) ? Math.round(n * 100) / 100 : 0;
+}
+
+/** Montant exact, dizaine supérieure, billet/coupure euro minimale ≥ total ; 3 valeurs distinctes. */
+function quickCashMontantsEuros(totalTicket: number): number[] {
+  const t = Math.round(Math.max(0, totalTicket) * 100) / 100;
+  const dizaine = Math.ceil(t / 10) * 10;
+  const billets = [5, 10, 20, 50, 100, 200, 500] as const;
+  const billet = billets.find((b) => b + 1e-9 >= t) ?? billets[billets.length - 1];
+
+  const ordered = [t, dizaine, billet];
+  const out: number[] = [];
+  const seen = new Set<number>();
+  for (const x of ordered) {
+    const r = Math.round(x * 100) / 100;
+    if (!seen.has(r)) {
+      seen.add(r);
+      out.push(r);
+    }
+  }
+  let pad = dizaine;
+  while (out.length < 3) {
+    pad = Math.ceil((pad + 0.01) / 10) * 10;
+    const r = Math.round(pad * 100) / 100;
+    if (seen.has(r)) {
+      pad += 10;
+      continue;
+    }
+    seen.add(r);
+    out.push(r);
+  }
+  return out.slice(0, 3);
+}
+
 function formatVariantSubtitle(p: Produit): string | null {
   const a = p.couleur?.trim() || null;
   const b = p.taille?.trim() || null;
@@ -205,6 +244,7 @@ export default function VendeusePage() {
   const [remiseValue, setRemiseValue] = useState<number>(0);
   const [methodePaiement, setMethodePaiement] =
     useState<MethodePaiement>("carte");
+  const [montantDonne, setMontantDonne] = useState("");
   const [clientPhone, setClientPhone] = useState("");
   const [clientNom, setClientNom] = useState("");
   const [resolvedClient, setResolvedClient] = useState<ResolvedClient | null>(null);
@@ -256,6 +296,10 @@ export default function VendeusePage() {
   useEffect(() => {
     fetchProduits();
   }, []);
+
+  useEffect(() => {
+    if (methodePaiement !== "especes") setMontantDonne("");
+  }, [methodePaiement]);
 
   const fetchVentesDuJour = async () => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -466,6 +510,7 @@ export default function VendeusePage() {
     setRemiseValue(0);
     setRemiseType("percent");
     setMethodePaiement("carte");
+    setMontantDonne("");
     setClientPhone("");
     setClientNom("");
     setResolvedClient(null);
@@ -486,6 +531,21 @@ export default function VendeusePage() {
   }, [remiseType, remiseValue, sousTotal]);
 
   const total = Math.max(0, Math.round((sousTotal - remiseAmount) * 100) / 100);
+
+  const montantDonneNum = useMemo(
+    () => parseMontantFrancais(montantDonne),
+    [montantDonne]
+  );
+
+  const monnaieARendre = useMemo(
+    () => Math.max(0, Math.round((montantDonneNum - total) * 100) / 100),
+    [montantDonneNum, total]
+  );
+
+  const quickCashMontants = useMemo(() => quickCashMontantsEuros(total), [total]);
+
+  const especesInsuffisantPourEncaisser =
+    methodePaiement === "especes" && montantDonneNum + 1e-9 < total;
 
   const showToast = (type: "success" | "error", message: string) => {
     setToast({ type, message });
@@ -614,6 +674,9 @@ export default function VendeusePage() {
 
   const handleEncaisser = async () => {
     if (panier.length === 0 || encaissementLoading) return;
+    if (methodePaiement === "especes" && parseMontantFrancais(montantDonne) + 1e-9 < total) {
+      return;
+    }
     setEncaissementLoading(true);
     setToast(null);
 
@@ -721,6 +784,7 @@ export default function VendeusePage() {
       setRemiseValue(0);
       setRemiseType("percent");
       setMethodePaiement("carte");
+      setMontantDonne("");
       setClientPhone("");
       setClientNom("");
       setResolvedClient(null);
@@ -1261,6 +1325,57 @@ export default function VendeusePage() {
                     onChange={setMethodePaiement}
                     className="mt-6 [&_button]:min-h-[48px] [&_button]:min-w-[48px] [&_button]:[-webkit-tap-highlight-color:transparent]"
                   />
+                  {methodePaiement === "especes" && (
+                    <div
+                      data-skip-ean-capture
+                      className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4"
+                    >
+                      <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-600">
+                        Rendu de monnaie
+                      </p>
+                      <div className="mb-3 flex flex-wrap gap-2">
+                        {quickCashMontants.map((m) => (
+                          <button
+                            key={m}
+                            type="button"
+                            onClick={() => setMontantDonne(m.toFixed(2))}
+                            className="min-h-[48px] min-w-[48px] flex-1 rounded-xl bg-white px-3 py-2.5 text-center text-sm font-bold text-slate-800 shadow-sm ring-1 ring-slate-200 transition active:scale-[0.98] sm:flex-none sm:px-4 [-webkit-tap-highlight-color:transparent]"
+                          >
+                            {formatPrix(m)}
+                          </button>
+                        ))}
+                      </div>
+                      <label className="block">
+                        <span className="sr-only">Autre montant donné</span>
+                        <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm ring-1 ring-slate-100">
+                          <input
+                            type="number"
+                            inputMode="decimal"
+                            min={0}
+                            step={0.01}
+                            value={montantDonne}
+                            onChange={(e) => setMontantDonne(e.target.value)}
+                            placeholder="Autre montant donné…"
+                            className="min-w-0 flex-1 select-text bg-transparent text-base font-semibold text-slate-900 placeholder:font-normal placeholder:text-slate-400 focus:outline-none"
+                          />
+                          <span className="shrink-0 text-lg font-semibold text-slate-500">
+                            €
+                          </span>
+                        </div>
+                      </label>
+                      <div className="mt-3" aria-live="polite">
+                        {montantDonneNum + 1e-9 >= total ? (
+                          <p className="rounded-xl bg-emerald-50 p-3 text-center text-2xl font-black tracking-tight text-emerald-600">
+                            À rendre : {formatPrix(monnaieARendre)}
+                          </p>
+                        ) : (
+                          <p className="rounded-xl bg-amber-50 p-3 text-center text-sm font-semibold text-amber-800">
+                            Montant insuffisant
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  )}
                   {ventesDuJour.length > 0 && (
                     <div className="mt-6 border-t border-gray-100 pt-4">
                       <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-gray-500">
@@ -1309,7 +1424,10 @@ export default function VendeusePage() {
                 <button
                   type="button"
                   onClick={handleEncaisser}
-                  disabled={encaissementLoading}
+                  disabled={
+                    encaissementLoading ||
+                    especesInsuffisantPourEncaisser
+                  }
                   className="flex min-h-[52px] w-full items-center justify-center rounded-2xl bg-black py-4 text-lg font-bold text-white [-webkit-tap-highlight-color:transparent] active:scale-[0.98] disabled:opacity-50"
                 >
                   {encaissementLoading
