@@ -17,10 +17,14 @@ export type CameraScanResult =
   | { ok: true; productLabel: string }
   | { ok: false };
 
+export type CameraScanHandler = (
+  ean: string
+) => CameraScanResult | Promise<CameraScanResult>;
+
 type BarcodeCameraModalProps = {
   open: boolean;
   onClose: () => void;
-  onEan13: (ean: string) => CameraScanResult;
+  onEan13: CameraScanHandler;
 };
 
 type PermissionState = "unknown" | "granted" | "denied" | "unavailable";
@@ -163,37 +167,50 @@ export default function BarcodeCameraModal({
         setCooldownActive(true);
         setScanFlash("off");
 
-        const result = onEan13Ref.current(ean);
-        if (result.ok) {
-          playScanBeep();
-          setScanFlash("success");
-          window.setTimeout(() => {
-            setScanFlash((f) => (f === "success" ? "off" : f));
-          }, FLASH_MS);
-          if (giantClearRef.current) clearTimeout(giantClearRef.current);
-          setGiantPulse((p) => ({
-            key: (p?.key ?? 0) + 1,
-            text: result.productLabel,
-          }));
-          giantClearRef.current = window.setTimeout(() => {
-            setGiantPulse(null);
-            giantClearRef.current = null;
-          }, GIANT_CLEAR_MS);
-          setLastScannedItems((prev) =>
-            [{ at: now, label: result.productLabel }, ...prev].slice(0, MAX_HISTORY)
-          );
-        } else {
-          playScanErrorBeep();
-          setScanFlash("error");
-          window.setTimeout(() => {
-            setScanFlash((f) => (f === "error" ? "off" : f));
-          }, FLASH_MS);
-        }
+        void Promise.resolve(onEan13Ref.current(ean))
+          .then((result) => {
+            if (result.ok) {
+              playScanBeep();
+              setScanFlash("success");
+              window.setTimeout(() => {
+                setScanFlash((f) => (f === "success" ? "off" : f));
+              }, FLASH_MS);
+              if (giantClearRef.current) clearTimeout(giantClearRef.current);
+              setGiantPulse((p) => ({
+                key: (p?.key ?? 0) + 1,
+                text: result.productLabel,
+              }));
+              giantClearRef.current = window.setTimeout(() => {
+                setGiantPulse(null);
+                giantClearRef.current = null;
+              }, GIANT_CLEAR_MS);
+              setLastScannedItems((prev) =>
+                [{ at: now, label: result.productLabel }, ...prev].slice(0, MAX_HISTORY)
+              );
+            } else {
+              playScanErrorBeep();
+              setScanFlash("error");
+              window.setTimeout(() => {
+                setScanFlash((f) => (f === "error" ? "off" : f));
+              }, FLASH_MS);
+            }
 
-        window.setTimeout(() => {
-          cooldownUntilRef.current = 0;
-          setCooldownActive(false);
-        }, COOLDOWN_MS);
+            window.setTimeout(() => {
+              cooldownUntilRef.current = 0;
+              setCooldownActive(false);
+            }, COOLDOWN_MS);
+          })
+          .catch(() => {
+            playScanErrorBeep();
+            setScanFlash("error");
+            window.setTimeout(() => {
+              setScanFlash((f) => (f === "error" ? "off" : f));
+            }, FLASH_MS);
+            window.setTimeout(() => {
+              cooldownUntilRef.current = 0;
+              setCooldownActive(false);
+            }, COOLDOWN_MS);
+          });
       };
 
       const onError = () => {

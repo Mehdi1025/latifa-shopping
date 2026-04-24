@@ -17,6 +17,8 @@ type VarianteSelectionSheetProps = {
   variantes: Produit[];
   formatPrix: (n: number) => string;
   onChoisirVariante: (p: Produit) => void;
+  /** Affiche toutes les couleurs/tailles y compris rupture (scan « Info stock »). */
+  modeConsultationStock?: boolean;
 };
 
 export default function VarianteSelectionSheet({
@@ -26,6 +28,7 @@ export default function VarianteSelectionSheet({
   variantes,
   formatPrix,
   onChoisirVariante,
+  modeConsultationStock = false,
 }: VarianteSelectionSheetProps) {
   const [step, setStep] = useState<1 | 2>(1);
   const [colorSelected, setColorSelected] = useState<string | null>(null);
@@ -33,12 +36,12 @@ export default function VarianteSelectionSheet({
   const couleursDisponibles = useMemo(() => {
     const set = new Set<string>();
     for (const v of variantes) {
-      if (v.stock > 0) set.add(labelCouleurProduit(v));
+      if (modeConsultationStock || v.stock > 0) set.add(labelCouleurProduit(v));
     }
     return Array.from(set).sort((a, b) =>
       a.localeCompare(b, "fr", { sensitivity: "base" })
     );
-  }, [variantes]);
+  }, [variantes, modeConsultationStock]);
 
   const prixAffiche = useMemo(() => {
     if (variantes.length === 0) return { kind: "single" as const, value: 0 };
@@ -51,11 +54,11 @@ export default function VarianteSelectionSheet({
 
   const variantesPourTaille = useMemo(() => {
     if (colorSelected == null) return [];
-    return variantes.filter(
-      (v) =>
-        v.stock > 0 && labelCouleurProduit(v) === colorSelected
-    );
-  }, [variantes, colorSelected]);
+    return variantes.filter((v) => {
+      if (labelCouleurProduit(v) !== colorSelected) return false;
+      return modeConsultationStock || v.stock > 0;
+    });
+  }, [variantes, colorSelected, modeConsultationStock]);
 
   const tailleEntries = useMemo(() => {
     const map = new Map<string, Produit>();
@@ -80,7 +83,7 @@ export default function VarianteSelectionSheet({
     }
     const couleurs = new Set<string>();
     for (const v of variantes) {
-      if (v.stock > 0) couleurs.add(labelCouleurProduit(v));
+      if (modeConsultationStock || v.stock > 0) couleurs.add(labelCouleurProduit(v));
     }
     const arr = Array.from(couleurs).sort((a, b) =>
       a.localeCompare(b, "fr", { sensitivity: "base" })
@@ -92,7 +95,7 @@ export default function VarianteSelectionSheet({
       setStep(1);
       setColorSelected(null);
     }
-  }, [open, variantes, reset]);
+  }, [open, variantes, reset, modeConsultationStock]);
 
   useEffect(() => {
     if (!open) return;
@@ -148,6 +151,11 @@ export default function VarianteSelectionSheet({
                   className="text-lg font-bold tracking-tight text-gray-900 sm:text-xl"
                 >
                   {modeleNom}
+                  {modeConsultationStock && (
+                    <span className="ml-2 align-middle text-xs font-semibold normal-case text-blue-600">
+                      · Info stock
+                    </span>
+                  )}
                 </h2>
                 <p className="mt-0.5 text-sm text-gray-500">
                   {prixAffiche.kind === "range" ? (
@@ -236,23 +244,36 @@ export default function VarianteSelectionSheet({
                     <p className="text-sm text-gray-500">Rupture pour cette couleur.</p>
                   ) : (
                     <ul className="grid grid-cols-3 gap-2.5 sm:grid-cols-4">
-                      {tailleEntries.map(([taille, produit]) => (
-                        <li key={taille + produit.id}>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              onChoisirVariante(produit);
-                              onOpenChange(false);
-                            }}
-                            className="flex aspect-square w-full min-h-14 min-w-14 max-w-full flex-col items-center justify-center rounded-2xl border-2 border-gray-900 bg-gray-900 text-center text-base font-bold text-white transition hover:bg-gray-800 active:scale-[0.98]"
-                          >
-                            <span className="leading-tight">{taille}</span>
-                            <span className="mt-0.5 text-[10px] font-normal opacity-90">
-                              {produit.stock} st.
-                            </span>
-                          </button>
-                        </li>
-                      ))}
+                      {tailleEntries.map(([taille, produit]) => {
+                        const enRupture = produit.stock < 1;
+                        return (
+                          <li key={taille + produit.id}>
+                            <button
+                              type="button"
+                              disabled={modeConsultationStock && enRupture}
+                              onClick={() => {
+                                if (enRupture) return;
+                                onChoisirVariante(produit);
+                                onOpenChange(false);
+                              }}
+                              className={`flex aspect-square w-full min-h-14 min-w-14 max-w-full flex-col items-center justify-center rounded-2xl border-2 text-center text-base font-bold transition active:scale-[0.98] ${
+                                enRupture
+                                  ? "cursor-default border-gray-200 bg-gray-100 text-gray-500"
+                                  : "border-gray-900 bg-gray-900 text-white hover:bg-gray-800"
+                              }`}
+                            >
+                              <span className="leading-tight">{taille}</span>
+                              <span
+                                className={`mt-0.5 text-[10px] font-normal ${
+                                  enRupture ? "text-amber-700" : "opacity-90"
+                                }`}
+                              >
+                                {produit.stock} st.
+                              </span>
+                            </button>
+                          </li>
+                        );
+                      })}
                     </ul>
                   )}
                 </div>
