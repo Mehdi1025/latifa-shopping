@@ -1038,7 +1038,7 @@ export default function VendeusePage() {
                     onChange={(e) => setSearchQuery(e.target.value)}
                     onKeyDown={(e) => {
                       if (e.key !== "Enter") return;
-                      if (e.isComposing) return;
+                      if (e.nativeEvent.isComposing) return;
                       if (e.ctrlKey || e.altKey || e.metaKey) return;
                       const digits = e.currentTarget.value.replace(/\D/g, "");
                       if (digits.length === 13) {
