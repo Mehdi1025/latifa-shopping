@@ -1,8 +1,8 @@
 "use client";
 
-import { CreditCard, Banknote, Smartphone } from "lucide-react";
+import { CreditCard, Banknote, Smartphone, Split } from "lucide-react";
 
-export type MethodePaiement = "carte" | "especes" | "paypal";
+export type MethodePaiement = "carte" | "especes" | "mixte" | "paypal";
 
 const OPTIONS: {
   id: MethodePaiement;
@@ -39,6 +39,17 @@ const OPTIONS: {
     iconClass: "text-emerald-600",
   },
   {
+    id: "mixte",
+    label: "Mixte",
+    shortLabel: "Mixte",
+    icon: Split,
+    selectedRing: "ring-2 ring-violet-500 ring-offset-2 ring-offset-white",
+    selectedBg: "bg-gradient-to-br from-violet-50 to-indigo-50/90",
+    idleBorder: "border border-violet-100/80",
+    idleBg: "bg-white hover:bg-violet-50/50",
+    iconClass: "text-violet-600",
+  },
+  {
     id: "paypal",
     label: "PayPal",
     shortLabel: "PayPal",
@@ -64,7 +75,7 @@ export function MoyenPaiementSelector({ value, onChange, className = "" }: Selec
       <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-gray-500">
         Moyen de paiement
       </p>
-      <div className="grid grid-cols-3 gap-2 md:gap-3">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 md:gap-3">
         {OPTIONS.map((opt) => {
           const selected = value === opt.id;
           const Icon = opt.icon;
@@ -95,6 +106,7 @@ export function MoyenPaiementSelector({ value, onChange, className = "" }: Selec
 const BADGE_CLASS: Record<MethodePaiement, string> = {
   carte: "bg-blue-100 text-blue-800 ring-blue-200/60",
   especes: "bg-emerald-100 text-emerald-800 ring-emerald-200/60",
+  mixte: "bg-violet-100 text-violet-900 ring-violet-200/60",
   paypal: "bg-sky-100 text-[#003087] ring-sky-300/50",
 };
 
@@ -106,7 +118,7 @@ type BadgeProps = {
 /** Badge compact pour listes admin (icône + libellé court). */
 export function MethodePaiementBadge({ methode, className = "" }: BadgeProps) {
   const m = methode as MethodePaiement | undefined;
-  if (m !== "carte" && m !== "especes" && m !== "paypal") return null;
+  if (m !== "carte" && m !== "especes" && m !== "mixte" && m !== "paypal") return null;
   const opt = OPTIONS.find((o) => o.id === m)!;
   const Icon = opt.icon;
   return (

@@ -63,6 +63,7 @@ const FRAIS_CB_RATE = 0.015;
 const PAYMENT_DONUT = {
   carte: { label: "Carte", fill: "#2563eb" },
   especes: { label: "Espèces", fill: "#059669" },
+  mixte: { label: "Mixte", fill: "#7c3aed" },
   paypal: { label: "PayPal", fill: "#4c1d95" },
   autre: { label: "Autre", fill: "#a3a3a3" },
 } as const;
@@ -296,7 +297,7 @@ export default function KPIPage() {
     { id: string; nom: string; total: number; count: number }[]
   >([]);
   const [ventesJourRows, setVentesJourRows] = useState<
-    { total: number; methode_paiement?: string | null }[]
+    { total: number; methode_paiement?: string | null; montant_especes?: number | null }[]
   >([]);
 
   const [caJour, setCaJour] = useState(0);
@@ -358,7 +359,7 @@ export default function KPIPage() {
           supabase.from("produits").select("id, nom"),
           supabase
             .from("ventes")
-            .select("total, methode_paiement")
+            .select("total, methode_paiement, montant_especes")
             .gte("created_at", rToday.start)
             .lte("created_at", rToday.end),
           supabase
@@ -386,6 +387,7 @@ export default function KPIPage() {
         const vt = (ventesTodayRes.data ?? []) as {
           total: number;
           methode_paiement?: string | null;
+          montant_especes?: number | null;
         }[];
         setVentesJourRows(vt);
         const vy = (ventesYestRes.data ?? []) as { total: number }[];
@@ -463,9 +465,14 @@ export default function KPIPage() {
   /** Liquide attendu en caisse (espèces du jour uniquement). */
   const tiroirCaisseJour = useMemo(
     () =>
-      ventesJourRows
-        .filter((v) => v.methode_paiement === "especes")
-        .reduce((s, v) => s + (v.total ?? 0), 0),
+      ventesJourRows.reduce((s, v) => {
+        if (v.methode_paiement === "especes") return s + (v.total ?? 0);
+        if (v.methode_paiement === "mixte") {
+          const esp = v.montant_especes;
+          return s + (typeof esp === "number" && !Number.isNaN(esp) ? esp : 0);
+        }
+        return s;
+      }, 0),
     [ventesJourRows]
   );
 
@@ -480,6 +487,7 @@ export default function KPIPage() {
     const sums = {
       carte: 0,
       especes: 0,
+      mixte: 0,
       paypal: 0,
       autre: 0,
     };
@@ -488,6 +496,7 @@ export default function KPIPage() {
       const m = v.methode_paiement;
       if (m === "carte") sums.carte += t;
       else if (m === "especes") sums.especes += t;
+      else if (m === "mixte") sums.mixte += t;
       else if (m === "paypal") sums.paypal += t;
       else sums.autre += t;
     });
@@ -498,7 +507,7 @@ export default function KPIPage() {
       fill: PAYMENT_DONUT[key].fill,
       pct: ca > 0 ? (sums[key] / ca) * 100 : 0,
     });
-    return (["carte", "especes", "paypal", "autre"] as const)
+    return (["carte", "especes", "mixte", "paypal", "autre"] as const)
       .map((k) => row(k))
       .filter((d) => d.value > 0);
   }, [ventesMois, caMois]);

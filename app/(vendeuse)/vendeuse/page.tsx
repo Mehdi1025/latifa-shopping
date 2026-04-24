@@ -245,6 +245,7 @@ export default function VendeusePage() {
   const [methodePaiement, setMethodePaiement] =
     useState<MethodePaiement>("carte");
   const [montantDonne, setMontantDonne] = useState("");
+  const [montantEspecesMixte, setMontantEspecesMixte] = useState("");
   const [clientPhone, setClientPhone] = useState("");
   const [clientNom, setClientNom] = useState("");
   const [resolvedClient, setResolvedClient] = useState<ResolvedClient | null>(null);
@@ -299,6 +300,7 @@ export default function VendeusePage() {
 
   useEffect(() => {
     if (methodePaiement !== "especes") setMontantDonne("");
+    if (methodePaiement !== "mixte") setMontantEspecesMixte("");
   }, [methodePaiement]);
 
   const fetchVentesDuJour = async () => {
@@ -511,6 +513,7 @@ export default function VendeusePage() {
     setRemiseType("percent");
     setMethodePaiement("carte");
     setMontantDonne("");
+    setMontantEspecesMixte("");
     setClientPhone("");
     setClientNom("");
     setResolvedClient(null);
@@ -546,6 +549,20 @@ export default function VendeusePage() {
 
   const especesInsuffisantPourEncaisser =
     methodePaiement === "especes" && montantDonneNum + 1e-9 < total;
+
+  const montantEspecesMixteNum = useMemo(
+    () => parseMontantFrancais(montantEspecesMixte),
+    [montantEspecesMixte]
+  );
+
+  const resteACarte = useMemo(
+    () => Math.max(0, Math.round((total - montantEspecesMixteNum) * 100) / 100),
+    [total, montantEspecesMixteNum]
+  );
+
+  const mixteEncaissementInvalide =
+    methodePaiement === "mixte" &&
+    (montantEspecesMixteNum <= 0 || montantEspecesMixteNum + 1e-9 >= total);
 
   const showToast = (type: "success" | "error", message: string) => {
     setToast({ type, message });
@@ -595,41 +612,93 @@ export default function VendeusePage() {
   }, []);
 
   useEffect(() => {
+    /** Entre deux chiffres douchette : court délai ; au-delà on considère une frappe humaine. */
+    const BUFFER_FLUSH_MS = 50;
     let buf = "";
-    let debounce: ReturnType<typeof setTimeout> | null = null;
+    let flushTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const clearFlushTimer = () => {
+      if (flushTimer) {
+        clearTimeout(flushTimer);
+        flushTimer = null;
+      }
+    };
+
+    const scheduleBufferFlush = () => {
+      clearFlushTimer();
+      flushTimer = setTimeout(() => {
+        buf = "";
+        flushTimer = null;
+      }, BUFFER_FLUSH_MS);
+    };
+
+    const wedgeDigitFromEvent = (e: KeyboardEvent): string | null => {
+      if (e.key.length === 1 && e.key >= "0" && e.key <= "9") return e.key;
+      const c = e.code;
+      if (/^Digit[0-9]$/.test(c)) return c.slice(-1);
+      if (/^Numpad[0-9]$/.test(c)) return c.slice(-1);
+      return null;
+    };
+
+    const isTypingInField = (el: EventTarget | null): boolean => {
+      if (!el || !(el instanceof HTMLElement)) return false;
+      if (el.isContentEditable) return true;
+      const t = el.tagName;
+      return t === "INPUT" || t === "TEXTAREA" || t === "SELECT";
+    };
+
     const onKey = (e: KeyboardEvent) => {
       if (remiseModalOpen || scannerOpen) return;
+      if (e.isComposing) return;
+
       const fromSkip = (e.target as HTMLElement | null)?.closest?.(
         "[data-skip-ean-capture]"
       );
       if (fromSkip) return;
-      const ae = document.activeElement;
-      if (ae === eanInputRef.current) return;
-      if (ae && (ae instanceof HTMLInputElement || ae instanceof HTMLTextAreaElement)) {
+
+      if (e.ctrlKey || e.altKey || e.metaKey) {
+        buf = "";
+        clearFlushTimer();
         return;
       }
+
+      const ae = document.activeElement;
+
+      /* Barre recherche / EAN : la douchette remplit le champ ; Enter → onKeyDown du input uniquement (pas de double ajout). */
+      if (ae === eanInputRef.current) return;
+
+      if (isTypingInField(ae)) return;
+
       if (e.key === "Enter") {
         if (buf.length === 13 && /^\d{13}$/.test(buf)) {
           e.preventDefault();
           tryAddByEanRef.current(buf);
+        } else if (buf.length > 0) {
+          /* Fin de séquence type scanner sans 13 chiffres : ne pas déclencher l’action par défaut (bouton, etc.). */
+          e.preventDefault();
         }
         buf = "";
+        clearFlushTimer();
         return;
       }
-      if (e.key.length === 1 && e.key >= "0" && e.key <= "9") {
-        if (debounce) clearTimeout(debounce);
-        buf = (buf + e.key).slice(-20);
-        debounce = setTimeout(() => {
-          buf = "";
-        }, 100);
+
+      const digit = wedgeDigitFromEvent(e);
+      if (digit !== null) {
+        if (e.repeat) return;
+        clearFlushTimer();
+        buf = (buf + digit).slice(-20);
+        scheduleBufferFlush();
         return;
       }
-      if (!e.ctrlKey && !e.metaKey) buf = "";
+
+      buf = "";
+      clearFlushTimer();
     };
+
     window.addEventListener("keydown", onKey, true);
     return () => {
       window.removeEventListener("keydown", onKey, true);
-      if (debounce) clearTimeout(debounce);
+      clearFlushTimer();
     };
   }, [remiseModalOpen, scannerOpen]);
 
@@ -677,6 +746,10 @@ export default function VendeusePage() {
     if (methodePaiement === "especes" && parseMontantFrancais(montantDonne) + 1e-9 < total) {
       return;
     }
+    if (methodePaiement === "mixte") {
+      const esp = parseMontantFrancais(montantEspecesMixte);
+      if (esp <= 0 || esp + 1e-9 >= total) return;
+    }
     setEncaissementLoading(true);
     setToast(null);
 
@@ -722,15 +795,23 @@ export default function VendeusePage() {
         }
       }
 
+      const venteInsert: Record<string, unknown> = {
+        vendeur_id: user.id,
+        total,
+        remise: remiseAmount,
+        methode_paiement: methodePaiement,
+        ...(clientId ? { client_id: clientId } : {}),
+      };
+      if (methodePaiement === "mixte") {
+        const esp = Math.round(montantEspecesMixteNum * 100) / 100;
+        const cb = Math.max(0, Math.round((total - esp) * 100) / 100);
+        venteInsert.montant_especes = esp;
+        venteInsert.montant_carte = cb;
+      }
+
       const { data: vente, error: venteError } = await supabase
         .from("ventes")
-        .insert({
-          vendeur_id: user.id,
-          total,
-          remise: remiseAmount,
-          methode_paiement: methodePaiement,
-          ...(clientId ? { client_id: clientId } : {}),
-        })
+        .insert(venteInsert)
         .select("id")
         .single();
 
@@ -785,6 +866,7 @@ export default function VendeusePage() {
       setRemiseType("percent");
       setMethodePaiement("carte");
       setMontantDonne("");
+      setMontantEspecesMixte("");
       setClientPhone("");
       setClientNom("");
       setResolvedClient(null);
@@ -956,6 +1038,8 @@ export default function VendeusePage() {
                     onChange={(e) => setSearchQuery(e.target.value)}
                     onKeyDown={(e) => {
                       if (e.key !== "Enter") return;
+                      if (e.isComposing) return;
+                      if (e.ctrlKey || e.altKey || e.metaKey) return;
                       const digits = e.currentTarget.value.replace(/\D/g, "");
                       if (digits.length === 13) {
                         e.preventDefault();
@@ -1325,6 +1409,42 @@ export default function VendeusePage() {
                     onChange={setMethodePaiement}
                     className="mt-6 [&_button]:min-h-[48px] [&_button]:min-w-[48px] [&_button]:[-webkit-tap-highlight-color:transparent]"
                   />
+                  {methodePaiement === "mixte" && (
+                    <div
+                      data-skip-ean-capture
+                      className="mt-4 rounded-2xl border border-violet-200/80 bg-violet-50/40 p-4"
+                    >
+                      <label className="block">
+                        <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-violet-900/80">
+                          Montant donné en ESPÈCES
+                        </span>
+                        <div className="flex items-center gap-2 rounded-xl border border-violet-200 bg-white px-3 py-3 shadow-sm ring-1 ring-violet-100">
+                          <input
+                            type="number"
+                            inputMode="decimal"
+                            min={0}
+                            step={0.01}
+                            value={montantEspecesMixte}
+                            onChange={(e) => setMontantEspecesMixte(e.target.value)}
+                            placeholder="0,00"
+                            className="min-w-0 flex-1 select-text bg-transparent text-lg font-bold text-gray-900 placeholder:font-normal placeholder:text-gray-400 focus:outline-none"
+                          />
+                          <span className="shrink-0 text-lg font-semibold text-violet-600">
+                            €
+                          </span>
+                        </div>
+                      </label>
+                      <p className="mt-4 rounded-xl bg-blue-50 p-4 text-center text-lg font-black tracking-tight text-blue-700 ring-1 ring-blue-100">
+                        Reste à régler par CARTE : {formatPrix(resteACarte)}
+                      </p>
+                      {mixteEncaissementInvalide && (
+                        <p className="mt-2 text-center text-xs font-medium text-amber-800">
+                          Saisissez une part en espèces strictement entre 0 et le total (sinon
+                          choisissez Espèces ou Carte).
+                        </p>
+                      )}
+                    </div>
+                  )}
                   {methodePaiement === "especes" && (
                     <div
                       data-skip-ean-capture
@@ -1426,7 +1546,8 @@ export default function VendeusePage() {
                   onClick={handleEncaisser}
                   disabled={
                     encaissementLoading ||
-                    especesInsuffisantPourEncaisser
+                    especesInsuffisantPourEncaisser ||
+                    mixteEncaissementInvalide
                   }
                   className="flex min-h-[52px] w-full items-center justify-center rounded-2xl bg-black py-4 text-lg font-bold text-white [-webkit-tap-highlight-color:transparent] active:scale-[0.98] disabled:opacity-50"
                 >
