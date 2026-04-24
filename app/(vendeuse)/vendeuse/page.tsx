@@ -946,7 +946,7 @@ export default function VendeusePage() {
                   </p>
                 </div>
                 <Link
-                  href="/stock"
+                  href="/vendeuse/stock"
                   className="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-800 shadow-sm transition hover:bg-gray-50 active:scale-[0.98] md:px-4 md:text-sm"
                 >
                   <Boxes className="h-4 w-4" aria-hidden />
