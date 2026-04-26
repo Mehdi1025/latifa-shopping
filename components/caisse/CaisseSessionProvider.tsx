@@ -14,33 +14,37 @@ import { createSupabaseBrowserClient } from "@/utils/supabase/client";
 import { sommeEspecesVentes } from "@/lib/caisse/montant-especes-vente";
 import ComptageCaisseModal from "./ComptageCaisseModal";
 
+const FOND_PREMIER_JOUR_EUR = 100;
+
+const SESSION_SELECT =
+  "id, heure_ouverture, heure_fermeture, fond_initial, ventes_especes, total_declare, ecart, statut, details_comptage" as const;
+
 export type SessionCaisse = {
   id: string;
   heure_ouverture: string;
   heure_fermeture: string | null;
-  fond_de_caisse: number;
-  total_ventes_especes: number;
-  total_declare_especes: number | null;
+  fond_initial: number;
+  ventes_especes: number;
+  total_declare: number | null;
   ecart: number | null;
   statut: "ouverte" | "fermee";
+  details_comptage: Record<string, unknown> | null;
 };
 
 type Ctx = {
   session: SessionCaisse | null;
   loading: boolean;
-  /** Caisse ouverte : vrai si une session `ouverte` existe */
   isCaisseOuverte: boolean;
-  /** Fond (saisie) pour l&apos;ouverture */
-  fondSaisi: string;
-  setFondSaisi: (v: string) => void;
+  /** Fond qui sera utilisé à l’ouverture (comptage veille ou 100 €) */
+  fondHeredite: number;
+  /** Faux si 100 € par défaut (aucun comptage veille fiable) */
+  aHerediteDernierComptage: boolean;
   openCaisse: () => Promise<void>;
   opening: boolean;
   openClotureModal: () => void;
   clotureModalOpen: boolean;
   setClotureModalOpen: (v: boolean) => void;
-  /** Afficher l’écran de verrou sur la page caisse (nouvelle vente) */
   isPosLocked: boolean;
-  /** Chargement de la session sur la page nouvelle vente (évite d’afficher le catalogue) */
   isPosCaisseLoading: boolean;
   openingError: string | null;
 };
@@ -60,19 +64,14 @@ function formatEcartEur(n: number): string {
   }).format(n);
 }
 
-function parseFondDeCaisse(raw: string): number {
-  const s = raw.trim().replace(/\s/g, "").replace(",", ".");
-  if (s === "") return NaN;
-  const n = Number.parseFloat(s);
-  return Number.isFinite(n) ? Math.round(n * 100) / 100 : NaN;
-}
-
 export function CaisseSessionProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const [session, setSession] = useState<SessionCaisse | null>(null);
+  const [fondHeredite, setFondHeredite] = useState(FOND_PREMIER_JOUR_EUR);
+  const [aHerediteDernierComptage, setAHerediteDernierComptage] =
+    useState(false);
   const [loading, setLoading] = useState(true);
-  const [fondSaisi, setFondSaisi] = useState("");
   const [openingError, setOpeningError] = useState<string | null>(null);
   const [clotureModalOpen, setClotureModalOpen] = useState(false);
   const [clotureLoading, setClotureLoading] = useState(false);
@@ -80,44 +79,76 @@ export function CaisseSessionProvider({ children }: { children: React.ReactNode 
 
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
 
-  const loadSession = useCallback(async () => {
-    setLoading(true);
-    try {
-      const { data, error } = await supabase
-        .from("sessions_caisse")
-        .select(
-          "id, heure_ouverture, heure_fermeture, fond_de_caisse, total_ventes_especes, total_declare_especes, ecart, statut"
-        )
-        .eq("statut", "ouverte")
-        .order("heure_ouverture", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+  const loadCaisseState = useCallback(
+    async (opts?: { showLoader?: boolean }) => {
+      const showLoader = opts?.showLoader !== false;
+      if (showLoader) setLoading(true);
+      try {
+        const { data: open, error: e1 } = await supabase
+          .from("sessions_caisse")
+          .select(SESSION_SELECT)
+          .eq("statut", "ouverte")
+          .order("heure_ouverture", { ascending: false })
+          .limit(1)
+          .maybeSingle();
 
-      if (error) {
-        console.error(error);
+        if (e1) {
+          console.error(e1);
+          setSession(null);
+          setFondHeredite(FOND_PREMIER_JOUR_EUR);
+          setAHerediteDernierComptage(false);
+          return;
+        }
+
+        if (open) {
+          setSession(open as SessionCaisse);
+          return;
+        }
+
         setSession(null);
-        return;
+        const { data: last, error: e2 } = await supabase
+          .from("sessions_caisse")
+          .select("total_declare, heure_fermeture")
+          .eq("statut", "fermee")
+          .order("heure_fermeture", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (e2) {
+          console.error(e2);
+          setFondHeredite(FOND_PREMIER_JOUR_EUR);
+          setAHerediteDernierComptage(false);
+          return;
+        }
+
+        const t = (last as { total_declare: number | null } | null)?.total_declare;
+        if (t != null && Number.isFinite(Number(t))) {
+          setFondHeredite(Math.round(Number(t) * 100) / 100);
+          setAHerediteDernierComptage(true);
+        } else {
+          setFondHeredite(FOND_PREMIER_JOUR_EUR);
+          setAHerediteDernierComptage(false);
+        }
+      } finally {
+        if (showLoader) setLoading(false);
       }
-      setSession((data as SessionCaisse) ?? null);
-    } finally {
-      setLoading(false);
-    }
-  }, [supabase]);
+    },
+    [supabase]
+  );
 
   useEffect(() => {
-    void loadSession();
-  }, [loadSession]);
+    void loadCaisseState();
+  }, [loadCaisseState]);
 
   const isCaisseOuverte = session?.statut === "ouverte";
-  const isPosCaisseLoading =
-    isVendeuseCaissePath(pathname) && loading;
+  const isPosCaisseLoading = isVendeuseCaissePath(pathname) && loading;
   const isPosLocked =
     isVendeuseCaissePath(pathname) && !loading && !isCaisseOuverte;
 
   const openCaisse = useCallback(async () => {
-    const f = parseFondDeCaisse(fondSaisi);
-    if (f < 0 || Number.isNaN(f)) {
-      setOpeningError("Montant de fond invalide.");
+    const f = Math.round(fondHeredite * 100) / 100;
+    if (f < 0 || !Number.isFinite(f)) {
+      setOpeningError("Fond initial invalide.");
       return;
     }
     setOpening(true);
@@ -128,12 +159,10 @@ export function CaisseSessionProvider({ children }: { children: React.ReactNode 
         .from("sessions_caisse")
         .insert({
           heure_ouverture: heure,
-          fond_de_caisse: f,
+          fond_initial: f,
           statut: "ouverte",
         })
-        .select(
-          "id, heure_ouverture, heure_fermeture, fond_de_caisse, total_ventes_especes, total_declare_especes, ecart, statut"
-        )
+        .select(SESSION_SELECT)
         .single();
 
       if (error) {
@@ -143,7 +172,6 @@ export function CaisseSessionProvider({ children }: { children: React.ReactNode 
         return;
       }
       setSession(data as SessionCaisse);
-      setFondSaisi("");
       toast.success("Caisse ouverte.");
       router.refresh();
     } catch (e) {
@@ -153,7 +181,7 @@ export function CaisseSessionProvider({ children }: { children: React.ReactNode 
     } finally {
       setOpening(false);
     }
-  }, [fondSaisi, supabase, router]);
+  }, [fondHeredite, supabase, router]);
 
   const openClotureModal = useCallback(() => {
     if (!session) return;
@@ -161,7 +189,10 @@ export function CaisseSessionProvider({ children }: { children: React.ReactNode 
   }, [session]);
 
   const handleClotureSubmit = useCallback(
-    async (totalDeclare: number) => {
+    async (
+      totalDeclare: number,
+      detailsComptage: Record<string, number>
+    ) => {
       if (!session) return;
       setClotureLoading(true);
       try {
@@ -184,20 +215,21 @@ export function CaisseSessionProvider({ children }: { children: React.ReactNode 
         }>;
 
         const totalEspeces = sommeEspecesVentes(list);
-        const fond = Math.round(session.fond_de_caisse * 100) / 100;
+        const fond = Math.round(session.fond_initial * 100) / 100;
         const totalDeclareRounded = Math.round(totalDeclare * 100) / 100;
-        const montantTheorique = Math.round((fond + totalEspeces) * 100) / 100;
-        const ecart = Math.round((totalDeclareRounded - montantTheorique) * 100) / 100;
+        const montantAttendu = Math.round((fond + totalEspeces) * 100) / 100;
+        const ecart = Math.round((totalDeclareRounded - montantAttendu) * 100) / 100;
         const now = new Date().toISOString();
 
         const { data: updated, error: upErr } = await supabase
           .from("sessions_caisse")
           .update({
             heure_fermeture: now,
-            total_ventes_especes: totalEspeces,
-            total_declare_especes: totalDeclareRounded,
+            ventes_especes: totalEspeces,
+            total_declare: totalDeclareRounded,
             ecart,
             statut: "fermee",
+            details_comptage: detailsComptage,
           })
           .eq("id", session.id)
           .eq("statut", "ouverte")
@@ -217,9 +249,11 @@ export function CaisseSessionProvider({ children }: { children: React.ReactNode 
 
         setClotureModalOpen(false);
         setSession(null);
+        setFondHeredite(totalDeclareRounded);
         toast.success(
-          `Caisse fermée avec succès. Écart : ${formatEcartEur(ecart)}`
+          `Caisse clôturée. Écart : ${formatEcartEur(ecart)}`
         );
+        void loadCaisseState({ showLoader: false });
         if (isVendeuseCaissePath(pathname)) {
           router.push("/vendeuse");
         } else {
@@ -233,15 +267,15 @@ export function CaisseSessionProvider({ children }: { children: React.ReactNode 
         setClotureLoading(false);
       }
     },
-    [session, supabase, router, pathname]
+    [session, supabase, loadCaisseState, router, pathname]
   );
 
   const value: Ctx = {
     session,
     loading,
     isCaisseOuverte: !!isCaisseOuverte,
-    fondSaisi,
-    setFondSaisi,
+    fondHeredite,
+    aHerediteDernierComptage,
     openCaisse,
     opening,
     openClotureModal,
@@ -261,7 +295,7 @@ export function CaisseSessionProvider({ children }: { children: React.ReactNode 
           onOpenChange={setClotureModalOpen}
           onSubmit={handleClotureSubmit}
           loading={clotureLoading}
-          fond={session.fond_de_caisse}
+          fondInitial={session.fond_initial}
         />
       )}
     </CaisseSessionContext.Provider>

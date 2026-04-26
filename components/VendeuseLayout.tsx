@@ -48,8 +48,8 @@ function VendeuseLayoutShell({ children }: { children: React.ReactNode }) {
     isPosCaisseLoading,
     isPosLocked,
     isCaisseOuverte,
-    fondSaisi,
-    setFondSaisi,
+    fondHeredite,
+    aHerediteDernierComptage,
     openCaisse,
     opening,
     openingError,
@@ -234,8 +234,8 @@ function VendeuseLayoutShell({ children }: { children: React.ReactNode }) {
           </div>
         ) : isPosLocked ? (
           <CaisseLockScreen
-            fond={fondSaisi}
-            onFondChange={setFondSaisi}
+            fondHeredite={fondHeredite}
+            estPremierJour={!aHerediteDernierComptage}
             onOpen={() => void openCaisse()}
             loading={opening}
             error={openingError}
