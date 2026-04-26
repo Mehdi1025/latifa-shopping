@@ -3,9 +3,26 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ShoppingCart, History, Target, Menu, X, User, CheckSquare, BookOpen, Package, Boxes } from "lucide-react";
+import {
+  ShoppingCart,
+  History,
+  Target,
+  Menu,
+  X,
+  User,
+  CheckSquare,
+  BookOpen,
+  Package,
+  Boxes,
+} from "lucide-react";
 import LogoutButton from "./LogoutButton";
 import { Toaster } from "sonner";
+import {
+  CaisseSessionProvider,
+  useCaisseSession,
+} from "@/components/caisse/CaisseSessionProvider";
+import CaisseLockScreen from "@/components/caisse/CaisseLockScreen";
+import CaisseClotureButton from "@/components/caisse/CaisseClotureButton";
 
 const navItems = [
   { href: "/vendeuse", label: "Nouvelle Vente", icon: ShoppingCart },
@@ -24,13 +41,19 @@ function navLinkActive(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-export default function VendeuseLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+function VendeuseLayoutShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const {
+    isPosCaisseLoading,
+    isPosLocked,
+    isCaisseOuverte,
+    fondSaisi,
+    setFondSaisi,
+    openCaisse,
+    opening,
+    openingError,
+  } = useCaisseSession();
 
   return (
     <div className="flex min-h-screen bg-gray-50/50">
@@ -70,6 +93,11 @@ export default function VendeuseLayout({
             );
           })}
         </nav>
+        {isCaisseOuverte && (
+          <div className="border-b border-amber-100/60 px-2 pb-3 pt-0">
+            <CaisseClotureButton iconOnly />
+          </div>
+        )}
         <div className="border-t border-gray-100 p-3">
           <div className="flex justify-center">
             <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gray-200">
@@ -114,6 +142,11 @@ export default function VendeuseLayout({
             );
           })}
         </nav>
+        {isCaisseOuverte && (
+          <div className="space-y-2 border-b border-amber-100/60 px-3 pb-4 pt-0 xl:px-4">
+            <CaisseClotureButton />
+          </div>
+        )}
         <div className="border-t border-gray-100 p-3 xl:p-5">
           <div className="mb-3 hidden items-center gap-3 rounded-xl bg-gray-50/80 px-3 py-2.5 xl:flex xl:px-4">
             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gray-200">
@@ -139,21 +172,31 @@ export default function VendeuseLayout({
 
       {/* Mobile: Top Bar — safe-area + hauteur fixe pour caler le scroll (sticky) sous le header */}
       <header className="fixed left-0 right-0 top-0 z-50 border-b border-gray-100 bg-white pt-[env(safe-area-inset-top,0px)] shadow-[0_2px_10px_-3px_rgba(0,0,0,0.04)] md:hidden">
-        <div className="flex h-14 items-center justify-between px-4">
-          <span className="flex min-w-0 items-center gap-2.5">
+        <div className="flex h-14 items-center justify-between gap-2 px-4">
+          <span className="flex min-w-0 flex-1 items-center gap-2.5">
             <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-gray-900 text-xs font-bold text-white">
               L
             </div>
-            <span className="truncate text-sm font-semibold text-gray-900">Latifa POS</span>
+            <span className="truncate text-sm font-semibold text-gray-900">
+              Latifa POS
+            </span>
           </span>
-          <button
-            type="button"
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-gray-500 transition-all duration-300 hover:bg-gray-100 active:scale-95"
-            aria-label="Menu"
-          >
-            {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-          </button>
+          <div className="flex shrink-0 items-center gap-1">
+            {isCaisseOuverte && (
+              <CaisseClotureButton
+                iconOnly
+                className="inline-flex h-9 min-w-[2.5rem] items-center justify-center rounded-xl text-amber-900 transition hover:bg-amber-100"
+              />
+            )}
+            <button
+              type="button"
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-gray-500 transition-all duration-300 hover:bg-gray-100 active:scale-95"
+              aria-label="Menu"
+            >
+              {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+            </button>
+          </div>
         </div>
       </header>
 
@@ -181,7 +224,25 @@ export default function VendeuseLayout({
 
       {/* Main Content */}
       <main className="flex min-h-0 flex-1 flex-col pb-[calc(5.5rem+env(safe-area-inset-bottom,0px))] pt-[calc(3.5rem+env(safe-area-inset-top,0px))] max-md:h-[100dvh] max-md:max-h-[100dvh] md:ml-20 md:h-auto md:max-h-none md:pb-0 md:pt-0 lg:ml-20 xl:ml-56">
-        {children}
+        {isPosCaisseLoading ? (
+          <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 py-20">
+            <span
+              className="inline-block h-9 w-9 animate-spin rounded-full border-2 border-amber-200 border-t-amber-700"
+              aria-hidden
+            />
+            <p className="text-sm text-gray-500">Chargement de la caisse…</p>
+          </div>
+        ) : isPosLocked ? (
+          <CaisseLockScreen
+            fond={fondSaisi}
+            onFondChange={setFondSaisi}
+            onOpen={() => void openCaisse()}
+            loading={opening}
+            error={openingError}
+          />
+        ) : (
+          children
+        )}
       </main>
 
       {/* Bottom Nav Mobile uniquement (< md) */}
@@ -215,5 +276,17 @@ export default function VendeuseLayout({
         })}
       </nav>
     </div>
+  );
+}
+
+export default function VendeuseLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <CaisseSessionProvider>
+      <VendeuseLayoutShell>{children}</VendeuseLayoutShell>
+    </CaisseSessionProvider>
   );
 }
