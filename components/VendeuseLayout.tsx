@@ -93,12 +93,12 @@ function VendeuseLayoutShell({ children }: { children: React.ReactNode }) {
             );
           })}
         </nav>
-        {isCaisseOuverte && (
-          <div className="border-b border-amber-100/60 px-2 pb-3 pt-0">
-            <CaisseClotureButton iconOnly />
-          </div>
-        )}
         <div className="border-t border-gray-100 p-3">
+          {isCaisseOuverte && (
+            <div className="mb-3 flex justify-center">
+              <CaisseClotureButton iconOnly />
+            </div>
+          )}
           <div className="flex justify-center">
             <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gray-200">
               <User className="h-4 w-4 text-gray-600" />
@@ -142,12 +142,17 @@ function VendeuseLayoutShell({ children }: { children: React.ReactNode }) {
             );
           })}
         </nav>
-        {isCaisseOuverte && (
-          <div className="space-y-2 border-b border-amber-100/60 px-3 pb-4 pt-0 xl:px-4">
-            <CaisseClotureButton />
-          </div>
-        )}
         <div className="border-t border-gray-100 p-3 xl:p-5">
+          {isCaisseOuverte && (
+            <>
+              <div className="mb-3 hidden xl:block">
+                <CaisseClotureButton />
+              </div>
+              <div className="mb-3 flex justify-center xl:hidden">
+                <CaisseClotureButton iconOnly />
+              </div>
+            </>
+          )}
           <div className="mb-3 hidden items-center gap-3 rounded-xl bg-gray-50/80 px-3 py-2.5 xl:flex xl:px-4">
             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gray-200">
               <User className="h-4 w-4 text-gray-600" />
@@ -182,12 +187,6 @@ function VendeuseLayoutShell({ children }: { children: React.ReactNode }) {
             </span>
           </span>
           <div className="flex shrink-0 items-center gap-1">
-            {isCaisseOuverte && (
-              <CaisseClotureButton
-                iconOnly
-                className="inline-flex h-9 min-w-[2.5rem] items-center justify-center rounded-xl text-amber-900 transition hover:bg-amber-100"
-              />
-            )}
             <button
               type="button"
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
@@ -215,6 +214,11 @@ function VendeuseLayoutShell({ children }: { children: React.ReactNode }) {
               </div>
               <span className="text-sm font-medium text-gray-700">Vendeuse</span>
             </div>
+            {isCaisseOuverte && (
+              <div className="px-4 pb-3">
+                <CaisseClotureButton />
+              </div>
+            )}
             <div className="px-4">
               <LogoutButton variant="sidebar" />
             </div>

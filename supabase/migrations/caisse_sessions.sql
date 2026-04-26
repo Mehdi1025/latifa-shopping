@@ -1,4 +1,46 @@
 -- Sessions d'ouverture / fermeture de caisse — cycle (fond hérité → ventes → comptage → écart)
+-- En premier : aligner un ancien schéma (fond_de_caisse, …) sur v2, sinon les COMMENT / app échouent.
+
+DO $pre$
+BEGIN
+  IF to_regclass('public.sessions_caisse') IS NULL THEN
+    RETURN;
+  END IF;
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'sessions_caisse' AND column_name = 'fond_de_caisse'
+  ) AND NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'sessions_caisse' AND column_name = 'fond_initial'
+  ) THEN
+    ALTER TABLE public.sessions_caisse RENAME COLUMN fond_de_caisse TO fond_initial;
+  END IF;
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'sessions_caisse' AND column_name = 'total_ventes_especes'
+  ) AND NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'sessions_caisse' AND column_name = 'ventes_especes'
+  ) THEN
+    ALTER TABLE public.sessions_caisse RENAME COLUMN total_ventes_especes TO ventes_especes;
+  END IF;
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'sessions_caisse' AND column_name = 'total_declare_especes'
+  ) AND NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'sessions_caisse' AND column_name = 'total_declare'
+  ) THEN
+    ALTER TABLE public.sessions_caisse RENAME COLUMN total_declare_especes TO total_declare;
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'sessions_caisse' AND column_name = 'details_comptage'
+  ) THEN
+    ALTER TABLE public.sessions_caisse ADD COLUMN details_comptage jsonb;
+  END IF;
+END
+$pre$;
 
 CREATE TABLE IF NOT EXISTS public.sessions_caisse (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
