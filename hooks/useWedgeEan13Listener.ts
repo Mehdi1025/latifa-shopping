@@ -1,6 +1,17 @@
 import { type MutableRefObject, type RefObject, useEffect } from "react";
+import { toast } from "sonner";
 
-const BUFFER_FLUSH_MS = 50;
+const BUFFER_FLUSH_MS = 150;
+
+/**
+ * Retire tout sauf les chiffres ; accepte EAN-13 ou UPC-A (12 chiffres → préfixe 0).
+ */
+function normalizeWedgeEanBuffer(raw: string): string | null {
+  const digits = raw.replace(/\D/g, "");
+  if (digits.length === 13 && /^\d{13}$/.test(digits)) return digits;
+  if (digits.length === 12 && /^\d{12}$/.test(digits)) return `0${digits}`;
+  return null;
+}
 
 type Opts = {
   inputRef: RefObject<HTMLInputElement | null>;
@@ -53,6 +64,8 @@ export function useWedgeEan13Listener({
     };
 
     const onKey = (e: KeyboardEvent) => {
+      console.log("Touche reçue:", e.key, "Code:", e.code, "Buffer actuel:", buf);
+
       if (blocked) return;
       if (e.isComposing) return;
 
@@ -71,12 +84,19 @@ export function useWedgeEan13Listener({
       if (ae === inputRef.current) return;
       if (isTypingInField(ae)) return;
 
+      if (e.key === " " || e.code === "Space") {
+        e.preventDefault();
+        return;
+      }
+
       if (e.key === "Enter") {
-        if (buf.length === 13 && /^\d{13}$/.test(buf)) {
+        const ean = normalizeWedgeEanBuffer(buf);
+        if (ean) {
           e.preventDefault();
-          onEan13Ref.current(buf);
+          onEan13Ref.current(ean);
         } else if (buf.length > 0) {
           e.preventDefault();
+          toast.error(`Scan rejeté: ${buf}`);
         }
         buf = "";
         clearFlushTimer();
