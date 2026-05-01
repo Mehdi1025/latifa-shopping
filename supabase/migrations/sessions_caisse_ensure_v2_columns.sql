@@ -45,6 +45,24 @@ BEGIN
   END IF;
 
   IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'sessions_caisse' AND column_name = 'fond_laisse'
+  ) THEN
+    ALTER TABLE public.sessions_caisse
+      ADD COLUMN fond_laisse numeric(14, 2)
+      CHECK (fond_laisse IS NULL OR fond_laisse >= 0);
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'sessions_caisse' AND column_name = 'montant_preleve'
+  ) THEN
+    ALTER TABLE public.sessions_caisse
+      ADD COLUMN montant_preleve numeric(14, 2)
+      CHECK (montant_preleve IS NULL OR montant_preleve >= 0);
+  END IF;
+
+  IF NOT EXISTS (
     SELECT 1 FROM pg_indexes
     WHERE schemaname = 'public'
       AND indexname = 'sessions_caisse_fermee_heure_fermeture_idx'

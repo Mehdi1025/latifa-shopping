@@ -21,7 +21,7 @@ function formatMoneyFr(n: number): string {
   }).format(n);
 }
 
-type DenomKey = string;
+export type DenomKey = string;
 
 function buildInitialQuantities(): Record<DenomKey, string> {
   const o: Record<DenomKey, string> = {};
@@ -37,7 +37,7 @@ function parseQty(raw: string): number {
   return Number.isFinite(n) && n >= 0 ? n : 0;
 }
 
-function buildDetailsComptage(
+export function buildDetailsComptage(
   quantities: Record<DenomKey, string>
 ): Record<string, number> {
   const o: Record<string, number> = {};
@@ -52,13 +52,92 @@ function buildDetailsComptage(
   return o;
 }
 
+/** Total euros à partir des quantités saisies */
+export function totalFromQuantities(
+  quantities: Record<DenomKey, string>
+): number {
+  let s = 0;
+  for (const d of COUPURES_BILLETS) {
+    s += d * parseQty(quantities[String(d)] ?? "");
+  }
+  for (const d of COUPURES_PIECES) {
+    s += d * parseQty(quantities[String(d)] ?? "");
+  }
+  return Math.round(s * 100) / 100;
+}
+
+export type ClotureCaissePayload = {
+  totalDeclareEtape1: number;
+  detailsComptageTotalTiroir: Record<string, number>;
+  fondLaisseEtape2: number;
+  detailsComptageFondLaisse: Record<string, number>;
+};
+
 type Props = {
   open: boolean;
   onOpenChange: (v: boolean) => void;
-  onSubmit: (totalDeclare: number, detailsComptage: Record<string, number>) => void;
+  onSubmit: (payload: ClotureCaissePayload) => void | Promise<void>;
   loading: boolean;
   fondInitial: number;
+  montantAttenduCaisse: number | null;
+  montantAttenduLoading: boolean;
 };
+
+function DenominationGrid(props: {
+  titleBillets: string;
+  titlePieces: string;
+  quantities: Record<DenomKey, string>;
+  onChangeQty: (key: string, value: string) => void;
+}) {
+  const { titleBillets, titlePieces, quantities, onChangeQty } = props;
+  return (
+    <>
+      <p className="mb-2 text-sm font-medium text-gray-800">{titleBillets}</p>
+      <div className="mb-5 grid grid-cols-2 gap-2.5 sm:grid-cols-3 md:max-w-2xl">
+        {COUPURES_BILLETS.map((d) => (
+          <label
+            key={d}
+            className="flex flex-col rounded-xl border border-gray-200 bg-gray-50/50 px-3 py-2.5"
+          >
+            <span className="text-xs font-medium text-gray-600">
+              {formatCoupureLabel(d)}
+            </span>
+            <input
+              type="text"
+              inputMode="numeric"
+              value={quantities[String(d)]}
+              onChange={(e) => onChangeQty(String(d), e.target.value)}
+              className="mt-1.5 w-full rounded-lg border border-gray-200 bg-white px-2.5 py-2 text-base text-gray-900"
+              placeholder="0"
+            />
+          </label>
+        ))}
+      </div>
+
+      <p className="mb-2 text-sm font-medium text-gray-800">{titlePieces}</p>
+      <div className="mb-4 grid grid-cols-2 gap-2.5 sm:grid-cols-3 md:max-w-2xl">
+        {COUPURES_PIECES.map((d) => (
+          <label
+            key={d}
+            className="flex flex-col rounded-xl border border-gray-200 bg-gray-50/50 px-3 py-2.5"
+          >
+            <span className="text-xs font-medium text-gray-600">
+              {formatCoupureLabel(d)}
+            </span>
+            <input
+              type="text"
+              inputMode="numeric"
+              value={quantities[String(d)]}
+              onChange={(e) => onChangeQty(String(d), e.target.value)}
+              className="mt-1.5 w-full rounded-lg border border-gray-200 bg-white px-2.5 py-2 text-base text-gray-900"
+              placeholder="0"
+            />
+          </label>
+        ))}
+      </div>
+    </>
+  );
+}
 
 export default function ComptageCaisseModal({
   open,
@@ -66,39 +145,74 @@ export default function ComptageCaisseModal({
   onSubmit,
   loading,
   fondInitial,
+  montantAttenduCaisse,
+  montantAttenduLoading,
 }: Props) {
-  const [quantities, setQuantities] = useState<Record<DenomKey, string>>(
-    () => buildInitialQuantities()
+  const [step, setStep] = useState<1 | 2>(1);
+  const [quantitiesEtape1, setQuantitiesEtape1] = useState<
+    Record<DenomKey, string>
+  >(() => buildInitialQuantities());
+  const [quantitiesEtape2, setQuantitiesEtape2] = useState<
+    Record<DenomKey, string>
+  >(() => buildInitialQuantities());
+
+  const totalDeclareEtape1 = useMemo(
+    () => totalFromQuantities(quantitiesEtape1),
+    [quantitiesEtape1]
   );
 
-  const totalDeclare = useMemo(() => {
-    let s = 0;
-    for (const d of COUPURES_BILLETS) {
-      s += d * parseQty(quantities[String(d)] ?? "");
-    }
-    for (const d of COUPURES_PIECES) {
-      s += d * parseQty(quantities[String(d)] ?? "");
-    }
-    return Math.round(s * 100) / 100;
-  }, [quantities]);
+  const fondLaisseCalcule = useMemo(
+    () => totalFromQuantities(quantitiesEtape2),
+    [quantitiesEtape2]
+  );
 
-  const reset = useCallback(() => {
-    setQuantities(buildInitialQuantities());
+  const ecartEtape1 = useMemo(() => {
+    if (montantAttenduCaisse == null || !Number.isFinite(montantAttenduCaisse))
+      return null;
+    return (
+      Math.round((totalDeclareEtape1 - montantAttenduCaisse) * 100) / 100
+    );
+  }, [totalDeclareEtape1, montantAttenduCaisse]);
+
+  const montantEnveloppe = useMemo(() => {
+    return (
+      Math.round((totalDeclareEtape1 - fondLaisseCalcule) * 100) / 100
+    );
+  }, [totalDeclareEtape1, fondLaisseCalcule]);
+
+  const fondExcedeTotal =
+    fondLaisseCalcule > totalDeclareEtape1 + 1e-6;
+
+  const resetAll = useCallback(() => {
+    setStep(1);
+    setQuantitiesEtape1(buildInitialQuantities());
+    setQuantitiesEtape2(buildInitialQuantities());
   }, []);
 
   useEffect(() => {
-    if (open) reset();
-  }, [open, reset]);
+    if (open) resetAll();
+  }, [open, resetAll]);
 
   const handleClose = useCallback(() => {
     onOpenChange(false);
-    reset();
-  }, [onOpenChange, reset]);
+    resetAll();
+  }, [onOpenChange, resetAll]);
 
-  const setQty = (key: string, value: string) => {
+  const setQtyEtape1 = (key: string, value: string) => {
     if (value === "" || /^\d+$/.test(value)) {
-      setQuantities((prev) => ({ ...prev, [key]: value }));
+      setQuantitiesEtape1((prev) => ({ ...prev, [key]: value }));
     }
+  };
+
+  const setQtyEtape2 = (key: string, value: string) => {
+    if (value === "" || /^\d+$/.test(value)) {
+      setQuantitiesEtape2((prev) => ({ ...prev, [key]: value }));
+    }
+  };
+
+  const gotoStep2 = () => {
+    setQuantitiesEtape2(buildInitialQuantities());
+    setStep(2);
   };
 
   return (
@@ -113,12 +227,27 @@ export default function ComptageCaisseModal({
         >
           <header className="flex shrink-0 items-start justify-between gap-3 border-b border-gray-100 bg-white px-4 py-3 pt-[max(0.75rem,env(safe-area-inset-top))] md:px-6">
             <div className="min-w-0">
+              <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
+                Étape {step} sur 2
+              </p>
               <h2 className="text-xl font-bold tracking-tight text-gray-900">
                 Clôture de Caisse
               </h2>
               <p className="mt-1 text-sm text-gray-500">
-                Saisissez le nombre de billets et de pièces. Le total est calculé
-                automatiquement.
+                {step === 1 ? (
+                  <>
+                    Comptage du contenu du tiroir avant prélèvement. Le total et
+                    l’écart se mettent à jour automatiquement.
+                  </>
+                ) : (
+                  <>
+                    Indiquez ce que vous{" "}
+                    <span className="font-semibold text-gray-800">
+                      laissez dans le tiroir
+                    </span>{" "}
+                    comme fond pour demain (le surplus part dans l’enveloppe).
+                  </>
+                )}
               </p>
               <p className="mt-2 text-sm text-gray-600">
                 Fond initial de la session :{" "}
@@ -138,60 +267,104 @@ export default function ComptageCaisseModal({
           </header>
 
           <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 md:px-6">
-            <p className="mb-2 text-sm font-medium text-gray-800">Billets</p>
-            <div className="mb-5 grid grid-cols-2 gap-2.5 sm:grid-cols-3 md:max-w-2xl">
-              {COUPURES_BILLETS.map((d) => (
-                <label
-                  key={d}
-                  className="flex flex-col rounded-xl border border-gray-200 bg-gray-50/50 px-3 py-2.5"
-                >
-                  <span className="text-xs font-medium text-gray-600">
-                    {formatCoupureLabel(d)}
-                  </span>
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    value={quantities[String(d)]}
-                    onChange={(e) => setQty(String(d), e.target.value)}
-                    className="mt-1.5 w-full rounded-lg border border-gray-200 bg-white px-2.5 py-2 text-base text-gray-900"
-                    placeholder="0"
-                  />
-                </label>
-              ))}
-            </div>
-
-            <p className="mb-2 text-sm font-medium text-gray-800">Pièces</p>
-            <div className="mb-4 grid grid-cols-2 gap-2.5 sm:grid-cols-3 md:max-w-2xl">
-              {COUPURES_PIECES.map((d) => (
-                <label
-                  key={d}
-                  className="flex flex-col rounded-xl border border-gray-200 bg-gray-50/50 px-3 py-2.5"
-                >
-                  <span className="text-xs font-medium text-gray-600">
-                    {formatCoupureLabel(d)}
-                  </span>
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    value={quantities[String(d)]}
-                    onChange={(e) => setQty(String(d), e.target.value)}
-                    className="mt-1.5 w-full rounded-lg border border-gray-200 bg-white px-2.5 py-2 text-base text-gray-900"
-                    placeholder="0"
-                  />
-                </label>
-              ))}
-            </div>
+            {step === 1 ? (
+              <DenominationGrid
+                titleBillets="Billets dans le tiroir"
+                titlePieces="Pièces dans le tiroir"
+                quantities={quantitiesEtape1}
+                onChangeQty={setQtyEtape1}
+              />
+            ) : (
+              <>
+                <p className="mb-4 rounded-xl border border-amber-100 bg-amber-50/80 px-3 py-3 text-sm text-amber-950">
+                  Saisissez les billets et pièces que vous{" "}
+                  <strong>Laissez</strong> dans le tiroir pour demain (fond de
+                  caisse).
+                </p>
+                <DenominationGrid
+                  titleBillets="Billets laissés"
+                  titlePieces="Pièces laissées"
+                  quantities={quantitiesEtape2}
+                  onChangeQty={setQtyEtape2}
+                />
+              </>
+            )}
           </div>
 
           <footer className="shrink-0 border-t border-gray-100 bg-white px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] md:px-6">
-            <div className="mb-3 rounded-2xl border border-emerald-200 bg-emerald-50/70 px-4 py-3">
-              <p className="text-xs font-medium uppercase tracking-wide text-emerald-800">
-                Total déclaré
-              </p>
-              <p className="text-2xl font-bold tabular-nums text-emerald-950">
-                {formatMoneyFr(totalDeclare)}
-              </p>
-            </div>
+            {step === 1 && (
+              <>
+                <div className="mb-3 grid gap-2 sm:grid-cols-2">
+                  <div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 px-4 py-3">
+                    <p className="text-xs font-medium uppercase tracking-wide text-emerald-800">
+                      Total déclaré (tiroir)
+                    </p>
+                    <p className="text-2xl font-bold tabular-nums text-emerald-950">
+                      {formatMoneyFr(totalDeclareEtape1)}
+                    </p>
+                  </div>
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                    <p className="text-xs font-medium uppercase tracking-wide text-slate-600">
+                      Montant attendu (fond + ventes esp.)
+                    </p>
+                    <p className="text-xl font-semibold tabular-nums text-slate-900">
+                      {montantAttenduLoading ? (
+                        <span className="text-slate-400">Calcul…</span>
+                      ) : montantAttenduCaisse != null ? (
+                        formatMoneyFr(montantAttenduCaisse)
+                      ) : (
+                        <span className="text-sm font-normal text-amber-700">
+                          Impossible à calculer
+                        </span>
+                      )}
+                    </p>
+                    {ecartEtape1 != null && (
+                      <p
+                        className={`mt-1 text-sm font-medium tabular-nums ${
+                          ecartEtape1 === 0
+                            ? "text-emerald-800"
+                            : "text-orange-700"
+                        }`}
+                      >
+                        Écart : {formatMoneyFr(ecartEtape1)}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
+
+            {step === 2 && (
+              <>
+                <div className="mb-3 grid gap-2 sm:grid-cols-2">
+                  <div className="rounded-2xl border border-blue-200 bg-blue-50/70 px-4 py-3">
+                    <p className="text-xs font-medium uppercase tracking-wide text-blue-900">
+                      Fond laissé (demain)
+                    </p>
+                    <p className="text-2xl font-bold tabular-nums text-blue-950">
+                      {formatMoneyFr(fondLaisseCalcule)}
+                    </p>
+                  </div>
+                  <div className="rounded-2xl border border-violet-200 bg-gradient-to-br from-violet-50 to-fuchsia-50 px-4 py-4 shadow-sm">
+                    <p className="text-sm font-semibold text-violet-950">
+                      💰 Montant à mettre dans l’enveloppe (prélèvement)
+                    </p>
+                    <p className="mt-1 text-3xl font-bold tabular-nums text-violet-950">
+                      {formatMoneyFr(
+                        montantEnveloppe < 0 ? 0 : montantEnveloppe
+                      )}
+                    </p>
+                  </div>
+                </div>
+                {fondExcedeTotal && (
+                  <p className="mb-3 text-center text-sm font-medium text-red-600">
+                    Le fond laissé ne peut pas dépasser le total compté à l’étape
+                    1 ({formatMoneyFr(totalDeclareEtape1)}).
+                  </p>
+                )}
+              </>
+            )}
+
             <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
               <button
                 type="button"
@@ -200,16 +373,46 @@ export default function ComptageCaisseModal({
               >
                 Annuler
               </button>
-              <button
-                type="button"
-                disabled={loading}
-                onClick={() =>
-                  onSubmit(totalDeclare, buildDetailsComptage(quantities))
-                }
-                className="min-h-12 rounded-xl bg-gray-900 py-2.5 text-sm font-semibold text-white hover:bg-gray-800 disabled:opacity-50"
-              >
-                {loading ? "Validation…" : "Valider la clôture"}
-              </button>
+              {step === 1 ? (
+                <button
+                  type="button"
+                  disabled={loading}
+                  onClick={gotoStep2}
+                  className="min-h-12 rounded-xl bg-gray-900 py-2.5 text-sm font-semibold text-white hover:bg-gray-800 disabled:opacity-50"
+                >
+                  Suivant : préparer la caisse de demain
+                </button>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    disabled={loading}
+                    onClick={() => setStep(1)}
+                    className="min-h-12 rounded-xl border border-gray-300 py-2.5 text-sm font-semibold text-gray-800 hover:bg-gray-50 disabled:opacity-50"
+                  >
+                    Retour
+                  </button>
+                  <button
+                    type="button"
+                    disabled={loading || fondExcedeTotal}
+                    onClick={() =>
+                      onSubmit({
+                        totalDeclareEtape1,
+                        detailsComptageTotalTiroir: buildDetailsComptage(
+                          quantitiesEtape1
+                        ),
+                        fondLaisseEtape2: fondLaisseCalcule,
+                        detailsComptageFondLaisse: buildDetailsComptage(
+                          quantitiesEtape2
+                        ),
+                      })
+                    }
+                    className="min-h-12 rounded-xl bg-gray-900 py-2.5 text-sm font-semibold text-white hover:bg-gray-800 disabled:opacity-50"
+                  >
+                    {loading ? "Validation…" : "🔒 Valider et clôturer"}
+                  </button>
+                </>
+              )}
             </div>
           </footer>
         </motion.div>

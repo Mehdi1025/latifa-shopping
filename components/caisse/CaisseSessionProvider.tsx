@@ -13,11 +13,12 @@ import { toast } from "sonner";
 import { createSupabaseBrowserClient } from "@/utils/supabase/client";
 import { sommeEspecesVentes } from "@/lib/caisse/montant-especes-vente";
 import ComptageCaisseModal from "./ComptageCaisseModal";
+import type { ClotureCaissePayload } from "./ComptageCaisseModal";
 
 const FOND_PREMIER_JOUR_EUR = 100;
 
 const SESSION_SELECT =
-  "id, heure_ouverture, heure_fermeture, fond_initial, ventes_especes, total_declare, ecart, statut, details_comptage" as const;
+  "id, heure_ouverture, heure_fermeture, fond_initial, ventes_especes, total_declare, ecart, statut, details_comptage, fond_laisse, montant_preleve" as const;
 
 export type SessionCaisse = {
   id: string;
@@ -29,15 +30,17 @@ export type SessionCaisse = {
   ecart: number | null;
   statut: "ouverte" | "fermee";
   details_comptage: Record<string, unknown> | null;
+  fond_laisse: number | null;
+  montant_preleve: number | null;
 };
 
 type Ctx = {
   session: SessionCaisse | null;
   loading: boolean;
   isCaisseOuverte: boolean;
-  /** Fond qui sera utilisé à l’ouverture (comptage veille ou 100 €) */
+  /** Fond qui sera utilisé à l’ouverture (fond laissé la veille ou 100 €) */
   fondHeredite: number;
-  /** Faux si 100 € par défaut (aucun comptage veille fiable) */
+  /** Faux si 100 € par défaut (aucune clôture veille avec fond identifiable) */
   aHerediteDernierComptage: boolean;
   openCaisse: () => Promise<void>;
   opening: boolean;
@@ -76,6 +79,11 @@ export function CaisseSessionProvider({ children }: { children: React.ReactNode 
   const [clotureModalOpen, setClotureModalOpen] = useState(false);
   const [clotureLoading, setClotureLoading] = useState(false);
   const [opening, setOpening] = useState(false);
+  const [clotureMontantAttendu, setClotureMontantAttendu] = useState<
+    number | null
+  >(null);
+  const [clotureMontantAttenduLoading, setClotureMontantAttenduLoading] =
+    useState(false);
 
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
 
@@ -108,7 +116,7 @@ export function CaisseSessionProvider({ children }: { children: React.ReactNode 
         setSession(null);
         const { data: last, error: e2 } = await supabase
           .from("sessions_caisse")
-          .select("total_declare, heure_fermeture")
+          .select("fond_laisse, total_declare, heure_fermeture")
           .eq("statut", "fermee")
           .order("heure_fermeture", { ascending: false })
           .limit(1)
@@ -121,9 +129,21 @@ export function CaisseSessionProvider({ children }: { children: React.ReactNode 
           return;
         }
 
-        const t = (last as { total_declare: number | null } | null)?.total_declare;
-        if (t != null && Number.isFinite(Number(t))) {
-          setFondHeredite(Math.round(Number(t) * 100) / 100);
+        const row = last as {
+          fond_laisse: number | null;
+          total_declare: number | null;
+        } | null;
+        const depuisFondLaisse = row?.fond_laisse;
+        const fallbackTotalDeclare = row?.total_declare;
+        const valeur =
+          depuisFondLaisse != null && Number.isFinite(Number(depuisFondLaisse))
+            ? Math.round(Number(depuisFondLaisse) * 100) / 100
+            : fallbackTotalDeclare != null &&
+                Number.isFinite(Number(fallbackTotalDeclare))
+              ? Math.round(Number(fallbackTotalDeclare) * 100) / 100
+              : null;
+        if (valeur != null) {
+          setFondHeredite(valeur);
           setAHerediteDernierComptage(true);
         } else {
           setFondHeredite(FOND_PREMIER_JOUR_EUR);
@@ -139,6 +159,50 @@ export function CaisseSessionProvider({ children }: { children: React.ReactNode 
   useEffect(() => {
     void loadCaisseState();
   }, [loadCaisseState]);
+
+  useEffect(() => {
+    if (!clotureModalOpen || !session) {
+      setClotureMontantAttendu(null);
+      setClotureMontantAttenduLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setClotureMontantAttenduLoading(true);
+    setClotureMontantAttendu(null);
+
+    void (async () => {
+      const { data: ventes, error: venteErr } = await supabase
+        .from("ventes")
+        .select("total, methode_paiement, montant_especes, created_at")
+        .gte("created_at", session.heure_ouverture)
+        .order("created_at", { ascending: true })
+        .limit(5000);
+
+      if (cancelled) return;
+      setClotureMontantAttenduLoading(false);
+      if (venteErr) {
+        console.error(venteErr);
+        setClotureMontantAttendu(null);
+        return;
+      }
+
+      const list = (ventes ?? []) as Array<{
+        total: number;
+        methode_paiement: string | null;
+        montant_especes: number | null;
+      }>;
+      const totalEspeces = sommeEspecesVentes(list);
+      const fond = Math.round(session.fond_initial * 100) / 100;
+      const montantAttendu =
+        Math.round((fond + totalEspeces) * 100) / 100;
+      if (!cancelled) setClotureMontantAttendu(montantAttendu);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [clotureModalOpen, session, supabase]);
 
   const isCaisseOuverte = session?.statut === "ouverte";
   const isPosCaisseLoading = isVendeuseCaissePath(pathname) && loading;
@@ -189,10 +253,7 @@ export function CaisseSessionProvider({ children }: { children: React.ReactNode 
   }, [session]);
 
   const handleClotureSubmit = useCallback(
-    async (
-      totalDeclare: number,
-      detailsComptage: Record<string, number>
-    ) => {
+    async (payload: ClotureCaissePayload) => {
       if (!session) return;
       setClotureLoading(true);
       try {
@@ -215,10 +276,31 @@ export function CaisseSessionProvider({ children }: { children: React.ReactNode 
         }>;
 
         const totalEspeces = sommeEspecesVentes(list);
-        const fond = Math.round(session.fond_initial * 100) / 100;
-        const totalDeclareRounded = Math.round(totalDeclare * 100) / 100;
-        const montantAttendu = Math.round((fond + totalEspeces) * 100) / 100;
-        const ecart = Math.round((totalDeclareRounded - montantAttendu) * 100) / 100;
+        const fondSession = Math.round(session.fond_initial * 100) / 100;
+        const totalDeclareRounded =
+          Math.round(payload.totalDeclareEtape1 * 100) / 100;
+        const fondLaisseRounded =
+          Math.round(payload.fondLaisseEtape2 * 100) / 100;
+        const montantAttendu =
+          Math.round((fondSession + totalEspeces) * 100) / 100;
+        const ecart =
+          Math.round((totalDeclareRounded - montantAttendu) * 100) / 100;
+
+        if (fondLaisseRounded > totalDeclareRounded + 0.005) {
+          toast.error(
+            "Le fond laissé ne peut pas dépasser le total compté dans le tiroir."
+          );
+          return;
+        }
+
+        const montantPreleveRounded =
+          Math.round((totalDeclareRounded - fondLaisseRounded) * 100) / 100;
+
+        if (montantPreleveRounded < 0) {
+          toast.error("Montant de prélèvement incohérent (négatif).");
+          return;
+        }
+
         const now = new Date().toISOString();
 
         const { data: updated, error: upErr } = await supabase
@@ -229,7 +311,12 @@ export function CaisseSessionProvider({ children }: { children: React.ReactNode 
             total_declare: totalDeclareRounded,
             ecart,
             statut: "fermee",
-            details_comptage: detailsComptage,
+            fond_laisse: fondLaisseRounded,
+            montant_preleve: montantPreleveRounded,
+            details_comptage: {
+              comptage_total_tiroir: payload.detailsComptageTotalTiroir,
+              comptage_fond_laisse_tiroir: payload.detailsComptageFondLaisse,
+            },
           })
           .eq("id", session.id)
           .eq("statut", "ouverte")
@@ -249,9 +336,9 @@ export function CaisseSessionProvider({ children }: { children: React.ReactNode 
 
         setClotureModalOpen(false);
         setSession(null);
-        setFondHeredite(totalDeclareRounded);
+        setFondHeredite(fondLaisseRounded);
         toast.success(
-          `Caisse clôturée. Écart : ${formatEcartEur(ecart)}`
+          `Caisse clôturée. Écart : ${formatEcartEur(ecart)} • Enveloppe : ${formatEcartEur(montantPreleveRounded)} • Fond demain : ${formatEcartEur(fondLaisseRounded)}`
         );
         void loadCaisseState({ showLoader: false });
         if (isVendeuseCaissePath(pathname)) {
@@ -296,6 +383,8 @@ export function CaisseSessionProvider({ children }: { children: React.ReactNode 
           onSubmit={handleClotureSubmit}
           loading={clotureLoading}
           fondInitial={session.fond_initial}
+          montantAttenduCaisse={clotureMontantAttendu}
+          montantAttenduLoading={clotureMontantAttenduLoading}
         />
       )}
     </CaisseSessionContext.Provider>

@@ -32,7 +32,7 @@ export default function CaisseLockScreen({
           <p className="mt-2 text-sm text-gray-600">
             {estPremierJour
               ? "Premier jour d’exploitation : le fond de départ est fixé par défaut."
-              : "Le fond initial provient du comptage physique de la dernière clôture."}
+              : "Le fond initial correspond à l’argent laissé dans le tiroir à la veille (préparation clôture)."}
           </p>
         </div>
         <div className="mb-1.5 text-sm font-medium text-gray-700">Fond initial (ouverture)</div>
