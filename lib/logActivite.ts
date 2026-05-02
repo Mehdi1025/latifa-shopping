@@ -1,4 +1,8 @@
 import { createSupabaseBrowserClient } from "@/utils/supabase/client";
+import {
+  isMeaningfulRrwebReplay,
+  rrwebEventsSpanMs,
+} from "@/lib/rrwebReplay";
 
 export type NiveauAlerteLog = "info" | "warning" | "critique";
 
@@ -20,9 +24,7 @@ export async function logActivite(
       ? vendeur_nom.trim()
       : null;
 
-  const hasReplay =
-    Array.isArray(extras?.enregistrement_ecran) &&
-    extras!.enregistrement_ecran!.length >= 2;
+  const hasReplay = isMeaningfulRrwebReplay(extras?.enregistrement_ecran);
 
   try {
     const supabase = createSupabaseBrowserClient();
@@ -33,7 +35,9 @@ export async function logActivite(
       niveau_alerte,
     };
     if (hasReplay) {
-      payload.enregistrement_ecran = extras!.enregistrement_ecran;
+      const ev = extras!.enregistrement_ecran as unknown[];
+      payload.enregistrement_ecran = ev;
+      payload.replay_span_ms = Math.floor(rrwebEventsSpanMs(ev));
     }
 
     const { error } = await supabase.from("logs_activite").insert(payload);

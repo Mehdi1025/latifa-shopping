@@ -3,8 +3,7 @@
 import { useCallback, useEffect, useRef } from "react";
 import { record } from "rrweb";
 import type { eventWithTime } from "@rrweb/types";
-
-const MIN_EVENTS_REPLAYABLE = 2;
+import { isMeaningfulRrwebReplay } from "@/lib/rrwebReplay";
 
 function subscribeRecorder(onEvent: (ev: eventWithTime) => void): () => void {
   const stop = record({
@@ -63,7 +62,7 @@ export function useScreenRecorder(enabled: boolean): {
       bufferRef.current.push(ev);
     });
 
-    return segment.length >= MIN_EVENTS_REPLAYABLE ? segment : null;
+    return isMeaningfulRrwebReplay(segment) ? segment : null;
   }, []);
 
   return { consumeReplaySegment };

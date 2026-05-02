@@ -19,6 +19,17 @@ import {
 import type { eventWithTime } from "@rrweb/types";
 import type { SessionCaisse } from "@/components/caisse/CaisseSessionProvider";
 import { createSupabaseBrowserClient } from "@/utils/supabase/client";
+import {
+  isMeaningfulRrwebReplay,
+  MIN_RRWEB_REPLAY_SPAN_MS,
+} from "@/lib/rrwebReplay";
+import {
+  generateStorePulseDemoEntries,
+  mapLogActiviteToPulseEntry,
+  type StorePulseWaveEntry,
+} from "@/lib/storePulse";
+import { StorePulseWave } from "@/components/store/StorePulseWave";
+import { toast } from "sonner";
 
 export type LogActivite = {
   id: string;
@@ -402,6 +413,7 @@ export default function HistoriqueLogsPage() {
           { count: "exact" }
         )
         .not("enregistrement_ecran", "is", null)
+        .gte("replay_span_ms", MIN_RRWEB_REPLAY_SPAN_MS)
         .order("created_at", { ascending: false })
         .range(from, to);
 
@@ -448,7 +460,7 @@ export default function HistoriqueLogsPage() {
         return;
       }
       const raw = (data as { enregistrement_ecran?: unknown }).enregistrement_ecran;
-      if (!Array.isArray(raw) || raw.length < 2) {
+      if (!isMeaningfulRrwebReplay(raw)) {
         setReplayEvents(null);
         return;
       }
@@ -458,6 +470,54 @@ export default function HistoriqueLogsPage() {
       cancelled = true;
     };
   }, [selectedReplayRow, supabase]);
+
+  /** Pulse : démo très dense hors filtre temps réel, ou logs courants (« Aujourd’hui », page chargée). */
+  const pulseWaveEntries = useMemo(() => {
+    if (filtre === "jour" && logs.length >= 10) {
+      return [...logs]
+        .map((log) => mapLogActiviteToPulseEntry(log))
+        .sort(
+          (a, b) =>
+            new Date(a.created_at).getTime() -
+            new Date(b.created_at).getTime()
+        );
+    }
+    return generateStorePulseDemoEntries();
+  }, [filtre, logs]);
+
+  const handlePulseBarActivate = useCallback(
+    async (entry: StorePulseWaveEntry) => {
+      if (entry.id.includes("-pulse-demo-")) {
+        toast.message("Pulse démo", {
+          description:
+            "Timeline simulée. Utilise « Aujourd’hui » avec assez de logs pour relier une barre à un événement réel et ouvrir le VAR.",
+        });
+        setOngletActif("replay");
+        void loadReplayList();
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from("logs_activite")
+        .select(
+          "id, created_at, vendeur_nom, type_action, details, niveau_alerte"
+        )
+        .eq("id", entry.id)
+        .not("enregistrement_ecran", "is", null)
+        .gte("replay_span_ms", MIN_RRWEB_REPLAY_SPAN_MS)
+        .maybeSingle();
+
+      if (error || !data) {
+        toast.error("Pas de replay VAR pour cet événement.");
+        return;
+      }
+
+      setOngletActif("replay");
+      setSelectedReplayRow(data as unknown as LogReplayListeRow);
+      void loadReplayList();
+    },
+    [supabase, loadReplayList]
+  );
 
   const totalPages =
     totalCount <= 0 ? 0 : Math.ceil(totalCount / ITEMS_PER_PAGE);
@@ -723,6 +783,18 @@ export default function HistoriqueLogsPage() {
       </header>
 
       <div className="mx-auto max-w-6xl">
+        <StorePulseWave
+          entries={pulseWaveEntries}
+          sourceBadge={
+            filtre === "jour" && logs.length >= 10
+              ? `Journée réelle · ${logs.length}`
+              : "Synthèse démo"
+          }
+          onBarActivate={(e) => {
+            void handlePulseBarActivate(e);
+          }}
+          className="mb-11"
+        />
         {ongletActif === "journal" && (
           <article
             id="tabpanel-journal"
