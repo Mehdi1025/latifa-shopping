@@ -261,7 +261,7 @@ function ShiftSessionCard({ session }: { session: SessionCaisse }) {
 }
 
 export default function HistoriqueLogsPage() {
-  const [ongletActif, setOngletActif] = useState<OngletHistorique>("sessions");
+  const [ongletActif, setOngletActif] = useState<OngletHistorique>("journal");
 
   const [sessions, setSessions] = useState<SessionCaisse[]>([]);
   const [sessionsLoading, setSessionsLoading] = useState(true);
@@ -462,17 +462,35 @@ export default function HistoriqueLogsPage() {
         </div>
 
         <div
-          className="mt-6 flex max-w-2xl rounded-2xl border border-slate-200/80 bg-white p-1 shadow-sm"
+          dir="ltr"
+          className="mt-6 grid max-w-2xl grid-cols-2 gap-1 rounded-2xl border border-slate-200/80 bg-white p-1 shadow-sm [&>*]:min-w-0"
           role="tablist"
           aria-label="Vue historique"
         >
+          {/* Colonne gauche · toujours en premier (ordre garanti même en RTL) */}
+          <button
+            type="button"
+            role="tab"
+            aria-selected={ongletActif === "journal"}
+            aria-controls="tabpanel-journal"
+            id="tab-journal-trigger"
+            className={`flex w-full flex-1 items-center justify-center gap-2 rounded-xl px-3 py-3 text-[13px] font-semibold tracking-tight transition-all sm:text-sm ${
+              ongletActif === "journal"
+                ? "bg-indigo-600 text-white shadow-md"
+                : "text-slate-600 hover:bg-slate-50"
+            }`}
+            onClick={() => setOngletActif("journal")}
+          >
+            <span aria-hidden>🔎</span>
+            <span className="truncate text-center">Journal des actions</span>
+          </button>
           <button
             type="button"
             role="tab"
             aria-selected={ongletActif === "sessions"}
-            id="tab-sessions-trigger"
             aria-controls="tabpanel-sessions"
-            className={`flex flex-1 items-center justify-center gap-2 rounded-xl px-3 py-3 text-[13px] font-semibold tracking-tight transition-all sm:text-sm ${
+            id="tab-sessions-trigger"
+            className={`flex w-full flex-1 items-center justify-center gap-2 rounded-xl px-3 py-3 text-[13px] font-semibold tracking-tight transition-all sm:text-sm ${
               ongletActif === "sessions"
                 ? "bg-slate-900 text-white shadow-md"
                 : "text-slate-600 hover:bg-slate-50"
@@ -485,23 +503,9 @@ export default function HistoriqueLogsPage() {
             <span className="tabular-nums" aria-hidden>
               ⏱️
             </span>
-            Sessions &amp; horaires
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={ongletActif === "journal"}
-            aria-controls="tabpanel-journal"
-            id="tab-journal-trigger"
-            className={`flex flex-1 items-center justify-center gap-2 rounded-xl px-3 py-3 text-[13px] font-semibold tracking-tight transition-all sm:text-sm ${
-              ongletActif === "journal"
-                ? "bg-indigo-600 text-white shadow-md"
-                : "text-slate-600 hover:bg-slate-50"
-            }`}
-            onClick={() => setOngletActif("journal")}
-          >
-            <span aria-hidden>🔎</span>
-            Journal des actions
+            <span className="truncate text-center">
+              Sessions &amp; horaires
+            </span>
           </button>
         </div>
 
@@ -546,56 +550,6 @@ export default function HistoriqueLogsPage() {
       </header>
 
       <div className="mx-auto max-w-6xl">
-        {ongletActif === "sessions" && (
-          <section
-            id="tabpanel-sessions"
-            role="tabpanel"
-            aria-labelledby="tab-sessions-trigger"
-            className="mb-12"
-          >
-            <div className="mb-6 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
-                  Ouvertures &amp; fermetures
-                </p>
-                <p className="text-lg font-semibold tracking-tight text-slate-900">
-                  Shift cards · les 7 dernières sessions
-                </p>
-              </div>
-              <p className="text-[13px] text-slate-500">
-                Après{" "}
-                <span className="font-semibold tabular-nums text-slate-700">
-                  09h30
-                </span>{" "}
-                locale : ouverture en rouge + badge Retard (règle magasin).
-              </p>
-            </div>
-
-            {sessionsLoading ? (
-              <div className="flex min-h-[260px] items-center justify-center gap-3 rounded-xl border border-slate-100 bg-white py-16 shadow-sm ring-1 ring-slate-100/80">
-                <Loader2 className="h-8 w-8 animate-spin text-indigo-500" />
-                <span className="text-sm font-medium text-slate-500">
-                  Chargement des sessions…
-                </span>
-              </div>
-            ) : sessionsError ? (
-              <div className="rounded-xl border border-red-100 bg-red-50/50 px-8 py-12 text-center text-sm text-red-700 ring-1 ring-red-100/80">
-                {sessionsError}
-              </div>
-            ) : sessions.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-slate-200 bg-white px-8 py-20 text-center text-sm text-slate-500 shadow-sm ring-1 ring-slate-100/60">
-                Aucune session enregistrée pour le moment.
-              </div>
-            ) : (
-              <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
-                {sessions.map((s) => (
-                  <ShiftSessionCard key={s.id} session={s} />
-                ))}
-              </div>
-            )}
-          </section>
-        )}
-
         {ongletActif === "journal" && (
           <article
             id="tabpanel-journal"
@@ -768,6 +722,56 @@ export default function HistoriqueLogsPage() {
               </footer>
             )}
           </article>
+        )}
+
+        {ongletActif === "sessions" && (
+          <section
+            id="tabpanel-sessions"
+            role="tabpanel"
+            aria-labelledby="tab-sessions-trigger"
+            className="mb-12"
+          >
+            <div className="mb-6 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
+                  Ouvertures &amp; fermetures
+                </p>
+                <p className="text-lg font-semibold tracking-tight text-slate-900">
+                  Shift cards · les 7 dernières sessions
+                </p>
+              </div>
+              <p className="text-[13px] text-slate-500">
+                Après{" "}
+                <span className="font-semibold tabular-nums text-slate-700">
+                  09h30
+                </span>{" "}
+                locale : ouverture en rouge + badge Retard (règle magasin).
+              </p>
+            </div>
+
+            {sessionsLoading ? (
+              <div className="flex min-h-[260px] items-center justify-center gap-3 rounded-xl border border-slate-100 bg-white py-16 shadow-sm ring-1 ring-slate-100/80">
+                <Loader2 className="h-8 w-8 animate-spin text-indigo-500" />
+                <span className="text-sm font-medium text-slate-500">
+                  Chargement des sessions…
+                </span>
+              </div>
+            ) : sessionsError ? (
+              <div className="rounded-xl border border-red-100 bg-red-50/50 px-8 py-12 text-center text-sm text-red-700 ring-1 ring-red-100/80">
+                {sessionsError}
+              </div>
+            ) : sessions.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-slate-200 bg-white px-8 py-20 text-center text-sm text-slate-500 shadow-sm ring-1 ring-slate-100/60">
+                Aucune session enregistrée pour le moment.
+              </div>
+            ) : (
+              <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
+                {sessions.map((s) => (
+                  <ShiftSessionCard key={s.id} session={s} />
+                ))}
+              </div>
+            )}
+          </section>
         )}
 
         <section
