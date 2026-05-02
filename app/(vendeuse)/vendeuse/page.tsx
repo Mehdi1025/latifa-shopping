@@ -44,6 +44,7 @@ import {
 } from "@/lib/caisse/catalogue-groupes";
 import VarianteSelectionSheet from "@/components/vendeur/VarianteSelectionSheet";
 import { useWedgeEan13Listener } from "@/hooks/useWedgeEan13Listener";
+import { logActivite } from "@/lib/logActivite";
 
 type LignePanier = {
   /** Clé stable par ligne (plusieurs lots Coffre = même produit_id) */
@@ -125,6 +126,21 @@ function formatVariantSubtitle(p: Produit): string | null {
 function formatProduitLabelScan(p: Produit): string {
   const sub = formatVariantSubtitle(p);
   return sub ? `${p.nom} — ${sub}` : p.nom;
+}
+
+function libelleMoyenPaiementCaisse(m: MethodePaiement): string {
+  switch (m) {
+    case "carte":
+      return "carte";
+    case "especes":
+      return "espèces";
+    case "paypal":
+      return "PayPal";
+    case "mixte":
+      return "mixte (espèces + carte)";
+    default:
+      return m;
+  }
 }
 
 /** Téléphone stocké et recherché en chiffres (ex. 0612345678). */
@@ -268,6 +284,9 @@ export default function VendeusePage() {
   );
   const onWedgeEanRef = useRef<(ean: string) => void>(() => {});
 
+  /** Nom pour `logs_activite` (profil ou fallback email). */
+  const [nomVendeuseLog, setNomVendeuseLog] = useState<string>("");
+
   const supabase = createSupabaseBrowserClient();
 
   useLayoutEffect(() => {
@@ -301,6 +320,24 @@ export default function VendeusePage() {
   useEffect(() => {
     fetchProduits();
   }, []);
+
+  useEffect(() => {
+    void (async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data: prof } = await supabase
+        .from("profiles")
+        .select("full_name")
+        .eq("id", user.id)
+        .maybeSingle();
+      const name = (prof as { full_name?: string | null } | null)?.full_name;
+      const fromProfile =
+        typeof name === "string" && name.trim() ? name.trim() : "";
+      setNomVendeuseLog(fromProfile || user.email || "");
+    })();
+  }, [supabase]);
 
   useEffect(() => {
     if (methodePaiement !== "especes") setMontantDonne("");
@@ -481,10 +518,24 @@ export default function VendeusePage() {
   };
 
   const removeFromPanier = (panierLineId: string) => {
+    const ligne = panier.find((l) => l.panierLineId === panierLineId);
+    if (ligne) {
+      const articleNom = ligne.libelleOverride ?? ligne.produit.nom;
+      const detail =
+        ligne.quantite <= 1
+          ? `A supprimé ${articleNom} du panier`
+          : `A retiré 1 × ${articleNom} du panier (${ligne.quantite - 1} restante(s))`;
+      void logActivite(
+        nomVendeuseLog,
+        "suppression_panier",
+        detail,
+        "critique"
+      );
+    }
     setPanier((prev) => {
-      const ligne = prev.find((l) => l.panierLineId === panierLineId);
-      if (!ligne) return prev;
-      if (ligne.quantite <= 1) {
+      const line = prev.find((l) => l.panierLineId === panierLineId);
+      if (!line) return prev;
+      if (line.quantite <= 1) {
         return prev.filter((l) => l.panierLineId !== panierLineId);
       }
       return prev.map((l) =>
@@ -496,6 +547,16 @@ export default function VendeusePage() {
   };
 
   const removeItemCompletely = (panierLineId: string) => {
+    const ligne = panier.find((l) => l.panierLineId === panierLineId);
+    if (ligne) {
+      const articleNom = ligne.libelleOverride ?? ligne.produit.nom;
+      void logActivite(
+        nomVendeuseLog,
+        "suppression_panier",
+        `A supprimé ${articleNom} du panier (ligne entière · ${ligne.quantite} unité(s))`,
+        "critique"
+      );
+    }
     setPanier((prev) => prev.filter((l) => l.panierLineId !== panierLineId));
   };
 
@@ -512,6 +573,14 @@ export default function VendeusePage() {
   };
 
   const viderPanier = () => {
+    if (panier.length > 0) {
+      void logActivite(
+        nomVendeuseLog,
+        "annulation_vente",
+        "A annulé une vente en cours (Panier vidé)",
+        "critique"
+      );
+    }
     setPanier([]);
     setRemiseValue(0);
     setRemiseType("percent");
@@ -521,6 +590,18 @@ export default function VendeusePage() {
     setClientPhone("");
     setClientNom("");
     setResolvedClient(null);
+  };
+
+  const ouvrirPanierCaisse = () => {
+    if (panier.length > 0) {
+      void logActivite(
+        nomVendeuseLog,
+        "ouverture_tiroir",
+        "A ouvert le tiroir sans encaisser",
+        "warning"
+      );
+    }
+    setDrawerOpen(true);
   };
 
   const sousTotal = panier.reduce((acc, l) => acc + l.produit.prix * l.quantite, 0);
@@ -781,6 +862,13 @@ export default function VendeusePage() {
           return;
         }
       }
+
+      void logActivite(
+        nomVendeuseLog,
+        "encaissement",
+        `Encaissement validé de ${total.toFixed(2)}€ en ${libelleMoyenPaiementCaisse(methodePaiement)}`,
+        "info"
+      );
 
       setPanier([]);
       setRemiseValue(0);
@@ -1114,7 +1202,7 @@ export default function VendeusePage() {
       {panier.length > 0 && !drawerOpen && (
         <button
           type="button"
-          onClick={() => setDrawerOpen(true)}
+          onClick={ouvrirPanierCaisse}
           className="fixed inset-x-0 z-[45] flex min-h-[56px] max-w-[100vw] items-center gap-2.5 rounded-t-2xl border border-white/10 bg-gray-900 px-4 pb-[max(0.75rem,env(safe-area-inset-bottom,0px))] pt-3 text-left text-white shadow-[0_-12px_48px_rgba(0,0,0,0.35)] transition-colors active:bg-gray-800 [-webkit-tap-highlight-color:transparent] max-md:bottom-[calc(5.5rem+env(safe-area-inset-bottom,0px))] md:hidden"
           aria-label="Voir le panier"
         >
@@ -1137,7 +1225,7 @@ export default function VendeusePage() {
       {!drawerOpen && (
         <motion.button
           type="button"
-          onClick={() => setDrawerOpen(true)}
+          onClick={ouvrirPanierCaisse}
           aria-label="Ouvrir le panier"
           whileTap={{ scale: 0.94 }}
           className="fixed bottom-8 right-6 z-50 hidden h-[4.25rem] w-[4.25rem] items-center justify-center rounded-full bg-black text-white shadow-2xl [-webkit-tap-highlight-color:transparent] md:bottom-12 md:right-10 md:flex"
