@@ -15,6 +15,7 @@ import {
   Wallet,
 } from "lucide-react";
 import type { SessionCaisse } from "@/components/caisse/CaisseSessionProvider";
+import VarReplayModal from "@/components/admin/VarReplayModal";
 import { createSupabaseBrowserClient } from "@/utils/supabase/client";
 
 export type LogActivite = {
@@ -262,6 +263,11 @@ function ShiftSessionCard({ session }: { session: SessionCaisse }) {
 
 export default function HistoriqueLogsPage() {
   const [ongletActif, setOngletActif] = useState<OngletHistorique>("journal");
+
+  const [varReplay, setVarReplay] = useState<{
+    time: string;
+    vendeuse: string;
+  } | null>(null);
 
   const [sessions, setSessions] = useState<SessionCaisse[]>([]);
   const [sessionsLoading, setSessionsLoading] = useState(true);
@@ -578,7 +584,7 @@ export default function HistoriqueLogsPage() {
                         Horodatage
                       </th>
                       <th className="whitespace-nowrap px-4 py-3.5">Niveau</th>
-                      <th className="min-w-[120px] px-4 py-3.5">Action</th>
+                      <th className="min-w-[140px] px-4 py-3.5">Action · VAR</th>
                       <th className="min-w-[112px] px-4 py-3.5">Vendeuse</th>
                       <th className="min-w-[220px] px-4 py-3.5 xl:max-w-xl">
                         Détails
@@ -594,7 +600,7 @@ export default function HistoriqueLogsPage() {
                       return (
                         <tr
                           key={row.id}
-                          className="transition-colors hover:bg-slate-50 focus-within:bg-slate-50/80"
+                          className="group/var-row transition-colors hover:bg-slate-50 focus-within:bg-slate-50/80"
                         >
                           <td className="hidden align-middle px-3 py-3.5 md:table-cell">
                             <RowIcon
@@ -610,7 +616,7 @@ export default function HistoriqueLogsPage() {
                             />
                           </td>
                           <td className="align-middle whitespace-nowrap px-4 py-3.5 tabular-nums text-[13px] text-slate-500">
-                            {formatDt(row.created_at)}
+                            <span>{formatDt(row.created_at)}</span>
                           </td>
                           <td className="align-middle whitespace-nowrap px-4 py-3.5">
                             <span className={badge.cls}>
@@ -623,9 +629,27 @@ export default function HistoriqueLogsPage() {
                             </span>
                           </td>
                           <td className="align-middle px-4 py-3.5">
-                            <span className="line-clamp-2 font-medium capitalize text-slate-800">
-                              {row.type_action.replace(/_/g, " ")}
-                            </span>
+                            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+                              <span className="min-w-0 flex-1 line-clamp-2 font-medium capitalize text-slate-800">
+                                {row.type_action.replace(/_/g, " ")}
+                              </span>
+                              {row.vendeur_nom?.trim() && (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setVarReplay({
+                                      time: row.created_at,
+                                      vendeuse: row.vendeur_nom!.trim(),
+                                    })
+                                  }
+                                  className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-indigo-200/95 bg-white px-2 py-1.5 text-[11px] font-bold uppercase tracking-wide text-indigo-700 opacity-100 shadow-sm transition-opacity [-webkit-tap-highlight-color:transparent] hover:border-indigo-300 hover:bg-indigo-50/90 md:pointer-events-none md:opacity-0 md:group-hover/var-row:pointer-events-auto md:group-hover/var-row:opacity-100"
+                                  title="Replay VAR −5 min / +2 min autour de cet événement"
+                                  aria-label="Ouvrir le replay VAR pour cette ligne"
+                                >
+                                  <span aria-hidden>▶️</span> VAR
+                                </button>
+                              )}
+                            </div>
                           </td>
                           <td className="align-middle px-4 py-3.5 text-[13px] text-slate-600">
                             <span className="line-clamp-2 break-words md:truncate md:leading-normal">
@@ -783,6 +807,15 @@ export default function HistoriqueLogsPage() {
             lorsque vos flux de données auront grossi suffisamment.
           </p>
         </section>
+
+        {varReplay && (
+          <VarReplayModal
+            open
+            onClose={() => setVarReplay(null)}
+            targetTimeISO={varReplay.time}
+            targetVendeuse={varReplay.vendeuse}
+          />
+        )}
       </div>
     </div>
   );
