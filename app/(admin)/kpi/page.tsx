@@ -35,7 +35,6 @@ import KpiFinanceIntel from "@/components/admin/KpiFinanceIntel";
 import BusinessSimulator from "@/components/admin/kpi/BusinessSimulator";
 import { SalesHeatmap } from "@/components/admin/SalesHeatmap";
 import { MOCK_SOLDE_BANCAIRE } from "@/lib/finance-kpi";
-import { fetchCaEspecesMoisPourDonut } from "@/lib/kpi/especes-ca-mois-source";
 
 type Vente = {
   id: string;
@@ -313,8 +312,6 @@ export default function KPIPage() {
   const [simVarPrix, setSimVarPrix] = useState(0);
   const [simVarTrafic, setSimVarTrafic] = useState(0);
   const [simRecrue, setSimRecrue] = useState(false);
-  /** CA espèces (anneau uniquement) : source distante (+ fallback), pas la somme des ventes espèces en base. */
-  const [donutCaEspecesMoisExterne, setDonutCaEspecesMoisExterne] = useState(0);
 
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
 
@@ -346,7 +343,6 @@ export default function KPIPage() {
           ventesYestRes,
           trafficTodayRes,
           trafficYestRes,
-          donutCaEspecesMoisFetched,
         ] = await Promise.all([
           supabase
             .from("ventes")
@@ -384,10 +380,8 @@ export default function KPIPage() {
             .select("nombre_entrees")
             .eq("jour", jourHierKey)
             .maybeSingle(),
-          fetchCaEspecesMoisPourDonut(),
         ]);
 
-        setDonutCaEspecesMoisExterne(donutCaEspecesMoisFetched);
         const ventesM = (moisRes.data ?? []) as Vente[];
         setVentesMois(ventesM);
         setVentesMoisPrec((moisPrecRes.data ?? []) as Vente[]);
@@ -491,7 +485,7 @@ export default function KPIPage() {
     [tiroirCaisseJour]
   );
 
-  /** Données donut : CA du mois par méthode. Espèces = source externe uniquement ; le reste = base ventes du mois. */
+  /** Données donut : CA du mois par méthode (+ part %). */
   const paymentDonutData = useMemo(() => {
     const sums = {
       carte: 0,
@@ -503,31 +497,23 @@ export default function KPIPage() {
     ventesMois.forEach((v) => {
       const t = v.total ?? 0;
       const m = v.methode_paiement;
-      if (m === "especes") return;
       if (m === "carte") sums.carte += t;
+      else if (m === "especes") sums.especes += t;
       else if (m === "mixte") sums.mixte += t;
       else if (m === "paypal") sums.paypal += t;
       else sums.autre += t;
     });
-    sums.especes = donutCaEspecesMoisExterne;
-    const totalChart = Math.round(
-      (sums.carte +
-        sums.especes +
-        sums.mixte +
-        sums.paypal +
-        sums.autre) *
-        100
-    ) / 100;
+    const ca = caMois;
     const row = (key: keyof typeof sums) => ({
       name: PAYMENT_DONUT[key].label,
-      value: Math.round(sums[key] * 100) / 100,
+      value: sums[key],
       fill: PAYMENT_DONUT[key].fill,
-      pct: totalChart > 0 ? (sums[key] / totalChart) * 100 : 0,
+      pct: ca > 0 ? (sums[key] / ca) * 100 : 0,
     });
     return (["carte", "especes", "mixte", "paypal", "autre"] as const)
       .map((k) => row(k))
       .filter((d) => d.value > 0);
-  }, [ventesMois, donutCaEspecesMoisExterne]);
+  }, [ventesMois, caMois]);
 
   const caMoisPrec = useMemo(
     () => ventesMoisPrec.reduce((s, v) => s + (v.total ?? 0), 0),
