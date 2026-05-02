@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ClipboardList,
@@ -13,9 +14,10 @@ import {
   Moon,
   Hourglass,
   Wallet,
+  MonitorPlay,
 } from "lucide-react";
+import type { eventWithTime } from "@rrweb/types";
 import type { SessionCaisse } from "@/components/caisse/CaisseSessionProvider";
-import VarReplayModal from "@/components/admin/VarReplayModal";
 import { createSupabaseBrowserClient } from "@/utils/supabase/client";
 
 export type LogActivite = {
@@ -27,11 +29,30 @@ export type LogActivite = {
   niveau_alerte: string;
 };
 
+const RrwebSessionPlayerLazy = dynamic(
+  () =>
+    import("@/components/admin/RrwebSessionPlayer").then((m) => ({
+      default: m.RrwebSessionPlayer,
+    })),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex min-h-[280px] items-center justify-center gap-2 rounded-xl border border-slate-800/40 bg-black/70 text-slate-300">
+        <Loader2 className="h-6 w-6 shrink-0 animate-spin text-indigo-400" />
+        <span className="text-sm font-medium">Chargement du lecteur VAR…</span>
+      </div>
+    ),
+  }
+);
+
 type FiltreRapide = "tous" | "suspects" | "jour";
 
-type OngletHistorique = "sessions" | "journal";
+type OngletHistorique = "sessions" | "journal" | "replay";
+
+type LogReplayListeRow = LogActivite;
 
 const ITEMS_PER_PAGE = 10;
+const REPLAY_ITEMS_PER_PAGE = 8;
 
 /** Seuil retard d’ouverture (exclusivement après 09:30 locale). */
 const OUVERTURE_MAX_MINUTES = 9 * 60 + 30;
@@ -264,11 +285,6 @@ function ShiftSessionCard({ session }: { session: SessionCaisse }) {
 export default function HistoriqueLogsPage() {
   const [ongletActif, setOngletActif] = useState<OngletHistorique>("journal");
 
-  const [varReplay, setVarReplay] = useState<{
-    time: string;
-    vendeuse: string;
-  } | null>(null);
-
   const [sessions, setSessions] = useState<SessionCaisse[]>([]);
   const [sessionsLoading, setSessionsLoading] = useState(true);
   const [sessionsError, setSessionsError] = useState<string | null>(null);
@@ -279,6 +295,17 @@ export default function HistoriqueLogsPage() {
   const [logsError, setLogsError] = useState<string | null>(null);
   const [filtre, setFiltre] = useState<FiltreRapide>("tous");
   const [currentPage, setCurrentPage] = useState(1);
+
+  const [replayLogs, setReplayLogs] = useState<LogReplayListeRow[]>([]);
+  const [replayTotalCount, setReplayTotalCount] = useState(0);
+  const [replayLoading, setReplayLoading] = useState(false);
+  const [replayError, setReplayError] = useState<string | null>(null);
+  const [replayCurrentPage, setReplayCurrentPage] = useState(1);
+  const [selectedReplayRow, setSelectedReplayRow] = useState<LogReplayListeRow | null>(
+    null
+  );
+  const [replayDetailLoading, setReplayDetailLoading] = useState(false);
+  const [replayEvents, setReplayEvents] = useState<eventWithTime[] | null>(null);
 
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
 
@@ -361,8 +388,120 @@ export default function HistoriqueLogsPage() {
     void loadLogs();
   }, [ongletActif, loadLogs]);
 
+  const loadReplayList = useCallback(async () => {
+    setReplayLoading(true);
+    setReplayError(null);
+    try {
+      const from = (replayCurrentPage - 1) * REPLAY_ITEMS_PER_PAGE;
+      const to = from + REPLAY_ITEMS_PER_PAGE - 1;
+
+      const { data, error: err, count } = await supabase
+        .from("logs_activite")
+        .select(
+          "id, created_at, vendeur_nom, type_action, details, niveau_alerte",
+          { count: "exact" }
+        )
+        .not("enregistrement_ecran", "is", null)
+        .order("created_at", { ascending: false })
+        .range(from, to);
+
+      if (err) {
+        setReplayLogs([]);
+        setReplayTotalCount(0);
+        setReplayError(err.message ?? "Impossible de charger les replays.");
+        return;
+      }
+      setReplayLogs((data ?? []) as LogReplayListeRow[]);
+      setReplayTotalCount(count ?? 0);
+    } catch (e) {
+      setReplayError(e instanceof Error ? e.message : "Erreur inattendue.");
+      setReplayLogs([]);
+      setReplayTotalCount(0);
+    } finally {
+      setReplayLoading(false);
+    }
+  }, [supabase, replayCurrentPage]);
+
+  useEffect(() => {
+    if (ongletActif !== "replay") return;
+    void loadReplayList();
+  }, [ongletActif, loadReplayList]);
+
+  useEffect(() => {
+    if (!selectedReplayRow) {
+      setReplayEvents(null);
+      return;
+    }
+    let cancelled = false;
+    setReplayDetailLoading(true);
+    setReplayEvents(null);
+    void (async () => {
+      const { data, error: err } = await supabase
+        .from("logs_activite")
+        .select("enregistrement_ecran")
+        .eq("id", selectedReplayRow.id)
+        .maybeSingle();
+      if (cancelled) return;
+      setReplayDetailLoading(false);
+      if (err || !data) {
+        setReplayEvents(null);
+        return;
+      }
+      const raw = (data as { enregistrement_ecran?: unknown }).enregistrement_ecran;
+      if (!Array.isArray(raw) || raw.length < 2) {
+        setReplayEvents(null);
+        return;
+      }
+      setReplayEvents(raw as eventWithTime[]);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedReplayRow, supabase]);
+
   const totalPages =
     totalCount <= 0 ? 0 : Math.ceil(totalCount / ITEMS_PER_PAGE);
+
+  const replayTotalPages =
+    replayTotalCount <= 0
+      ? 0
+      : Math.ceil(replayTotalCount / REPLAY_ITEMS_PER_PAGE);
+
+  const replayRangeDisplay = useMemo(() => {
+    if (replayTotalCount === 0) return { start: 0, end: 0 };
+    const page = Math.min(
+      Math.max(replayCurrentPage, 1),
+      Math.max(replayTotalPages, 1)
+    );
+    const start = (page - 1) * REPLAY_ITEMS_PER_PAGE + 1;
+    const end = Math.min(page * REPLAY_ITEMS_PER_PAGE, replayTotalCount);
+    return { start, end };
+  }, [replayTotalCount, replayCurrentPage, replayTotalPages]);
+
+  const visibleReplayPages = useMemo(
+    () =>
+      replayTotalPages <= 0
+        ? []
+        : pageItems(
+            replayTotalPages,
+            Math.min(replayCurrentPage, replayTotalPages)
+          ),
+    [replayTotalPages, replayCurrentPage]
+  );
+
+  const onReplayPageClick = (p: number) => {
+    if (replayTotalPages <= 0) return;
+    setReplayCurrentPage(Math.max(1, Math.min(replayTotalPages, p)));
+  };
+
+  const isFirstReplayPage =
+    replayCurrentPage <= 1 ||
+    replayTotalCount === 0 ||
+    replayTotalPages === 0;
+  const isLastReplayPage =
+    replayTotalCount === 0 ||
+    replayTotalPages === 0 ||
+    replayCurrentPage >= replayTotalPages;
 
   const rangeDisplay = useMemo(() => {
     if (totalCount === 0) return { start: 0, end: 0 };
@@ -377,6 +516,16 @@ export default function HistoriqueLogsPage() {
       setCurrentPage(totalPages);
     }
   }, [currentPage, totalPages]);
+
+  useEffect(() => {
+    if (replayTotalPages > 0 && replayCurrentPage > replayTotalPages) {
+      setReplayCurrentPage(replayTotalPages);
+    }
+  }, [replayCurrentPage, replayTotalPages]);
+
+  useEffect(() => {
+    setSelectedReplayRow(null);
+  }, [replayCurrentPage]);
 
   const formatDt = useCallback((iso: string) => {
     try {
@@ -469,11 +618,10 @@ export default function HistoriqueLogsPage() {
 
         <div
           dir="ltr"
-          className="mt-6 grid max-w-2xl grid-cols-2 gap-1 rounded-2xl border border-slate-200/80 bg-white p-1 shadow-sm [&>*]:min-w-0"
+          className="mt-6 grid max-w-4xl grid-cols-1 gap-1 rounded-2xl border border-slate-200/80 bg-white p-1 shadow-sm sm:grid-cols-3 [&>*]:min-w-0"
           role="tablist"
           aria-label="Vue historique"
         >
-          {/* Colonne gauche · toujours en premier (ordre garanti même en RTL) */}
           <button
             type="button"
             role="tab"
@@ -512,6 +660,25 @@ export default function HistoriqueLogsPage() {
             <span className="truncate text-center">
               Sessions &amp; horaires
             </span>
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={ongletActif === "replay"}
+            aria-controls="tabpanel-var-replay"
+            id="tab-replay-trigger"
+            className={`flex w-full flex-1 items-center justify-center gap-2 rounded-xl px-3 py-3 text-[13px] font-semibold tracking-tight transition-all sm:text-sm ${
+              ongletActif === "replay"
+                ? "bg-emerald-800 text-white shadow-md"
+                : "text-slate-600 hover:bg-slate-50"
+            }`}
+            onClick={() => {
+              setOngletActif("replay");
+              void loadReplayList();
+            }}
+          >
+            <MonitorPlay className="h-4 w-4 shrink-0" aria-hidden strokeWidth={2} />
+            <span className="truncate text-center">VAR · Replay</span>
           </button>
         </div>
 
@@ -584,7 +751,7 @@ export default function HistoriqueLogsPage() {
                         Horodatage
                       </th>
                       <th className="whitespace-nowrap px-4 py-3.5">Niveau</th>
-                      <th className="min-w-[140px] px-4 py-3.5">Action · VAR</th>
+                      <th className="min-w-[140px] px-4 py-3.5">Action</th>
                       <th className="min-w-[112px] px-4 py-3.5">Vendeuse</th>
                       <th className="min-w-[220px] px-4 py-3.5 xl:max-w-xl">
                         Détails
@@ -600,7 +767,7 @@ export default function HistoriqueLogsPage() {
                       return (
                         <tr
                           key={row.id}
-                          className="group/var-row transition-colors hover:bg-slate-50 focus-within:bg-slate-50/80"
+                          className="transition-colors hover:bg-slate-50 focus-within:bg-slate-50/80"
                         >
                           <td className="hidden align-middle px-3 py-3.5 md:table-cell">
                             <RowIcon
@@ -629,27 +796,9 @@ export default function HistoriqueLogsPage() {
                             </span>
                           </td>
                           <td className="align-middle px-4 py-3.5">
-                            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-                              <span className="min-w-0 flex-1 line-clamp-2 font-medium capitalize text-slate-800">
-                                {row.type_action.replace(/_/g, " ")}
-                              </span>
-                              {row.vendeur_nom?.trim() && (
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    setVarReplay({
-                                      time: row.created_at,
-                                      vendeuse: row.vendeur_nom!.trim(),
-                                    })
-                                  }
-                                  className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-indigo-200/95 bg-white px-2 py-1.5 text-[11px] font-bold uppercase tracking-wide text-indigo-700 opacity-100 shadow-sm transition-opacity [-webkit-tap-highlight-color:transparent] hover:border-indigo-300 hover:bg-indigo-50/90 md:pointer-events-none md:opacity-0 md:group-hover/var-row:pointer-events-auto md:group-hover/var-row:opacity-100"
-                                  title="Replay VAR −5 min / +2 min autour de cet événement"
-                                  aria-label="Ouvrir le replay VAR pour cette ligne"
-                                >
-                                  <span aria-hidden>▶️</span> VAR
-                                </button>
-                              )}
-                            </div>
+                            <span className="line-clamp-2 font-medium capitalize text-slate-800">
+                              {row.type_action.replace(/_/g, " ")}
+                            </span>
                           </td>
                           <td className="align-middle px-4 py-3.5 text-[13px] text-slate-600">
                             <span className="line-clamp-2 break-words md:truncate md:leading-normal">
@@ -798,6 +947,253 @@ export default function HistoriqueLogsPage() {
           </section>
         )}
 
+        {ongletActif === "replay" && (
+          <article
+            id="tabpanel-var-replay"
+            role="tabpanel"
+            aria-labelledby="tab-replay-trigger"
+            className="mb-12 space-y-8"
+          >
+            <header className="max-w-3xl space-y-1">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
+                Enregistrements critiques
+              </p>
+              <p className="text-lg font-semibold tracking-tight text-slate-900">
+                Session replay rrweb · encaissement &amp; annulations panier
+              </p>
+              <p className="text-sm leading-relaxed text-slate-600">
+                Ces replays correspondent aux actions enregistrées depuis la caisse uniquement lors
+                d&apos;un encaissement validé, d&apos;un panier vidé ou d&apos;une ligne supprimée
+                entièrement.
+              </p>
+            </header>
+
+            <div className="grid gap-10 lg:grid-cols-2 xl:gap-14">
+              <div className="min-w-0 space-y-0 overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-sm ring-1 ring-slate-100/80">
+                {replayLoading ? (
+                  <div className="flex min-h-[260px] items-center justify-center gap-3 py-16 text-slate-500">
+                    <Loader2 className="h-8 w-8 animate-spin text-emerald-600" />
+                    <span className="text-sm font-medium">Chargement des archives…</span>
+                  </div>
+                ) : replayError ? (
+                  <div className="px-8 py-16 text-center text-sm text-red-600">{replayError}</div>
+                ) : replayLogs.length === 0 ? (
+                  <div className="px-8 py-20 text-center text-sm text-slate-500">
+                    Aucun enregistrement d&apos;écran pour le moment. Les événements critiques depuis
+                    la caisse apparaîtront ici.
+                  </div>
+                ) : (
+                  <div className="relative overflow-x-auto">
+                    <table className="min-w-full border-collapse text-left text-sm">
+                      <thead>
+                        <tr className="border-b border-slate-200 bg-slate-50/90 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                          <th className="whitespace-nowrap px-4 py-3.5">Horodatage</th>
+                          <th className="whitespace-nowrap px-4 py-3.5">Niveau</th>
+                          <th className="min-w-[120px] px-4 py-3.5">Action</th>
+                          <th className="min-w-[112px] px-4 py-3.5">Vendeuse</th>
+                          <th className="min-w-[200px] px-4 py-3.5">Lecture</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {replayLogs.map((row) => {
+                          const lvl = niveauNormalized(row.niveau_alerte);
+                          const badge = badgeForNiveau(lvl);
+                          const RowIcon = badge.Icon;
+                          const isSel = selectedReplayRow?.id === row.id;
+
+                          return (
+                            <tr
+                              key={row.id}
+                              className={
+                                isSel
+                                  ? "bg-emerald-50/60 transition-colors"
+                                  : "transition-colors hover:bg-slate-50/80"
+                              }
+                            >
+                              <td className="align-middle whitespace-nowrap px-4 py-3.5 tabular-nums text-[13px] text-slate-500">
+                                {formatDt(row.created_at)}
+                              </td>
+                              <td className="align-middle whitespace-nowrap px-4 py-3.5">
+                                <span className={badge.cls}>
+                                  <RowIcon
+                                    className={badge.iconCls}
+                                    strokeWidth={2}
+                                    aria-hidden
+                                  />
+                                  {badge.label}
+                                </span>
+                              </td>
+                              <td className="align-middle px-4 py-3.5 capitalize text-[13px] font-medium text-slate-800">
+                                {row.type_action.replace(/_/g, " ")}
+                              </td>
+                              <td className="align-middle px-4 py-3.5 text-[13px] text-slate-600">
+                                <span className="line-clamp-2">{row.vendeur_nom ?? "—"}</span>
+                              </td>
+                              <td className="align-middle px-4 py-3.5">
+                                <button
+                                  type="button"
+                                  onClick={() => setSelectedReplayRow(row)}
+                                  className="inline-flex min-h-[38px] items-center gap-1.5 rounded-lg border border-emerald-700/35 bg-emerald-50 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide text-emerald-950 shadow-sm transition-colors hover:bg-emerald-100/90"
+                                >
+                                  <MonitorPlay className="h-3.5 w-3.5" aria-hidden strokeWidth={2} />
+                                  Lire
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+
+                {!replayLoading && !replayError && replayTotalCount > 0 && (
+                  <footer className="border-t border-slate-200 bg-slate-50/70 px-4 py-5 sm:px-5">
+                    <p className="mb-6 text-center text-[13px] text-slate-600 sm:text-left">
+                      Affichage de{" "}
+                      <span className="font-semibold tabular-nums text-slate-900">
+                        {replayRangeDisplay.start}
+                      </span>{" "}
+                      à{" "}
+                      <span className="font-semibold tabular-nums text-slate-900">
+                        {replayRangeDisplay.end}
+                      </span>{" "}
+                      sur{" "}
+                      <span className="font-semibold tabular-nums text-slate-900">
+                        {replayTotalCount}
+                      </span>{" "}
+                      résultat{replayTotalCount > 1 ? "s" : ""}.
+                    </p>
+
+                    <div className="mx-auto grid w-full max-w-3xl items-center gap-6 sm:grid-cols-[1fr_auto_1fr] sm:gap-4">
+                      <div className="flex justify-center gap-2 sm:justify-self-start">
+                        <button
+                          type="button"
+                          disabled={isFirstReplayPage}
+                          onClick={() => onReplayPageClick(replayCurrentPage - 1)}
+                          className="inline-flex min-h-[44px] items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-[13px] font-medium text-slate-700 shadow-sm transition-colors hover:border-slate-300 hover:bg-slate-50 disabled:pointer-events-none disabled:opacity-40"
+                        >
+                          <ChevronLeft className="h-4 w-4 shrink-0" aria-hidden strokeWidth={2} />
+                          Précédent
+                        </button>
+                        <button
+                          type="button"
+                          disabled={isLastReplayPage}
+                          onClick={() => onReplayPageClick(replayCurrentPage + 1)}
+                          className="inline-flex min-h-[44px] items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-[13px] font-medium text-slate-700 shadow-sm transition-colors hover:border-slate-300 hover:bg-slate-50 disabled:pointer-events-none disabled:opacity-40"
+                        >
+                          Suivant
+                          <ChevronRight className="h-4 w-4 shrink-0" aria-hidden strokeWidth={2} />
+                        </button>
+                      </div>
+
+                      <nav
+                        className="flex flex-wrap items-center justify-center gap-1 justify-self-center"
+                        aria-label="Pages replay"
+                      >
+                        {visibleReplayPages.map((item, i) =>
+                          item === "ellipsis" ? (
+                            <span
+                              key={`r-ellipsis-${i}`}
+                              className="min-w-[2rem] px-2 text-center text-slate-400"
+                              aria-hidden
+                            >
+                              …
+                            </span>
+                          ) : (
+                            <button
+                              key={item}
+                              type="button"
+                              onClick={() => onReplayPageClick(item)}
+                              className={`min-h-[38px] min-w-[38px] rounded-lg text-[13px] font-semibold tabular-nums transition-colors ${
+                                item === replayCurrentPage
+                                  ? "bg-emerald-800 text-white shadow-sm ring-1 ring-emerald-700"
+                                  : "text-slate-600 hover:bg-slate-200/90"
+                              }`}
+                              aria-current={
+                                item === replayCurrentPage ? "page" : undefined
+                              }
+                            >
+                              {item}
+                            </button>
+                          )
+                        )}
+                      </nav>
+
+                      <div className="hidden sm:block sm:justify-self-end" aria-hidden />
+                    </div>
+                  </footer>
+                )}
+              </div>
+
+              <aside className="min-w-0 space-y-4 lg:sticky lg:top-6 lg:self-start">
+                <div className="rounded-2xl border border-slate-800/70 bg-gradient-to-br from-slate-900 via-slate-900 to-black p-5 text-white shadow-xl ring-1 ring-white/10">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-300/90">
+                    Visionnage VAR
+                  </p>
+                  {selectedReplayRow ? (
+                    <div className="mt-3 space-y-1 text-[13px] leading-relaxed text-slate-200">
+                      <p className="font-semibold tabular-nums text-white">
+                        {formatDt(selectedReplayRow.created_at)}
+                      </p>
+                      <p>
+                        <span className="text-slate-400">Vendeuse · </span>
+                        {selectedReplayRow.vendeur_nom ?? "—"}
+                      </p>
+                      <p className="capitalize text-slate-300">
+                        <span className="text-slate-500">Action · </span>
+                        {selectedReplayRow.type_action.replace(/_/g, " ")}
+                      </p>
+                    </div>
+                  ) : (
+                    <p className="mt-3 text-[13px] leading-relaxed text-slate-400">
+                      Sélectionnez une ligne dans la liste pour charger le replay rrweb correspondant à
+                      la session de travail avant l&apos;événement.
+                    </p>
+                  )}
+                </div>
+
+                {selectedReplayRow && replayDetailLoading && (
+                  <div className="flex min-h-[200px] items-center justify-center gap-2 rounded-xl border border-slate-200 bg-slate-50 text-slate-600">
+                    <Loader2 className="h-6 w-6 animate-spin text-emerald-600" />
+                    <span className="text-sm font-medium">Décodage de la séquence…</span>
+                  </div>
+                )}
+
+                {selectedReplayRow &&
+                  !replayDetailLoading &&
+                  replayEvents &&
+                  replayEvents.length >= 2 && (
+                    <RrwebSessionPlayerLazy
+                      key={selectedReplayRow.id}
+                      events={replayEvents}
+                      className="w-full"
+                    />
+                  )}
+
+                {selectedReplayRow &&
+                  !replayDetailLoading &&
+                  (!replayEvents || replayEvents.length < 2) && (
+                    <div className="flex min-h-[200px] items-center rounded-xl border border-amber-200/80 bg-amber-50/80 px-5 py-12 text-center text-sm text-amber-950">
+                      Impossible de lire cet enregistrement (données manquantes ou corrompues).
+                    </div>
+                  )}
+
+                {!selectedReplayRow && (
+                  <div className="flex min-h-[220px] flex-col items-center justify-center rounded-xl border border-dashed border-slate-300/90 bg-white/70 px-6 py-14 text-center text-sm text-slate-500 shadow-inner ring-1 ring-slate-100/80">
+                    <MonitorPlay
+                      className="mb-3 h-10 w-10 text-slate-300"
+                      aria-hidden
+                      strokeWidth={1.5}
+                    />
+                    Aucun clip sélectionné.
+                  </div>
+                )}
+              </aside>
+            </div>
+          </article>
+        )}
+
         <section
           className="mt-10 rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50/60 py-24 text-center ring-1 ring-slate-100/80"
           aria-label="Modules à venir"
@@ -808,14 +1204,6 @@ export default function HistoriqueLogsPage() {
           </p>
         </section>
 
-        {varReplay && (
-          <VarReplayModal
-            open
-            onClose={() => setVarReplay(null)}
-            targetTimeISO={varReplay.time}
-            targetVendeuse={varReplay.vendeuse}
-          />
-        )}
       </div>
     </div>
   );

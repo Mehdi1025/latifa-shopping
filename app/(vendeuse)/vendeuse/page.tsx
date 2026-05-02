@@ -44,6 +44,7 @@ import {
 } from "@/lib/caisse/catalogue-groupes";
 import VarianteSelectionSheet from "@/components/vendeur/VarianteSelectionSheet";
 import { useWedgeEan13Listener } from "@/hooks/useWedgeEan13Listener";
+import { useScreenRecorder } from "@/hooks/useScreenRecorder";
 import { logActivite } from "@/lib/logActivite";
 
 type LignePanier = {
@@ -286,6 +287,7 @@ export default function VendeusePage() {
 
   /** Nom pour `logs_activite` (profil ou fallback email). */
   const [nomVendeuseLog, setNomVendeuseLog] = useState<string>("");
+  const { consumeReplaySegment } = useScreenRecorder(true);
 
   const supabase = createSupabaseBrowserClient();
 
@@ -546,15 +548,17 @@ export default function VendeusePage() {
     });
   };
 
-  const removeItemCompletely = (panierLineId: string) => {
+  const removeItemCompletely = async (panierLineId: string) => {
     const ligne = panier.find((l) => l.panierLineId === panierLineId);
     if (ligne) {
       const articleNom = ligne.libelleOverride ?? ligne.produit.nom;
-      void logActivite(
+      const replayPayload = consumeReplaySegment();
+      await logActivite(
         nomVendeuseLog,
         "suppression_panier",
         `A supprimé ${articleNom} du panier (ligne entière · ${ligne.quantite} unité(s))`,
-        "critique"
+        "critique",
+        replayPayload != null ? { enregistrement_ecran: replayPayload } : undefined
       );
     }
     setPanier((prev) => prev.filter((l) => l.panierLineId !== panierLineId));
@@ -572,13 +576,15 @@ export default function VendeusePage() {
     });
   };
 
-  const viderPanier = () => {
+  const viderPanier = async () => {
     if (panier.length > 0) {
-      void logActivite(
+      const replayPayload = consumeReplaySegment();
+      await logActivite(
         nomVendeuseLog,
         "annulation_vente",
         "A annulé une vente en cours (Panier vidé)",
-        "critique"
+        "critique",
+        replayPayload != null ? { enregistrement_ecran: replayPayload } : undefined
       );
     }
     setPanier([]);
@@ -863,11 +869,13 @@ export default function VendeusePage() {
         }
       }
 
-      void logActivite(
+      const replayPayload = consumeReplaySegment();
+      await logActivite(
         nomVendeuseLog,
         "encaissement",
         `Encaissement validé de ${total.toFixed(2)}€ en ${libelleMoyenPaiementCaisse(methodePaiement)}`,
-        "info"
+        "info",
+        replayPayload != null ? { enregistrement_ecran: replayPayload } : undefined
       );
 
       setPanier([]);
