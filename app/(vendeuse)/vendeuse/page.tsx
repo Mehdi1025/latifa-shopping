@@ -46,6 +46,7 @@ import VarianteSelectionSheet from "@/components/vendeur/VarianteSelectionSheet"
 import { useWedgeEan13Listener } from "@/hooks/useWedgeEan13Listener";
 import { useScreenRecorder } from "@/hooks/useScreenRecorder";
 import { logActivite } from "@/lib/logActivite";
+import type { ShadowManifest } from "@/lib/shadowStore";
 
 type LignePanier = {
   /** Clé stable par ligne (plusieurs lots Coffre = même produit_id) */
@@ -527,11 +528,15 @@ export default function VendeusePage() {
         ligne.quantite <= 1
           ? `A supprimé ${articleNom} du panier`
           : `A retiré 1 × ${articleNom} du panier (${ligne.quantite - 1} restante(s))`;
+      const valeurUniteOuLigne =
+        Math.round(ligne.produit.prix * (ligne.quantite <= 1 ? ligne.quantite : 1) * 100) /
+        100;
       void logActivite(
         nomVendeuseLog,
         "suppression_panier",
         detail,
-        "critique"
+        "critique",
+        { valeur_perdue: valeurUniteOuLigne }
       );
     }
     setPanier((prev) => {
@@ -553,12 +558,17 @@ export default function VendeusePage() {
     if (ligne) {
       const articleNom = ligne.libelleOverride ?? ligne.produit.nom;
       const replayPayload = consumeReplaySegment();
+      const valeurLigne =
+        Math.round(ligne.produit.prix * ligne.quantite * 100) / 100;
       await logActivite(
         nomVendeuseLog,
         "suppression_panier",
         `A supprimé ${articleNom} du panier (ligne entière · ${ligne.quantite} unité(s))`,
         "critique",
-        replayPayload != null ? { enregistrement_ecran: replayPayload } : undefined
+        {
+          ...(replayPayload != null ? { enregistrement_ecran: replayPayload } : {}),
+          valeur_perdue: valeurLigne,
+        }
       );
     }
     setPanier((prev) => prev.filter((l) => l.panierLineId !== panierLineId));
@@ -574,28 +584,6 @@ export default function VendeusePage() {
           : l
       );
     });
-  };
-
-  const viderPanier = async () => {
-    if (panier.length > 0) {
-      const replayPayload = consumeReplaySegment();
-      await logActivite(
-        nomVendeuseLog,
-        "annulation_vente",
-        "A annulé une vente en cours (Panier vidé)",
-        "critique",
-        replayPayload != null ? { enregistrement_ecran: replayPayload } : undefined
-      );
-    }
-    setPanier([]);
-    setRemiseValue(0);
-    setRemiseType("percent");
-    setMethodePaiement("carte");
-    setMontantDonne("");
-    setMontantEspecesMixte("");
-    setClientPhone("");
-    setClientNom("");
-    setResolvedClient(null);
   };
 
   const ouvrirPanierCaisse = () => {
@@ -625,6 +613,40 @@ export default function VendeusePage() {
   }, [remiseType, remiseValue, sousTotal]);
 
   const total = Math.max(0, Math.round((sousTotal - remiseAmount) * 100) / 100);
+
+  const viderPanier = async () => {
+    if (panier.length > 0) {
+      const replayPayload = consumeReplaySegment();
+      const roundedTotal = Math.round(total * 100) / 100;
+      const shadow_manifest: ShadowManifest = {
+        total_ttc: roundedTotal,
+        lignes: panier.map((l) => ({
+          nom: (l.libelleOverride ?? l.produit.nom).slice(0, 240),
+          qty: l.quantite,
+          prix_unitaire: l.produit.prix,
+          sous_total:
+            Math.round(l.produit.prix * l.quantite * 100) / 100,
+        })),
+      };
+      const detailVidage = `A annulé une vente en cours (Panier vidé) — total TTC ${roundedTotal
+        .toFixed(2)
+        .replace(".", ",")} €`;
+      await logActivite(nomVendeuseLog, "annulation_vente", detailVidage, "critique", {
+        ...(replayPayload != null ? { enregistrement_ecran: replayPayload } : {}),
+        valeur_perdue: roundedTotal,
+        shadow_manifest,
+      });
+    }
+    setPanier([]);
+    setRemiseValue(0);
+    setRemiseType("percent");
+    setMethodePaiement("carte");
+    setMontantDonne("");
+    setMontantEspecesMixte("");
+    setClientPhone("");
+    setClientNom("");
+    setResolvedClient(null);
+  };
 
   const montantDonneNum = useMemo(
     () => parseMontantFrancais(montantDonne),

@@ -29,6 +29,9 @@ import {
   type StorePulseWaveEntry,
 } from "@/lib/storePulse";
 import { StorePulseWave } from "@/components/store/StorePulseWave";
+import { ShadowMirrorBoard } from "@/components/admin/ShadowMirrorBoard";
+import type { ShadowLogRow } from "@/lib/shadowStore";
+import { computeShadowStoreMetrics } from "@/lib/shadowStore";
 import { toast } from "sonner";
 
 export type LogActivite = {
@@ -38,6 +41,8 @@ export type LogActivite = {
   type_action: string;
   details: string | null;
   niveau_alerte: string;
+  valeur_perdue?: number | string | null;
+  shadow_manifest?: unknown | null;
 };
 
 const RrwebSessionPlayerLazy = dynamic(
@@ -318,6 +323,11 @@ export default function HistoriqueLogsPage() {
   const [replayDetailLoading, setReplayDetailLoading] = useState(false);
   const [replayEvents, setReplayEvents] = useState<eventWithTime[] | null>(null);
 
+  const [shadowStoreMode, setShadowStoreMode] = useState(false);
+  const [shadowLogsRaw, setShadowLogsRaw] = useState<ShadowLogRow[]>([]);
+  const [shadowLoading, setShadowLoading] = useState(false);
+  const [shadowError, setShadowError] = useState<string | null>(null);
+
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
 
   useEffect(() => {
@@ -518,6 +528,48 @@ export default function HistoriqueLogsPage() {
     },
     [supabase, loadReplayList]
   );
+
+  const loadShadowData = useCallback(async () => {
+    setShadowLoading(true);
+    setShadowError(null);
+    try {
+      const { data, error: err } = await supabase
+        .from("logs_activite")
+        .select(
+          "id, created_at, vendeur_nom, type_action, details, niveau_alerte, valeur_perdue, shadow_manifest"
+        )
+        .in("type_action", ["suppression_panier", "annulation_vente"])
+        .order("created_at", { ascending: false })
+        .limit(2500);
+
+      if (err) {
+        setShadowLogsRaw([]);
+        setShadowError(err.message ?? "Impossible de charger le magasin de l’ombre.");
+        return;
+      }
+      setShadowLogsRaw((data ?? []) as ShadowLogRow[]);
+    } catch (e) {
+      setShadowLogsRaw([]);
+      setShadowError(e instanceof Error ? e.message : "Erreur inattendue.");
+    } finally {
+      setShadowLoading(false);
+    }
+  }, [supabase]);
+
+  useEffect(() => {
+    if (!shadowStoreMode) {
+      setShadowLogsRaw([]);
+      setShadowError(null);
+      setShadowLoading(false);
+      return;
+    }
+    void loadShadowData();
+  }, [shadowStoreMode, loadShadowData]);
+
+  const shadowDashboardMetrics = useMemo(() => {
+    if (!shadowStoreMode) return null;
+    return computeShadowStoreMetrics(shadowLogsRaw);
+  }, [shadowStoreMode, shadowLogsRaw]);
 
   const totalPages =
     totalCount <= 0 ? 0 : Math.ceil(totalCount / ITEMS_PER_PAGE);
@@ -782,20 +834,38 @@ export default function HistoriqueLogsPage() {
         )}
       </header>
 
-      <div className="mx-auto max-w-6xl">
-        <StorePulseWave
-          entries={pulseWaveEntries}
-          sourceBadge={
-            filtre === "jour" && logs.length >= 10
-              ? `Journée réelle · ${logs.length}`
-              : "Synthèse démo"
-          }
-          onBarActivate={(e) => {
-            void handlePulseBarActivate(e);
-          }}
-          className="mb-11"
-        />
-        {ongletActif === "journal" && (
+      <div
+        className={
+          shadowStoreMode
+            ? "mx-auto max-w-6xl rounded-[1.85rem] border border-violet-950/40 bg-black/[0.02] px-4 py-10 ring-1 ring-violet-900/35 md:px-8"
+            : "mx-auto max-w-6xl"
+        }
+      >
+        <div className="mb-10 lg:mb-12">
+          <ShadowMirrorBoard
+            shadowMode={shadowStoreMode}
+            onShadowModeChange={setShadowStoreMode}
+            metrics={shadowDashboardMetrics}
+            loading={shadowLoading}
+            error={shadowError}
+            formatDt={formatDt}
+          />
+        </div>
+        {!shadowStoreMode && (
+          <StorePulseWave
+            entries={pulseWaveEntries}
+            sourceBadge={
+              filtre === "jour" && logs.length >= 10
+                ? `Journée réelle · ${logs.length}`
+                : "Synthèse démo"
+            }
+            onBarActivate={(e) => {
+              void handlePulseBarActivate(e);
+            }}
+            className="mb-11"
+          />
+        )}
+        {ongletActif === "journal" && !shadowStoreMode && (
           <article
             id="tabpanel-journal"
             role="tabpanel"
