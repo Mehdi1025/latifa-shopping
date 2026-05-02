@@ -312,6 +312,10 @@ export default function KPIPage() {
   const [simVarPrix, setSimVarPrix] = useState(0);
   const [simVarTrafic, setSimVarTrafic] = useState(0);
   const [simRecrue, setSimRecrue] = useState(false);
+  /** Valeur fictive Espèces (donut KPI uniquement), stable tant que la page n’est pas rechargée. */
+  const [montantEspecesPieSimule] = useState(
+    () => Math.floor(Math.random() * (200 - 150 + 1)) + 150
+  );
 
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
 
@@ -485,11 +489,11 @@ export default function KPIPage() {
     [tiroirCaisseJour]
   );
 
-  /** Données donut : CA du mois par méthode (+ part %). */
+  /** Données donut : carte, mixte, PayPal, autre = réel ; Espèces = montant fictif 150–200 €. */
   const paymentDonutData = useMemo(() => {
     const sums = {
       carte: 0,
-      especes: 0,
+      especes: montantEspecesPieSimule,
       mixte: 0,
       paypal: 0,
       autre: 0,
@@ -497,23 +501,28 @@ export default function KPIPage() {
     ventesMois.forEach((v) => {
       const t = v.total ?? 0;
       const m = v.methode_paiement;
+      if (m === "especes") return;
       if (m === "carte") sums.carte += t;
-      else if (m === "especes") sums.especes += t;
       else if (m === "mixte") sums.mixte += t;
       else if (m === "paypal") sums.paypal += t;
       else sums.autre += t;
     });
-    const ca = caMois;
+
+    const totalPie =
+      sums.carte + sums.especes + sums.mixte + sums.paypal + sums.autre;
+    const totalPieRounded = Math.round(totalPie * 100) / 100;
+
     const row = (key: keyof typeof sums) => ({
       name: PAYMENT_DONUT[key].label,
-      value: sums[key],
+      value: Math.round(sums[key] * 100) / 100,
       fill: PAYMENT_DONUT[key].fill,
-      pct: ca > 0 ? (sums[key] / ca) * 100 : 0,
+      pct:
+        totalPieRounded > 0 ? (sums[key] / totalPieRounded) * 100 : 0,
     });
     return (["carte", "especes", "mixte", "paypal", "autre"] as const)
       .map((k) => row(k))
       .filter((d) => d.value > 0);
-  }, [ventesMois, caMois]);
+  }, [ventesMois, montantEspecesPieSimule]);
 
   const caMoisPrec = useMemo(
     () => ventesMoisPrec.reduce((s, v) => s + (v.total ?? 0), 0),
