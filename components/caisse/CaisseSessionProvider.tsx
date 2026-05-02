@@ -18,7 +18,7 @@ import type { ClotureCaissePayload } from "./ComptageCaisseModal";
 const FOND_PREMIER_JOUR_EUR = 100;
 
 const SESSION_SELECT =
-  "id, heure_ouverture, heure_fermeture, fond_initial, ventes_especes, total_declare, ecart, statut, details_comptage, fond_laisse, montant_preleve" as const;
+  "id, heure_ouverture, heure_fermeture, fond_initial, ventes_especes, total_declare, ecart, statut, details_comptage" as const;
 
 export type SessionCaisse = {
   id: string;
@@ -30,8 +30,9 @@ export type SessionCaisse = {
   ecart: number | null;
   statut: "ouverte" | "fermee";
   details_comptage: Record<string, unknown> | null;
-  fond_laisse: number | null;
-  montant_preleve: number | null;
+  /** Présents après migration `sessions_caisse` v2 prélev. + sur sessions fermées */
+  fond_laisse?: number | null;
+  montant_preleve?: number | null;
 };
 
 type Ctx = {
@@ -116,7 +117,7 @@ export function CaisseSessionProvider({ children }: { children: React.ReactNode 
         setSession(null);
         const { data: last, error: e2 } = await supabase
           .from("sessions_caisse")
-          .select("fond_laisse, total_declare, heure_fermeture")
+          .select("*")
           .eq("statut", "fermee")
           .order("heure_fermeture", { ascending: false })
           .limit(1)
@@ -324,6 +325,17 @@ export function CaisseSessionProvider({ children }: { children: React.ReactNode 
           .maybeSingle();
 
         if (upErr) {
+          if (
+            typeof upErr.message === "string" &&
+            /fond_laisse|montant_preleve|does not exist|schema cache/i.test(
+              upErr.message
+            )
+          ) {
+            toast.error(
+              "Mise à jour base requise : exécutez le SQL de la migration supabase/migrations/20260502140000_sessions_caisse_fond_laisse_preleve.sql dans le SQL Editor Supabase (ou supabase db push)."
+            );
+            return;
+          }
           toast.error(upErr.message ?? "Échec de la clôture.");
           return;
         }

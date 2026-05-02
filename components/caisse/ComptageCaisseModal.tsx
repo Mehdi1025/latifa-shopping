@@ -93,7 +93,7 @@ function DenominationGrid(props: {
   return (
     <>
       <p className="mb-2 text-sm font-medium text-gray-800">{titleBillets}</p>
-      <div className="mb-5 grid grid-cols-2 gap-2.5 sm:grid-cols-3 md:max-w-2xl">
+      <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-3 md:max-w-2xl">
         {COUPURES_BILLETS.map((d) => (
           <label
             key={d}
@@ -105,9 +105,11 @@ function DenominationGrid(props: {
             <input
               type="text"
               inputMode="numeric"
+              autoComplete="off"
+              enterKeyHint="done"
               value={quantities[String(d)]}
               onChange={(e) => onChangeQty(String(d), e.target.value)}
-              className="mt-1.5 w-full rounded-lg border border-gray-200 bg-white px-2.5 py-2 text-base text-gray-900"
+              className="mt-1.5 w-full rounded-lg border border-gray-200 bg-white px-2.5 py-2 text-base text-gray-900 touch-manipulation [-webkit-appearance:none]"
               placeholder="0"
             />
           </label>
@@ -115,7 +117,7 @@ function DenominationGrid(props: {
       </div>
 
       <p className="mb-2 text-sm font-medium text-gray-800">{titlePieces}</p>
-      <div className="mb-4 grid grid-cols-2 gap-2.5 sm:grid-cols-3 md:max-w-2xl">
+      <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3 md:max-w-2xl">
         {COUPURES_PIECES.map((d) => (
           <label
             key={d}
@@ -127,9 +129,11 @@ function DenominationGrid(props: {
             <input
               type="text"
               inputMode="numeric"
+              autoComplete="off"
+              enterKeyHint="done"
               value={quantities[String(d)]}
               onChange={(e) => onChangeQty(String(d), e.target.value)}
-              className="mt-1.5 w-full rounded-lg border border-gray-200 bg-white px-2.5 py-2 text-base text-gray-900"
+              className="mt-1.5 w-full rounded-lg border border-gray-200 bg-white px-2.5 py-2 text-base text-gray-900 touch-manipulation [-webkit-appearance:none]"
               placeholder="0"
             />
           </label>
@@ -138,6 +142,13 @@ function DenominationGrid(props: {
     </>
   );
 }
+
+const footerBtnNeutral =
+  "inline-flex w-full min-h-[3rem] shrink-0 touch-manipulation select-none items-center justify-center whitespace-nowrap rounded-xl border px-4 py-3 text-center text-sm font-medium [-webkit-tap-highlight-color:transparent] transition-[transform,colors] duration-150 active:scale-[0.99] [@media(min-width:640px)]:w-auto";
+const footerBtnGhost = `${footerBtnNeutral} border-gray-300 text-gray-800 hover:bg-gray-50 disabled:opacity-50`;
+const footerBtnOutline = `${footerBtnNeutral} border-gray-200 text-gray-700 hover:bg-gray-50`;
+const footerBtnPrimary =
+  "inline-flex w-full min-h-[min(3.75rem,max(3rem,11vw))] shrink-0 touch-manipulation select-none items-center justify-center text-balance rounded-xl bg-gray-900 px-4 py-[0.65rem] text-center text-[0.9375rem] font-semibold leading-snug text-white [-webkit-tap-highlight-color:transparent] transition-[transform,colors] duration-150 hover:bg-gray-800 active:scale-[0.99] disabled:pointer-events-none disabled:opacity-50 [@media(min-width:640px)]:w-auto [@media(min-width:640px)]:min-h-[3rem] [@media(min-width:640px)]:max-w-xl [@media(min-width:640px)]:flex-[1_1_auto] [@media(min-width:640px)]:px-5 [@media(min-width:640px)]:py-3 [@media(min-width:640px)]:text-sm";
 
 export default function ComptageCaisseModal({
   open,
@@ -223,7 +234,7 @@ export default function ComptageCaisseModal({
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 z-[220] flex flex-col bg-white"
+          className="fixed inset-0 z-[220] flex h-[100dvh] max-h-[100dvh] touch-pan-y flex-col overflow-hidden bg-white"
         >
           <header className="flex shrink-0 items-start justify-between gap-3 border-b border-gray-100 bg-white px-4 py-3 pt-[max(0.75rem,env(safe-area-inset-top))] md:px-6">
             <div className="min-w-0">
@@ -266,7 +277,10 @@ export default function ComptageCaisseModal({
             </button>
           </header>
 
-          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 md:px-6">
+          <div
+            className="relative min-h-0 flex-1 overflow-y-auto overscroll-y-contain px-4 py-4 [scroll-padding-block-end:max(1rem,env(safe-area-inset-bottom))] [scroll-padding-block-start:0.5rem] md:px-6 md:pb-6"
+            style={{ WebkitOverflowScrolling: "touch" }}
+          >
             {step === 1 ? (
               <DenominationGrid
                 titleBillets="Billets dans le tiroir"
@@ -291,7 +305,7 @@ export default function ComptageCaisseModal({
             )}
           </div>
 
-          <footer className="shrink-0 border-t border-gray-100 bg-white px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] md:px-6">
+          <footer className="isolate shrink-0 border-t border-gray-100 bg-white pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 shadow-[0_-6px_24px_-12px_rgba(0,0,0,0.08)] px-4 md:px-6">
             {step === 1 && (
               <>
                 <div className="mb-3 grid gap-2 sm:grid-cols-2">
@@ -365,55 +379,62 @@ export default function ComptageCaisseModal({
               </>
             )}
 
-            <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
-              <button
-                type="button"
-                onClick={handleClose}
-                className="min-h-12 rounded-xl border border-gray-200 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
-              >
-                Annuler
-              </button>
-              {step === 1 ? (
+            {step === 1 ? (
+              <div className="flex w-full flex-col gap-2.5 sm:flex-row sm:flex-wrap sm:items-stretch sm:justify-end sm:gap-x-3 sm:gap-y-2">
+                <button
+                  type="button"
+                  onClick={handleClose}
+                  className={`${footerBtnOutline} shrink-0 sm:order-1 sm:min-w-[8.5rem]`}
+                >
+                  Annuler
+                </button>
                 <button
                   type="button"
                   disabled={loading}
                   onClick={gotoStep2}
-                  className="min-h-12 rounded-xl bg-gray-900 py-2.5 text-sm font-semibold text-white hover:bg-gray-800 disabled:opacity-50"
+                  className={`${footerBtnPrimary} text-pretty sm:order-2`}
                 >
-                  Suivant : préparer la caisse de demain
+                  Suivant&nbsp;: préparer la caisse de demain
                 </button>
-              ) : (
-                <>
-                  <button
-                    type="button"
-                    disabled={loading}
-                    onClick={() => setStep(1)}
-                    className="min-h-12 rounded-xl border border-gray-300 py-2.5 text-sm font-semibold text-gray-800 hover:bg-gray-50 disabled:opacity-50"
-                  >
-                    Retour
-                  </button>
-                  <button
-                    type="button"
-                    disabled={loading || fondExcedeTotal}
-                    onClick={() =>
-                      onSubmit({
-                        totalDeclareEtape1,
-                        detailsComptageTotalTiroir: buildDetailsComptage(
-                          quantitiesEtape1
-                        ),
-                        fondLaisseEtape2: fondLaisseCalcule,
-                        detailsComptageFondLaisse: buildDetailsComptage(
-                          quantitiesEtape2
-                        ),
-                      })
-                    }
-                    className="min-h-12 rounded-xl bg-gray-900 py-2.5 text-sm font-semibold text-white hover:bg-gray-800 disabled:opacity-50"
-                  >
-                    {loading ? "Validation…" : "🔒 Valider et clôturer"}
-                  </button>
-                </>
-              )}
-            </div>
+              </div>
+            ) : (
+              <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:flex-row sm:flex-wrap sm:items-stretch sm:justify-end sm:gap-x-3 sm:gap-y-2">
+                <button
+                  type="button"
+                  onClick={handleClose}
+                  className={`${footerBtnOutline} min-w-0 sm:order-1 sm:min-w-[8.25rem]`}
+                >
+                  Annuler
+                </button>
+                <button
+                  type="button"
+                  disabled={loading}
+                  onClick={() => setStep(1)}
+                  className={`${footerBtnGhost} min-w-0 sm:order-2 sm:min-w-[7.75rem]`}
+                >
+                  Retour
+                </button>
+                <button
+                  type="button"
+                  disabled={loading || fondExcedeTotal}
+                  onClick={() =>
+                    onSubmit({
+                      totalDeclareEtape1,
+                      detailsComptageTotalTiroir: buildDetailsComptage(
+                        quantitiesEtape1
+                      ),
+                      fondLaisseEtape2: fondLaisseCalcule,
+                      detailsComptageFondLaisse: buildDetailsComptage(
+                        quantitiesEtape2
+                      ),
+                    })
+                  }
+                  className={`${footerBtnPrimary} col-span-2 sm:order-3 sm:max-w-md`}
+                >
+                  {loading ? "Validation…" : "🔒 Valider et clôturer"}
+                </button>
+              </div>
+            )}
           </footer>
         </motion.div>
       )}
