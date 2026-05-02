@@ -17,6 +17,7 @@ import {
   ChevronRight,
   X,
   Target,
+  ClipboardList,
   Kanban,
 } from "lucide-react";
 import LogoutButton from "./LogoutButton";
@@ -51,7 +52,14 @@ const navSections: { label: string; items: NavItem[] }[] = [
   },
   {
     label: "ADMIN",
-    items: [{ href: "/parametres", label: "Paramètres", icon: Settings }],
+    items: [
+      {
+        href: "/dashboard/historique",
+        label: "Historique & Logs",
+        icon: ClipboardList,
+      },
+      { href: "/parametres", label: "Paramètres", icon: Settings },
+    ],
   },
 ];
 
