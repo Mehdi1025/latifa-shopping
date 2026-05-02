@@ -1,6 +1,6 @@
 /**
  * Replay rrweb jugé exploitable dans le VAR (timeline > 0s).
- * Aligne le filtre appliqué avec la colonne `replay_span_ms` (migration Postgres).
+ * Optionnellement indexé par `replay_span_ms` (migration Postgres) pour filtrer en SQL.
  */
 
 export const MIN_RRWEB_EVENTS = 2;
@@ -28,7 +28,7 @@ export function rrwebEventsSpanMs(events: unknown[]): number {
 
 /**
  * Timeline rrweb perceptible (> 500 ms environ) ; évite lecteurs « 0 s ».
- * À garder en phase avec `.gte(\"replay_span_ms\", …)` dans l’admin.
+ * Utilisé côté client (lecteur VAR) ; la colonne `replay_span_ms` peut servir aux filtres SQL.
  */
 export const MIN_RRWEB_REPLAY_SPAN_MS = 500;
 
