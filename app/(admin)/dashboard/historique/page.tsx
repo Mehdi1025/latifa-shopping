@@ -9,7 +9,12 @@ import {
   PauseCircle,
   ChevronLeft,
   ChevronRight,
+  Sunrise,
+  Moon,
+  Hourglass,
+  Wallet,
 } from "lucide-react";
+import type { SessionCaisse } from "@/components/caisse/CaisseSessionProvider";
 import { createSupabaseBrowserClient } from "@/utils/supabase/client";
 
 export type LogActivite = {
@@ -23,7 +28,68 @@ export type LogActivite = {
 
 type FiltreRapide = "tous" | "suspects" | "jour";
 
+type OngletHistorique = "sessions" | "journal";
+
 const ITEMS_PER_PAGE = 10;
+
+/** Seuil retard d’ouverture (exclusivement après 09:30 locale). */
+const OUVERTURE_MAX_MINUTES = 9 * 60 + 30;
+
+function formatHeureFr(d: Date): string {
+  const h = d.getHours().toString().padStart(2, "0");
+  const m = d.getMinutes().toString().padStart(2, "0");
+  return `${h}h${m}`;
+}
+
+/** ex. « lundi 14 mai 2026 » puis capitaliser le lendemain de phrase si besoin */
+function formatDateJourFrancais(isoOrDate: Date | string): string {
+  const d = typeof isoOrDate === "string" ? new Date(isoOrDate) : isoOrDate;
+  const raw = new Intl.DateTimeFormat("fr-FR", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  }).format(d);
+  return raw.charAt(0).toUpperCase() + raw.slice(1);
+}
+
+function minutesDepuisMinuitLocale(d: Date): number {
+  return d.getHours() * 60 + d.getMinutes();
+}
+
+function isOuvertureTard(d: Date): boolean {
+  return minutesDepuisMinuitLocale(d) > OUVERTURE_MAX_MINUTES;
+}
+
+function formatEcartSigneEUR(n: number): {
+  text: string;
+  positive: boolean;
+  zeroish: boolean;
+} {
+  const zeroish = Math.abs(n) < 0.005;
+  const positive = n >= 0;
+  const fmt = new Intl.NumberFormat("fr-FR", {
+    style: "currency",
+    currency: "EUR",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(Math.abs(n));
+  return {
+    text: `${positive ? "+" : "-"} ${fmt}`,
+    positive,
+    zeroish,
+  };
+}
+
+function formatDureeDepuisOuverture(ouvert: Date, fermeOuNow: Date): string {
+  const ms = Math.max(0, fermeOuNow.getTime() - ouvert.getTime());
+  const totalMin = Math.floor(ms / 60_000);
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  if (h <= 0) return `${m} min`;
+  if (m === 0) return `${h} h`;
+  return `${h} h ${m} min`;
+}
 
 function startOfTodayISO(): string {
   const d = new Date();
@@ -73,11 +139,138 @@ function pageItems(totalPages: number, currentPage: number): (number | "ellipsis
   return out;
 }
 
+function ShiftSessionCard({ session }: { session: SessionCaisse }) {
+  const dtOuverture = new Date(session.heure_ouverture);
+  const enCours =
+    session.statut === "ouverte" ||
+    session.heure_fermeture == null ||
+    session.heure_fermeture === "";
+  const dtFermeture = !enCours && session.heure_fermeture
+    ? new Date(session.heure_fermeture)
+    : null;
+  const finPourDuree = dtFermeture ?? new Date();
+  const retard = isOuvertureTard(dtOuverture);
+
+  let ecartFormat: ReturnType<typeof formatEcartSigneEUR> | null = null;
+  if (
+    typeof session.ecart === "number" &&
+    Number.isFinite(session.ecart) &&
+    !enCours
+  ) {
+    ecartFormat = formatEcartSigneEUR(session.ecart);
+  }
+
+  return (
+    <article className="flex flex-col rounded-2xl border border-slate-100 bg-white shadow-sm shadow-slate-200/60 ring-1 ring-black/[0.03] transition-shadow hover:shadow-md hover:shadow-slate-300/45">
+      <header className="border-b border-slate-50 px-5 py-4">
+        <p className="text-[13px] font-semibold leading-snug text-slate-800">
+          {formatDateJourFrancais(dtOuverture)}
+        </p>
+        <p className="mt-1 text-[11px] font-medium uppercase tracking-wide text-slate-400">
+          Session caisse · {session.id.slice(0, 8)}…
+        </p>
+      </header>
+
+      <div className="space-y-4 px-5 py-4">
+        <div className="flex gap-3">
+          <Sunrise className="mt-0.5 h-5 w-5 shrink-0 text-amber-500/90" strokeWidth={1.85} aria-hidden />
+          <div className="min-w-0 flex-1">
+            <p className="text-[11px] font-medium uppercase tracking-wide text-slate-400">
+              Ouverture
+            </p>
+            <div className="mt-1 flex flex-wrap items-center gap-2">
+              <time
+                dateTime={session.heure_ouverture}
+                className={`text-lg font-semibold tabular-nums tracking-tight ${
+                  retard ? "text-red-600" : "text-slate-900"
+                }`}
+              >
+                {formatHeureFr(dtOuverture)}
+              </time>
+              {retard && (
+                <span className="inline-flex rounded-md bg-red-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-red-700 ring-1 ring-red-200/80">
+                  Retard
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="flex gap-3">
+          <Moon className="mt-0.5 h-5 w-5 shrink-0 text-indigo-500/90" strokeWidth={1.85} aria-hidden />
+          <div className="min-w-0 flex-1">
+            <p className="text-[11px] font-medium uppercase tracking-wide text-slate-400">
+              Clôture
+            </p>
+            {enCours ? (
+              <span className="mt-2 inline-flex items-center rounded-full bg-emerald-50 px-3 py-1 text-[12px] font-semibold text-emerald-700 shadow-sm ring-2 ring-emerald-200/70 animate-pulse">
+                En cours…
+              </span>
+            ) : dtFermeture ? (
+              <time
+                dateTime={session.heure_fermeture ?? undefined}
+                className="mt-1 block text-lg font-semibold tabular-nums text-slate-900"
+              >
+                {formatHeureFr(dtFermeture)}
+              </time>
+            ) : (
+              <span className="mt-1 text-sm text-slate-400">—</span>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <footer className="mt-auto grid gap-3 border-t border-slate-50 bg-slate-50/40 px-5 py-4">
+        <div className="flex items-start gap-2.5">
+          <Hourglass className="mt-0.5 h-[18px] w-[18px] shrink-0 text-slate-400" strokeWidth={2} aria-hidden />
+          <div>
+            <p className="text-[11px] font-medium uppercase tracking-wide text-slate-400">
+              Temps de travail {enCours ? "(pour l’instant)" : ""}
+            </p>
+            <p className="mt-0.5 font-semibold tabular-nums text-slate-800">
+              {formatDureeDepuisOuverture(dtOuverture, finPourDuree)}
+            </p>
+          </div>
+        </div>
+        <div className="flex items-start gap-2.5">
+          <Wallet className="mt-0.5 h-[18px] w-[18px] shrink-0 text-slate-400" strokeWidth={2} aria-hidden />
+          <div>
+            <p className="text-[11px] font-medium uppercase tracking-wide text-slate-400">
+              Bilan de caisse · écart espèces
+            </p>
+            {ecartFormat ? (
+              <p
+                className={`mt-0.5 text-[15px] font-bold tabular-nums tracking-tight ${
+                  ecartFormat.zeroish || ecartFormat.positive
+                    ? "text-emerald-600"
+                    : "text-red-600"
+                }`}
+              >
+                {ecartFormat.text}
+              </p>
+            ) : (
+              <p className="mt-0.5 text-sm font-medium text-slate-400">
+                À la clôture
+              </p>
+            )}
+          </div>
+        </div>
+      </footer>
+    </article>
+  );
+}
+
 export default function HistoriqueLogsPage() {
+  const [ongletActif, setOngletActif] = useState<OngletHistorique>("sessions");
+
+  const [sessions, setSessions] = useState<SessionCaisse[]>([]);
+  const [sessionsLoading, setSessionsLoading] = useState(true);
+  const [sessionsError, setSessionsError] = useState<string | null>(null);
+
   const [logs, setLogs] = useState<LogActivite[]>([]);
   const [totalCount, setTotalCount] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [logsLoading, setLogsLoading] = useState(false);
+  const [logsError, setLogsError] = useState<string | null>(null);
   const [filtre, setFiltre] = useState<FiltreRapide>("tous");
   const [currentPage, setCurrentPage] = useState(1);
 
@@ -87,9 +280,37 @@ export default function HistoriqueLogsPage() {
     setCurrentPage(1);
   }, [filtre]);
 
+  const loadSessions = useCallback(async () => {
+    setSessionsLoading(true);
+    setSessionsError(null);
+    try {
+      const { data, error: err } = await supabase
+        .from("sessions_caisse")
+        .select("*")
+        .order("heure_ouverture", { ascending: false })
+        .limit(7);
+
+      if (err) {
+        setSessions([]);
+        setSessionsError(err.message ?? "Impossible de charger les sessions.");
+        return;
+      }
+      setSessions((data ?? []) as SessionCaisse[]);
+    } catch (e) {
+      setSessions([]);
+      setSessionsError(e instanceof Error ? e.message : "Erreur inattendue.");
+    } finally {
+      setSessionsLoading(false);
+    }
+  }, [supabase]);
+
+  useEffect(() => {
+    void loadSessions();
+  }, [loadSessions]);
+
   const loadLogs = useCallback(async () => {
-    setLoading(true);
-    setError(null);
+    setLogsLoading(true);
+    setLogsError(null);
     try {
       const from = (currentPage - 1) * ITEMS_PER_PAGE;
       const to = from + ITEMS_PER_PAGE - 1;
@@ -113,7 +334,7 @@ export default function HistoriqueLogsPage() {
       const { data, error: err, count } = await q.range(from, to);
 
       if (err) {
-        setError(err.message ?? "Impossible de charger les logs.");
+        setLogsError(err.message ?? "Impossible de charger les logs.");
         setLogs([]);
         setTotalCount(0);
         return;
@@ -121,17 +342,18 @@ export default function HistoriqueLogsPage() {
       setLogs((data ?? []) as LogActivite[]);
       setTotalCount(count ?? 0);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Erreur inattendue.");
+      setLogsError(e instanceof Error ? e.message : "Erreur inattendue.");
       setLogs([]);
       setTotalCount(0);
     } finally {
-      setLoading(false);
+      setLogsLoading(false);
     }
   }, [supabase, currentPage, filtre]);
 
   useEffect(() => {
+    if (ongletActif !== "journal") return;
     void loadLogs();
-  }, [loadLogs]);
+  }, [ongletActif, loadLogs]);
 
   const totalPages =
     totalCount <= 0 ? 0 : Math.ceil(totalCount / ITEMS_PER_PAGE);
@@ -227,221 +449,326 @@ export default function HistoriqueLogsPage() {
               <h1 className="text-2xl font-semibold tracking-tight text-slate-900 md:text-[1.65rem]">
                 Historique &amp; Logs
               </h1>
-              <p className="mt-1.5 max-w-xl text-sm leading-relaxed text-slate-600">
-                Journal d&apos;activité caisse avec pagination temps réel depuis
-                Supabase. Consultation réservée aux administrateurs.
+              <p className="mt-1.5 max-w-2xl text-sm leading-relaxed text-slate-600">
+                Quarts caisse (<strong className="font-medium text-slate-700">
+                  ouvertures
+                </strong>
+                ,{" "}
+                <strong className="font-medium text-slate-700">clôtures</strong>)
+                puis journal audit — données Supabase, espace réservé aux admins.
               </p>
             </div>
           </div>
         </div>
 
-        <div className="mt-7 flex flex-wrap gap-2">
+        <div
+          className="mt-6 flex max-w-2xl rounded-2xl border border-slate-200/80 bg-white p-1 shadow-sm"
+          role="tablist"
+          aria-label="Vue historique"
+        >
           <button
             type="button"
-            onClick={() => setFiltre("tous")}
-            className={`${filtresClass} ${
-              filtre === "tous"
-                ? "bg-slate-900 text-white shadow-sm ring-1 ring-slate-800"
-                : "border border-slate-200/90 bg-white text-slate-700 shadow-sm hover:border-slate-300 hover:bg-slate-50"
+            role="tab"
+            aria-selected={ongletActif === "sessions"}
+            id="tab-sessions-trigger"
+            aria-controls="tabpanel-sessions"
+            className={`flex flex-1 items-center justify-center gap-2 rounded-xl px-3 py-3 text-[13px] font-semibold tracking-tight transition-all sm:text-sm ${
+              ongletActif === "sessions"
+                ? "bg-slate-900 text-white shadow-md"
+                : "text-slate-600 hover:bg-slate-50"
             }`}
+            onClick={() => {
+              setOngletActif("sessions");
+              void loadSessions();
+            }}
           >
-            Tout voir
+            <span className="tabular-nums" aria-hidden>
+              ⏱️
+            </span>
+            Sessions &amp; horaires
           </button>
           <button
             type="button"
-            onClick={() => setFiltre("suspects")}
-            className={`${filtresClass} ${
-              filtre === "suspects"
-                ? "bg-amber-600 text-white shadow-sm ring-1 ring-amber-500"
-                : "border border-amber-200/90 bg-white text-amber-950 shadow-sm hover:bg-amber-50"
+            role="tab"
+            aria-selected={ongletActif === "journal"}
+            aria-controls="tabpanel-journal"
+            id="tab-journal-trigger"
+            className={`flex flex-1 items-center justify-center gap-2 rounded-xl px-3 py-3 text-[13px] font-semibold tracking-tight transition-all sm:text-sm ${
+              ongletActif === "journal"
+                ? "bg-indigo-600 text-white shadow-md"
+                : "text-slate-600 hover:bg-slate-50"
             }`}
+            onClick={() => setOngletActif("journal")}
           >
-            <AlertTriangle className="h-4 w-4" strokeWidth={2} />
-            Suspects uniquement
-          </button>
-          <button
-            type="button"
-            onClick={() => setFiltre("jour")}
-            className={`${filtresClass} ${
-              filtre === "jour"
-                ? "bg-emerald-700 text-white shadow-sm ring-1 ring-emerald-600"
-                : "border border-emerald-200 bg-white text-emerald-900 shadow-sm hover:bg-emerald-50/80"
-            }`}
-          >
-            Aujourd&apos;hui
+            <span aria-hidden>🔎</span>
+            Journal des actions
           </button>
         </div>
+
+        {ongletActif === "journal" && (
+          <div className="mt-6 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => setFiltre("tous")}
+              className={`${filtresClass} ${
+                filtre === "tous"
+                  ? "bg-slate-900 text-white shadow-sm ring-1 ring-slate-800"
+                  : "border border-slate-200/90 bg-white text-slate-700 shadow-sm hover:border-slate-300 hover:bg-slate-50"
+              }`}
+            >
+              Tout voir
+            </button>
+            <button
+              type="button"
+              onClick={() => setFiltre("suspects")}
+              className={`${filtresClass} ${
+                filtre === "suspects"
+                  ? "bg-amber-600 text-white shadow-sm ring-1 ring-amber-500"
+                  : "border border-amber-200/90 bg-white text-amber-950 shadow-sm hover:bg-amber-50"
+              }`}
+            >
+              <AlertTriangle className="h-4 w-4" strokeWidth={2} />
+              Suspects uniquement
+            </button>
+            <button
+              type="button"
+              onClick={() => setFiltre("jour")}
+              className={`${filtresClass} ${
+                filtre === "jour"
+                  ? "bg-emerald-700 text-white shadow-sm ring-1 ring-emerald-600"
+                  : "border border-emerald-200 bg-white text-emerald-900 shadow-sm hover:bg-emerald-50/80"
+              }`}
+            >
+              Aujourd&apos;hui
+            </button>
+          </div>
+        )}
       </header>
 
       <div className="mx-auto max-w-6xl">
-        <article className="overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-sm ring-1 ring-slate-100/80">
-          {loading ? (
-            <div className="flex min-h-[260px] items-center justify-center gap-3 py-16 text-slate-500">
-              <Loader2 className="h-8 w-8 animate-spin text-indigo-500" />
-              <span className="text-sm font-medium">Chargement des logs…</span>
-            </div>
-          ) : error ? (
-            <div className="px-8 py-16 text-center text-sm text-red-600">
-              {error}
-            </div>
-          ) : logs.length === 0 ? (
-            <div className="px-8 py-20 text-center text-sm text-slate-500">
-              Aucune entrée pour ce filtre sur cette page.
-            </div>
-          ) : (
-            <div className="relative overflow-x-auto">
-              <table className="min-w-full border-collapse text-left text-sm">
-                <thead>
-                  <tr className="border-b border-slate-200 bg-slate-50/90 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-                    <th className="hidden w-12 px-3 py-3.5 md:table-cell" />
-                    <th className="whitespace-nowrap px-4 py-3.5 md:min-w-[168px]">
-                      Horodatage
-                    </th>
-                    <th className="whitespace-nowrap px-4 py-3.5">Niveau</th>
-                    <th className="min-w-[120px] px-4 py-3.5">Action</th>
-                    <th className="min-w-[112px] px-4 py-3.5">Vendeuse</th>
-                    <th className="min-w-[220px] px-4 py-3.5 xl:max-w-xl">
-                      Détails
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 bg-white">
-                  {logs.map((row) => {
-                    const lvl = niveauNormalized(row.niveau_alerte);
-                    const badge = badgeForNiveau(lvl);
-                    const RowIcon = badge.Icon;
-
-                    return (
-                      <tr
-                        key={row.id}
-                        className="transition-colors hover:bg-slate-50 focus-within:bg-slate-50/80"
-                      >
-                        <td className="hidden align-middle px-3 py-3.5 md:table-cell">
-                          <RowIcon
-                            className={`h-[18px] w-[18px] shrink-0 ${
-                              lvl === "critique"
-                                ? "text-red-500"
-                                : lvl === "warning"
-                                  ? "text-orange-500"
-                                  : "text-emerald-500"
-                            }`}
-                            aria-hidden
-                            strokeWidth={2}
-                          />
-                        </td>
-                        <td className="align-middle whitespace-nowrap px-4 py-3.5 tabular-nums text-[13px] text-slate-500">
-                          {formatDt(row.created_at)}
-                        </td>
-                        <td className="align-middle whitespace-nowrap px-4 py-3.5">
-                          <span className={badge.cls}>
-                            <RowIcon
-                              className={badge.iconCls}
-                              strokeWidth={2}
-                              aria-hidden
-                            />
-                            {badge.label}
-                          </span>
-                        </td>
-                        <td className="align-middle px-4 py-3.5">
-                          <span className="line-clamp-2 font-medium capitalize text-slate-800">
-                            {row.type_action.replace(/_/g, " ")}
-                          </span>
-                        </td>
-                        <td className="align-middle px-4 py-3.5 text-[13px] text-slate-600">
-                          <span className="line-clamp-2 break-words md:truncate md:leading-normal">
-                            {row.vendeur_nom?.trim() || "—"}
-                          </span>
-                        </td>
-                        <td className="max-w-xl align-middle px-4 py-3.5">
-                          <p className="line-clamp-2 text-[13px] leading-relaxed text-slate-700 md:line-clamp-3">
-                            {row.details ?? "—"}
-                          </p>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-
-          {!loading && !error && totalCount > 0 && (
-            <footer className="border-t border-slate-200 bg-slate-50/70 px-4 py-5 sm:px-5">
-              <p className="mb-6 text-center text-[13px] text-slate-600 sm:text-left">
-                Affichage de{" "}
-                <span className="font-semibold tabular-nums text-slate-900">
-                  {rangeDisplay.start}
-                </span>{" "}
-                à{" "}
-                <span className="font-semibold tabular-nums text-slate-900">
-                  {rangeDisplay.end}
-                </span>{" "}
-                sur{" "}
-                <span className="font-semibold tabular-nums text-slate-900">
-                  {totalCount}
-                </span>{" "}
-                résultat
-                {totalCount > 1 ? "s" : ""}.
-              </p>
-
-              <div className="mx-auto grid w-full max-w-3xl items-center gap-6 sm:grid-cols-[1fr_auto_1fr] sm:gap-4">
-                <div className="flex justify-center gap-2 sm:justify-self-start">
-                  <button
-                    type="button"
-                    disabled={isFirstPage}
-                    onClick={() => onPageClick(currentPage - 1)}
-                    className="inline-flex min-h-[44px] items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-[13px] font-medium text-slate-700 shadow-sm transition-colors hover:border-slate-300 hover:bg-slate-50 disabled:pointer-events-none disabled:opacity-40"
-                  >
-                    <ChevronLeft className="h-4 w-4 shrink-0" aria-hidden strokeWidth={2} />
-                    Précédent
-                  </button>
-                  <button
-                    type="button"
-                    disabled={isLastPage}
-                    onClick={() => onPageClick(currentPage + 1)}
-                    className="inline-flex min-h-[44px] items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-[13px] font-medium text-slate-700 shadow-sm transition-colors hover:border-slate-300 hover:bg-slate-50 disabled:pointer-events-none disabled:opacity-40"
-                  >
-                    Suivant
-                    <ChevronRight className="h-4 w-4 shrink-0" aria-hidden strokeWidth={2} />
-                  </button>
-                </div>
-
-                <nav
-                  className="flex flex-wrap items-center justify-center gap-1 justify-self-center"
-                  aria-label="Pages"
-                >
-                  {visiblePages.map((item, i) =>
-                    item === "ellipsis" ? (
-                      <span
-                        key={`ellipsis-${i}`}
-                        className="min-w-[2rem] px-2 text-center text-slate-400"
-                        aria-hidden
-                      >
-                        …
-                      </span>
-                    ) : (
-                      <button
-                        key={item}
-                        type="button"
-                        onClick={() => onPageClick(item)}
-                        className={`min-h-[38px] min-w-[38px] rounded-lg text-[13px] font-semibold tabular-nums transition-colors ${
-                          item === currentPage
-                            ? "bg-indigo-600 text-white shadow-sm ring-1 ring-indigo-500"
-                            : "text-slate-600 hover:bg-slate-200/90"
-                        }`}
-                        aria-current={item === currentPage ? "page" : undefined}
-                      >
-                        {item}
-                      </button>
-                    )
-                  )}
-                </nav>
-
-                <div className="hidden sm:block sm:justify-self-end" aria-hidden />
+        {ongletActif === "sessions" && (
+          <section
+            id="tabpanel-sessions"
+            role="tabpanel"
+            aria-labelledby="tab-sessions-trigger"
+            className="mb-12"
+          >
+            <div className="mb-6 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
+                  Ouvertures &amp; fermetures
+                </p>
+                <p className="text-lg font-semibold tracking-tight text-slate-900">
+                  Shift cards · les 7 dernières sessions
+                </p>
               </div>
-            </footer>
-          )}
-        </article>
+              <p className="text-[13px] text-slate-500">
+                Après{" "}
+                <span className="font-semibold tabular-nums text-slate-700">
+                  09h30
+                </span>{" "}
+                locale : ouverture en rouge + badge Retard (règle magasin).
+              </p>
+            </div>
+
+            {sessionsLoading ? (
+              <div className="flex min-h-[260px] items-center justify-center gap-3 rounded-xl border border-slate-100 bg-white py-16 shadow-sm ring-1 ring-slate-100/80">
+                <Loader2 className="h-8 w-8 animate-spin text-indigo-500" />
+                <span className="text-sm font-medium text-slate-500">
+                  Chargement des sessions…
+                </span>
+              </div>
+            ) : sessionsError ? (
+              <div className="rounded-xl border border-red-100 bg-red-50/50 px-8 py-12 text-center text-sm text-red-700 ring-1 ring-red-100/80">
+                {sessionsError}
+              </div>
+            ) : sessions.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-slate-200 bg-white px-8 py-20 text-center text-sm text-slate-500 shadow-sm ring-1 ring-slate-100/60">
+                Aucune session enregistrée pour le moment.
+              </div>
+            ) : (
+              <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
+                {sessions.map((s) => (
+                  <ShiftSessionCard key={s.id} session={s} />
+                ))}
+              </div>
+            )}
+          </section>
+        )}
+
+        {ongletActif === "journal" && (
+          <article
+            id="tabpanel-journal"
+            role="tabpanel"
+            aria-labelledby="tab-journal-trigger"
+            className="overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-sm ring-1 ring-slate-100/80"
+          >
+            {logsLoading ? (
+              <div className="flex min-h-[260px] items-center justify-center gap-3 py-16 text-slate-500">
+                <Loader2 className="h-8 w-8 animate-spin text-indigo-500" />
+                <span className="text-sm font-medium">Chargement des logs…</span>
+              </div>
+            ) : logsError ? (
+              <div className="px-8 py-16 text-center text-sm text-red-600">{logsError}</div>
+            ) : logs.length === 0 ? (
+              <div className="px-8 py-20 text-center text-sm text-slate-500">
+                Aucune entrée pour ce filtre sur cette page.
+              </div>
+            ) : (
+              <div className="relative overflow-x-auto">
+                <table className="min-w-full border-collapse text-left text-sm">
+                  <thead>
+                    <tr className="border-b border-slate-200 bg-slate-50/90 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                      <th className="hidden w-12 px-3 py-3.5 md:table-cell" />
+                      <th className="whitespace-nowrap px-4 py-3.5 md:min-w-[168px]">
+                        Horodatage
+                      </th>
+                      <th className="whitespace-nowrap px-4 py-3.5">Niveau</th>
+                      <th className="min-w-[120px] px-4 py-3.5">Action</th>
+                      <th className="min-w-[112px] px-4 py-3.5">Vendeuse</th>
+                      <th className="min-w-[220px] px-4 py-3.5 xl:max-w-xl">
+                        Détails
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 bg-white">
+                    {logs.map((row) => {
+                      const lvl = niveauNormalized(row.niveau_alerte);
+                      const badge = badgeForNiveau(lvl);
+                      const RowIcon = badge.Icon;
+
+                      return (
+                        <tr
+                          key={row.id}
+                          className="transition-colors hover:bg-slate-50 focus-within:bg-slate-50/80"
+                        >
+                          <td className="hidden align-middle px-3 py-3.5 md:table-cell">
+                            <RowIcon
+                              className={`h-[18px] w-[18px] shrink-0 ${
+                                lvl === "critique"
+                                  ? "text-red-500"
+                                  : lvl === "warning"
+                                    ? "text-orange-500"
+                                    : "text-emerald-500"
+                              }`}
+                              aria-hidden
+                              strokeWidth={2}
+                            />
+                          </td>
+                          <td className="align-middle whitespace-nowrap px-4 py-3.5 tabular-nums text-[13px] text-slate-500">
+                            {formatDt(row.created_at)}
+                          </td>
+                          <td className="align-middle whitespace-nowrap px-4 py-3.5">
+                            <span className={badge.cls}>
+                              <RowIcon
+                                className={badge.iconCls}
+                                strokeWidth={2}
+                                aria-hidden
+                              />
+                              {badge.label}
+                            </span>
+                          </td>
+                          <td className="align-middle px-4 py-3.5">
+                            <span className="line-clamp-2 font-medium capitalize text-slate-800">
+                              {row.type_action.replace(/_/g, " ")}
+                            </span>
+                          </td>
+                          <td className="align-middle px-4 py-3.5 text-[13px] text-slate-600">
+                            <span className="line-clamp-2 break-words md:truncate md:leading-normal">
+                              {row.vendeur_nom?.trim() || "—"}
+                            </span>
+                          </td>
+                          <td className="max-w-xl align-middle px-4 py-3.5">
+                            <p className="line-clamp-2 text-[13px] leading-relaxed text-slate-700 md:line-clamp-3">
+                              {row.details ?? "—"}
+                            </p>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {!logsLoading && !logsError && totalCount > 0 && (
+              <footer className="border-t border-slate-200 bg-slate-50/70 px-4 py-5 sm:px-5">
+                <p className="mb-6 text-center text-[13px] text-slate-600 sm:text-left">
+                  Affichage de{" "}
+                  <span className="font-semibold tabular-nums text-slate-900">
+                    {rangeDisplay.start}
+                  </span>{" "}
+                  à{" "}
+                  <span className="font-semibold tabular-nums text-slate-900">
+                    {rangeDisplay.end}
+                  </span>{" "}
+                  sur{" "}
+                  <span className="font-semibold tabular-nums text-slate-900">
+                    {totalCount}
+                  </span>{" "}
+                  résultat
+                  {totalCount > 1 ? "s" : ""}.
+                </p>
+
+                <div className="mx-auto grid w-full max-w-3xl items-center gap-6 sm:grid-cols-[1fr_auto_1fr] sm:gap-4">
+                  <div className="flex justify-center gap-2 sm:justify-self-start">
+                    <button
+                      type="button"
+                      disabled={isFirstPage}
+                      onClick={() => onPageClick(currentPage - 1)}
+                      className="inline-flex min-h-[44px] items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-[13px] font-medium text-slate-700 shadow-sm transition-colors hover:border-slate-300 hover:bg-slate-50 disabled:pointer-events-none disabled:opacity-40"
+                    >
+                      <ChevronLeft className="h-4 w-4 shrink-0" aria-hidden strokeWidth={2} />
+                      Précédent
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isLastPage}
+                      onClick={() => onPageClick(currentPage + 1)}
+                      className="inline-flex min-h-[44px] items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-[13px] font-medium text-slate-700 shadow-sm transition-colors hover:border-slate-300 hover:bg-slate-50 disabled:pointer-events-none disabled:opacity-40"
+                    >
+                      Suivant
+                      <ChevronRight className="h-4 w-4 shrink-0" aria-hidden strokeWidth={2} />
+                    </button>
+                  </div>
+
+                  <nav
+                    className="flex flex-wrap items-center justify-center gap-1 justify-self-center"
+                    aria-label="Pages"
+                  >
+                    {visiblePages.map((item, i) =>
+                      item === "ellipsis" ? (
+                        <span
+                          key={`ellipsis-${i}`}
+                          className="min-w-[2rem] px-2 text-center text-slate-400"
+                          aria-hidden
+                        >
+                          …
+                        </span>
+                      ) : (
+                        <button
+                          key={item}
+                          type="button"
+                          onClick={() => onPageClick(item)}
+                          className={`min-h-[38px] min-w-[38px] rounded-lg text-[13px] font-semibold tabular-nums transition-colors ${
+                            item === currentPage
+                              ? "bg-indigo-600 text-white shadow-sm ring-1 ring-indigo-500"
+                              : "text-slate-600 hover:bg-slate-200/90"
+                          }`}
+                          aria-current={item === currentPage ? "page" : undefined}
+                        >
+                          {item}
+                        </button>
+                      )
+                    )}
+                  </nav>
+
+                  <div className="hidden sm:block sm:justify-self-end" aria-hidden />
+                </div>
+              </footer>
+            )}
+          </article>
+        )}
 
         <section
           className="mt-10 rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50/60 py-24 text-center ring-1 ring-slate-100/80"
