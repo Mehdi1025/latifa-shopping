@@ -35,6 +35,7 @@ import KpiFinanceIntel from "@/components/admin/KpiFinanceIntel";
 import BusinessSimulator from "@/components/admin/kpi/BusinessSimulator";
 import { SalesHeatmap } from "@/components/admin/SalesHeatmap";
 import { MOCK_SOLDE_BANCAIRE } from "@/lib/finance-kpi";
+import { fetchCaEspecesMoisPourDonut } from "@/lib/kpi/especes-ca-mois-source";
 
 type Vente = {
   id: string;
@@ -61,11 +62,11 @@ const MONTHLY_GOAL_EUR = 15000;
 const FRAIS_CB_RATE = 0.015;
 
 const PAYMENT_DONUT = {
-  carte: { label: "Carte", fill: "#2563eb" },
-  especes: { label: "Espèces", fill: "#059669" },
-  mixte: { label: "Mixte", fill: "#7c3aed" },
-  paypal: { label: "PayPal", fill: "#4c1d95" },
-  autre: { label: "Autre", fill: "#a3a3a3" },
+  carte: { label: "Carte", fill: "#93c5fd" },
+  especes: { label: "Espèces", fill: "#86efac" },
+  mixte: { label: "Mixte", fill: "#c4b5fd" },
+  paypal: { label: "PayPal", fill: "#d8b4fe" },
+  autre: { label: "Autre", fill: "#d4d4d4" },
 } as const;
 
 const glassCard =
@@ -189,9 +190,12 @@ function PaymentDonutTooltip({
       <p className="mt-1 text-lg font-bold tabular-nums tracking-tight text-neutral-900 dark:text-white">
         {formatPrix(value)}
       </p>
+      <p className="mt-0.5 text-[11px] font-medium text-neutral-500 dark:text-neutral-400">
+        Montant en euros (EUR)
+      </p>
       {typeof pct === "number" && !Number.isNaN(pct) && (
-        <p className="mt-1 text-[11px] font-medium text-neutral-500 dark:text-neutral-400">
-          {formatPercentOneDecimal(pct)} du CA mensuel
+        <p className="mt-1.5 text-[11px] font-medium text-neutral-500 dark:text-neutral-400">
+          {formatPercentOneDecimal(pct)} du CA affiché dans le graphique
         </p>
       )}
     </div>
@@ -309,6 +313,8 @@ export default function KPIPage() {
   const [simVarPrix, setSimVarPrix] = useState(0);
   const [simVarTrafic, setSimVarTrafic] = useState(0);
   const [simRecrue, setSimRecrue] = useState(false);
+  /** CA espèces (anneau uniquement) : source distante (+ fallback), pas la somme des ventes espèces en base. */
+  const [donutCaEspecesMoisExterne, setDonutCaEspecesMoisExterne] = useState(0);
 
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
 
@@ -340,6 +346,7 @@ export default function KPIPage() {
           ventesYestRes,
           trafficTodayRes,
           trafficYestRes,
+          donutCaEspecesMoisFetched,
         ] = await Promise.all([
           supabase
             .from("ventes")
@@ -377,8 +384,10 @@ export default function KPIPage() {
             .select("nombre_entrees")
             .eq("jour", jourHierKey)
             .maybeSingle(),
+          fetchCaEspecesMoisPourDonut(),
         ]);
 
+        setDonutCaEspecesMoisExterne(donutCaEspecesMoisFetched);
         const ventesM = (moisRes.data ?? []) as Vente[];
         setVentesMois(ventesM);
         setVentesMoisPrec((moisPrecRes.data ?? []) as Vente[]);
@@ -482,7 +491,7 @@ export default function KPIPage() {
     [tiroirCaisseJour]
   );
 
-  /** Données donut : CA du mois par méthode (+ part %). */
+  /** Données donut : CA du mois par méthode. Espèces = source externe uniquement ; le reste = base ventes du mois. */
   const paymentDonutData = useMemo(() => {
     const sums = {
       carte: 0,
@@ -494,23 +503,31 @@ export default function KPIPage() {
     ventesMois.forEach((v) => {
       const t = v.total ?? 0;
       const m = v.methode_paiement;
+      if (m === "especes") return;
       if (m === "carte") sums.carte += t;
-      else if (m === "especes") sums.especes += t;
       else if (m === "mixte") sums.mixte += t;
       else if (m === "paypal") sums.paypal += t;
       else sums.autre += t;
     });
-    const ca = caMois;
+    sums.especes = donutCaEspecesMoisExterne;
+    const totalChart = Math.round(
+      (sums.carte +
+        sums.especes +
+        sums.mixte +
+        sums.paypal +
+        sums.autre) *
+        100
+    ) / 100;
     const row = (key: keyof typeof sums) => ({
       name: PAYMENT_DONUT[key].label,
-      value: sums[key],
+      value: Math.round(sums[key] * 100) / 100,
       fill: PAYMENT_DONUT[key].fill,
-      pct: ca > 0 ? (sums[key] / ca) * 100 : 0,
+      pct: totalChart > 0 ? (sums[key] / totalChart) * 100 : 0,
     });
     return (["carte", "especes", "mixte", "paypal", "autre"] as const)
       .map((k) => row(k))
       .filter((d) => d.value > 0);
-  }, [ventesMois, caMois]);
+  }, [ventesMois, donutCaEspecesMoisExterne]);
 
   const caMoisPrec = useMemo(
     () => ventesMoisPrec.reduce((s, v) => s + (v.total ?? 0), 0),
@@ -896,12 +913,11 @@ export default function KPIPage() {
                 <div className="mb-2 flex items-center justify-between gap-2">
                   <div>
                     <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-neutral-400">
-                      Répartition du CA
+                      KPI — moyens de paiement
                     </p>
                     <h3 className="mt-1 text-base font-semibold tracking-tight text-neutral-900">
-                      Par moyen de paiement
+                      Répartition du CA (Mois en cours)
                     </h3>
-                    <p className="mt-0.5 text-xs text-neutral-500">Mois en cours</p>
                   </div>
                   <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-violet-500/10">
                     <PieChartIcon className="h-5 w-5 text-violet-700" strokeWidth={1.75} />
