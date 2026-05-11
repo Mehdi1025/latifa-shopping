@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Bar,
   BarChart,
@@ -19,7 +19,10 @@ import {
   X,
   Landmark,
   ShieldCheck,
+  Zap,
+  AlertTriangle,
 } from "lucide-react";
+import { generateFinancialInsights } from "@/app/actions/financeAi";
 
 const SOLDE_ACTUEL_EUR = 14250;
 
@@ -162,6 +165,48 @@ export default function TresorerieFinancePage() {
   const [openBankingModal, setOpenBankingModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [filterOpen, setFilterOpen] = useState(false);
+  const [aiInsights, setAiInsights] = useState<string | null>(null);
+  const [aiLoading, setAiLoading] = useState(true);
+  const [aiError, setAiError] = useState<string | null>(null);
+
+  const iaPayload = useMemo(
+    () =>
+      MOCK_TRANSACTIONS.map((t) => ({
+        id: t.id,
+        dateISO: t.dateISO,
+        libelle: t.libelle,
+        categorie: t.categorie,
+        montantEUR: t.montantEUR,
+      })),
+    []
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      try {
+        setAiLoading(true);
+        setAiError(null);
+        const text = await generateFinancialInsights(iaPayload);
+        if (!cancelled) {
+          setAiInsights(text.trim() ? text.trim() : null);
+          if (!text.trim()) setAiError("Analyse vide reçue du modèle.");
+        }
+      } catch (e) {
+        if (!cancelled) {
+          setAiError(e instanceof Error ? e.message : "Erreur d’analyse IA.");
+          setAiInsights(null);
+        }
+      } finally {
+        if (!cancelled) setAiLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [iaPayload]);
 
   const filteredTx = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -196,6 +241,63 @@ export default function TresorerieFinancePage() {
           </span>
         </div>
       </header>
+
+      {/* Analyse IA — Groq */}
+      <section
+        aria-labelledby="finance-ai-title"
+        className="mb-10 rounded-[1.35rem] border border-slate-200/80 bg-white/65 p-6 shadow-[0_8px_40px_-24px_rgba(15,23,42,0.12)] backdrop-blur-md backdrop-saturate-150 md:p-7"
+      >
+        <div className="flex flex-wrap items-start justify-between gap-4 border-b border-slate-100/90 pb-4">
+          <div className="flex items-start gap-3">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-600 to-indigo-600 text-white shadow-lg shadow-indigo-500/25 ring-4 ring-white/60">
+              <Zap className="h-5 w-5" aria-hidden strokeWidth={1.75} />
+            </div>
+            <div>
+              <h2
+                id="finance-ai-title"
+                className="text-base font-semibold tracking-tight text-slate-900 md:text-[1.05rem]"
+              >
+                ⚡ Analyse IA (Propulsé par Groq)
+              </h2>
+              <p className="mt-0.5 text-xs text-slate-500 md:text-[13px]">
+                Synthèse directeur financier — données de démo, modèle Llama&nbsp;3&nbsp;via Groq.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="relative mt-5 min-h-[5.5rem]">
+          {aiLoading ? (
+            <div className="space-y-3" aria-busy aria-live="polite">
+              <p className="text-sm font-medium text-slate-600">
+                Groq analyse vos flux financiers à la vitesse de la lumière...
+              </p>
+              <div className="space-y-2.5 pt-1">
+                <div className="h-3 max-w-[92%] animate-pulse rounded-full bg-gradient-to-r from-slate-200 via-slate-100 to-slate-200" />
+                <div className="h-3 max-w-[78%] animate-pulse rounded-full bg-gradient-to-r from-slate-200 via-slate-100 to-slate-200 [animation-delay:120ms]" />
+                <div className="h-3 max-w-[65%] animate-pulse rounded-full bg-gradient-to-r from-slate-200 via-slate-100 to-slate-200 [animation-delay:240ms]" />
+              </div>
+            </div>
+          ) : aiError ? (
+            <div
+              className="flex gap-3 rounded-xl border border-amber-200/90 bg-amber-50/80 px-4 py-3 text-sm text-amber-950"
+              role="alert"
+            >
+              <AlertTriangle
+                className="mt-0.5 h-5 w-5 shrink-0 text-amber-600"
+                strokeWidth={1.75}
+              />
+              <p className="leading-relaxed">{aiError}</p>
+            </div>
+          ) : (
+            aiInsights && (
+              <div className="text-[15px] leading-relaxed text-slate-800" aria-live="polite">
+                <p className="whitespace-pre-line">{aiInsights}</p>
+              </div>
+            )
+          )}
+        </div>
+      </section>
 
       {/* Section 1 — Comptes */}
       <section aria-labelledby="sec-comptes" className="mb-12">

@@ -17,6 +17,7 @@
     "autoprefixer": "^10.4.27",
     "canvas-confetti": "^1.9.4",
     "framer-motion": "^12.38.0",
+    "groq-sdk": "^1.2.0",
     "html5-qrcode": "^2.3.8",
     "lucide-react": "^1.0.1",
     "next": "16.2.1",
