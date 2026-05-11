@@ -1,6 +1,5 @@
 "use server";
 
-import Groq from "groq-sdk";
 import { createSupabaseServerClient } from "@/utils/supabase/server";
 
 const SYSTEM_PROMPT =
@@ -47,9 +46,15 @@ export async function generateFinancialInsights(
     throw new Error("GROQ_API_KEY manquante côté serveur.");
   }
 
+  /** Import dynamique : évite de charger groq-sdk au chargement du module (compat RSC / bundler prod). */
+  const { default: Groq } = await import("groq-sdk");
+
+  const model =
+    process.env.GROQ_MODEL?.trim() || "llama3-70b-8192";
+
   const client = new Groq({ apiKey: key });
   const chatCompletion = await client.chat.completions.create({
-    model: "llama3-70b-8192",
+    model,
     messages: [
       { role: "system", content: SYSTEM_PROMPT },
       {
