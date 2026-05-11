@@ -22,8 +22,6 @@ import {
   Zap,
   AlertTriangle,
 } from "lucide-react";
-import { generateFinancialInsights } from "@/app/actions/financeAi";
-
 const SOLDE_ACTUEL_EUR = 14250;
 
 const chartData7j = [
@@ -188,10 +186,53 @@ export default function TresorerieFinancePage() {
       try {
         setAiLoading(true);
         setAiError(null);
-        const text = await generateFinancialInsights(iaPayload);
+        const res = await fetch("/api/finance/groq-insights", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify({ transactions: iaPayload }),
+        });
+
+        let body: unknown;
+        try {
+          body = await res.json();
+        } catch {
+          if (!cancelled) {
+            setAiError(`Réponse invalide du serveur (${res.status}).`);
+            setAiInsights(null);
+          }
+          return;
+        }
+
+        const errMsg =
+          typeof body === "object" &&
+          body !== null &&
+          "error" in body &&
+          typeof (body as { error: unknown }).error === "string"
+            ? (body as { error: string }).error
+            : null;
+
+        if (!res.ok) {
+          if (!cancelled) {
+            setAiError(errMsg || `Erreur ${res.status}`);
+            setAiInsights(null);
+          }
+          return;
+        }
+
+        const content =
+          typeof body === "object" &&
+          body !== null &&
+          "content" in body &&
+          typeof (body as { content: unknown }).content === "string"
+            ? (body as { content: string }).content
+            : "";
+
+        const text = content.trim();
+
         if (!cancelled) {
-          setAiInsights(text.trim() ? text.trim() : null);
-          if (!text.trim()) setAiError("Analyse vide reçue du modèle.");
+          setAiInsights(text ? text : null);
+          if (!text) setAiError("Analyse vide reçue du modèle.");
         }
       } catch (e) {
         if (!cancelled) {
