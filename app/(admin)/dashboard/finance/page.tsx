@@ -353,17 +353,20 @@ export default function TresorerieFinancePage() {
                   color: "#0f172a",
                   marginBottom: 8,
                 }}
-                formatter={(value: number | string, name: string) => {
-                  const n = typeof value === "number" ? value : Number(value);
+                formatter={(value, name) => {
+                  const label =
+                    name === "entrees" ? "Entrées" : "Sorties";
+                  if (value == null) {
+                    return ["—", label];
+                  }
+                  const n =
+                    typeof value === "number" ? value : Number(value);
                   const euros = new Intl.NumberFormat("fr-FR", {
                     style: "currency",
                     currency: "EUR",
                     maximumFractionDigits: 0,
-                  }).format(n);
-                  return [
-                    euros,
-                    name === "entrees" ? "Entrées" : "Sorties",
-                  ];
+                  }).format(Number.isFinite(n) ? n : 0);
+                  return [euros, label];
                 }}
               />
               <Legend
