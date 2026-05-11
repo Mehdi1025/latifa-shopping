@@ -19,6 +19,7 @@ import {
   Target,
   ClipboardList,
   Kanban,
+  Landmark,
 } from "lucide-react";
 import LogoutButton from "./LogoutButton";
 
@@ -53,6 +54,11 @@ const navSections: { label: string; items: NavItem[] }[] = [
   {
     label: "ADMIN",
     items: [
+      {
+        href: "/dashboard/finance",
+        label: "🏦 Trésorerie & Banque",
+        icon: Landmark,
+      },
       {
         href: "/dashboard/historique",
         label: "Historique & Logs",
