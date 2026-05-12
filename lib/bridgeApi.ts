@@ -1,9 +1,18 @@
 "use server";
 
 /**
- * Client Bridge côté serveur uniquement (secrets jamais exposés au navigateur).
- * Appeler depuis Server Actions, Route Handlers ou Server Components — pas depuis un composant client.
+ * Bridge API v3 — agrégation (OpenAPI 2025-01-15).
+ *
+ * Obligatoire sur chaque requête : `Client-Id`, `Client-Secret`, `Bridge-Version`,
+ * ainsi que `Authorization: Bearer` quand la doc Bridge l’exige.
+ *
+ * Flux : utilisateur agrégé → POST /users → POST /authorization/token → connect-sessions → callback.
  */
+
+import {
+  bridgeAggregationJsonPostHeaders,
+  bridgeAggregationRoot,
+} from "@/lib/server/bridge-aggregator";
 
 function requireEnv(name: string): string {
   const v = process.env[name];
@@ -13,110 +22,181 @@ function requireEnv(name: string): string {
   return String(v).trim();
 }
 
-function bridgeBaseUrl(): string {
-  return requireEnv("BRIDGE_API_URL").replace(/\/+$/, "");
-}
-
 function appPublicUrl(): string {
   return requireEnv("NEXT_PUBLIC_APP_URL").replace(/\/+$/, "");
 }
 
-type BridgeAuthResponse = {
+/** Identité Bridge stable (une par boutique multi-admin). Obligatoire en prod sérieux ; défaut bac à sable. */
+function aggregationExternalUserId(): string {
+  const v = process.env.BRIDGE_EXTERNAL_USER_ID?.trim();
+  if (v) return v;
+  return "latifa-finance-shop";
+}
+
+async function parseJsonUnknown(res: Response): Promise<unknown> {
+  try {
+    return await res.json();
+  } catch {
+    return {};
+  }
+}
+
+function formatBridgeApiError(kind: string, status: number, body: unknown, statusText?: string): string {
+  if (
+    typeof body === "object" &&
+    body !== null &&
+    "errors" in body &&
+    Array.isArray((body as { errors: unknown }).errors)
+  ) {
+    const rows = (body as { errors: { message?: string; code?: string }[] }).errors;
+    const parts = rows
+      .map((e) =>
+        typeof e.message === "string" && e.message.trim()
+          ? e.message.trim()
+          : typeof e.code === "string"
+            ? e.code
+            : ""
+      )
+      .filter(Boolean);
+    if (parts.length > 0) return `Bridge ${kind} (${status}): ${parts.join(" — ")}`;
+  }
+  const raw =
+    typeof body === "object" && body !== null
+      ? JSON.stringify(body).slice(0, 400)
+      : String(body).slice(0, 120);
+  return `Bridge ${kind} (${status}): ${raw || statusText || ""}`;
+}
+
+async function ensureBridgeAggregationUser(externalUserId: string): Promise<void> {
+  const root = bridgeAggregationRoot();
+  const res = await fetch(`${root}/users`, {
+    method: "POST",
+    headers: bridgeAggregationJsonPostHeaders(undefined),
+    body: JSON.stringify({ external_user_id: externalUserId }),
+    cache: "no-store",
+  });
+
+  const body = await parseJsonUnknown(res);
+
+  /** 409 = utilisateur déjà créé avec cet external_user_id. */
+  if (res.ok || res.status === 409) return;
+
+    throw new Error(formatBridgeApiError("aggregation/users", res.status, body, res.statusText));
+}
+
+type BridgeAuthTokenResponse = {
   access_token?: string;
 };
 
-type BridgeConnectItemResponse = {
-  redirect_url?: string;
+type BridgeConnectSessionResponse = {
   url?: string;
+  redirect_url?: string;
   connect_url?: string;
 };
 
 /**
- * POST ${BRIDGE_API_URL}/authenticate
- * En-têtes exacts : Client-Id, Client-Secret, Content-Type.
+ * Jeton Bearer émis pour l’utilisateur agrégé (valide ~2 h).
+ * Compatible avec GET /aggregation/accounts, connect-sessions, etc.
  */
 export async function getBridgeToken(): Promise<string> {
-  const base = bridgeBaseUrl();
-  const clientId = requireEnv("BRIDGE_CLIENT_ID");
-  const clientSecret = requireEnv("BRIDGE_CLIENT_SECRET");
+  const externalUserId = aggregationExternalUserId();
+  await ensureBridgeAggregationUser(externalUserId);
 
-  const res = await fetch(`${base}/authenticate`, {
+  const root = bridgeAggregationRoot();
+  const res = await fetch(`${root}/authorization/token`, {
     method: "POST",
-    headers: {
-      "Client-Id": clientId,
-      "Client-Secret": clientSecret,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({}),
+    headers: bridgeAggregationJsonPostHeaders(undefined),
+    body: JSON.stringify({ external_user_id: externalUserId }),
     cache: "no-store",
   });
 
-  let data: BridgeAuthResponse = {};
+  let data: BridgeAuthTokenResponse = {};
   try {
-    data = (await res.json()) as BridgeAuthResponse;
+    data = (await res.json()) as BridgeAuthTokenResponse;
   } catch {
-    // corps non JSON
+    //
   }
 
   if (!res.ok) {
+    const bodyUnknown: unknown = data;
     throw new Error(
-      `Bridge authenticate (${res.status}): ${JSON.stringify(data) || res.statusText}`
+      formatBridgeApiError(
+        "aggregation/authorization/token",
+        res.status,
+        bodyUnknown,
+        res.statusText
+      )
     );
   }
 
-  const token = data.access_token;
+  const token = data.access_token?.trim();
   if (!token) {
-    throw new Error(
-      "Bridge authenticate : access_token absent dans la réponse."
-    );
+    throw new Error("Bridge : access_token absent dans la réponse du jeton utilisateur.");
   }
 
   return token;
 }
 
 /**
- * Initie une connexion type Connect (nouvel item).
- * POST ${BRIDGE_API_URL}/items avec Bearer token.
+ * Crée une session Bridge Connect ; retourne l’URL à ouvrir côté navigateur.
  *
- * Selon votre version Bridge, l’endpoint réel peut différer (ex. `/connect/items/add`) :
- * préfixez l’URL de base dans `BRIDGE_API_URL` ou adaptez le chemin ci-dessous.
+ * `user_email` est exigée par Bridge (contact utilisateur) — idéalement l’email admin Supabase.
  */
-export async function createConnectUrl(accessToken: string): Promise<string> {
-  const base = bridgeBaseUrl();
+export async function createConnectUrl(accessToken: string, userEmail: string): Promise<string> {
+  const email = typeof userEmail === "string" ? userEmail.trim() : "";
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    throw new Error("Email invalide ou vide pour créer une session Bridge Connect.");
+  }
+
+  const root = bridgeAggregationRoot();
   const origin = appPublicUrl();
-  const redirectUrl = `${origin}/dashboard/finance/callback`;
+  const callbackUrl = `${origin}/dashboard/finance/callback`;
+  const countryCode = process.env.BRIDGE_CONNECT_COUNTRY_CODE?.trim() || "FR";
 
-  const connectPath = `${base}/items`;
-
-  const res = await fetch(connectPath, {
+  const res = await fetch(`${root}/connect-sessions`, {
     method: "POST",
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ redirect_url: redirectUrl }),
+    headers: bridgeAggregationJsonPostHeaders(accessToken),
+    body: JSON.stringify({
+      user_email: email,
+      callback_url: callbackUrl,
+      country_code: countryCode,
+      capabilities: ["aggregation"],
+      account_types: "payment",
+    }),
     cache: "no-store",
   });
 
-  let data: BridgeConnectItemResponse = {};
+  let data: BridgeConnectSessionResponse = {};
   try {
-    data = (await res.json()) as BridgeConnectItemResponse;
+    data = (await res.json()) as BridgeConnectSessionResponse;
   } catch {
-    // ignore
+    //
   }
 
-  if (!res.ok) {
+  const statusOk = res.status === 200 || res.status === 201;
+  if (!statusOk) {
+    const bodyUnknown: unknown = data;
     throw new Error(
-      `Bridge connect items (${res.status}): ${JSON.stringify(data) || res.statusText}`
+      formatBridgeApiError(
+        "aggregation/connect-sessions",
+        res.status,
+        bodyUnknown,
+        res.statusText
+      )
     );
   }
 
   const url =
-    data.redirect_url ?? data.url ?? data.connect_url ?? null;
-  if (!url || typeof url !== "string") {
-    throw new Error(
-      "Bridge : URL de redirection absente (redirect_url / url / connect_url)."
-    );
+    typeof data.url === "string"
+      ? data.url.trim()
+      : typeof data.redirect_url === "string"
+        ? data.redirect_url.trim()
+        : typeof data.connect_url === "string"
+          ? data.connect_url.trim()
+          : null;
+
+  if (!url) {
+    throw new Error("Bridge Connect : aucune URL dans la réponse (champ attendu « url »).");
   }
 
   return url;

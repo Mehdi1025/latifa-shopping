@@ -8,7 +8,8 @@ function isAdminRole(role: string | null | undefined): boolean {
   return (role ?? "").trim().toLowerCase() === "admin";
 }
 
-async function assertAdminBridgeConnect(): Promise<void> {
+/** Retourne l’email admin pour `user_email` Bridge Connect (obligatoire pour une session durable). */
+async function assertAdminBridgeConnect(): Promise<{ userEmail: string }> {
   const supabase = await createSupabaseServerClient();
   const {
     data: { user },
@@ -24,13 +25,23 @@ async function assertAdminBridgeConnect(): Promise<void> {
   if (!isAdminRole((profile as { role?: string } | null)?.role)) {
     throw new Error("FORBIDDEN");
   }
+
+  const fallback = process.env.BRIDGE_FALLBACK_CONNECT_EMAIL?.trim();
+  const userEmail =
+    typeof user.email === "string" && user.email.includes("@") ? user.email.trim() : fallback ?? "";
+
+  if (!userEmail) {
+    throw new Error("MISSING_BRIDGE_EMAIL");
+  }
+
+  return { userEmail };
 }
 
 export async function GET() {
   try {
-    await assertAdminBridgeConnect();
+    const { userEmail } = await assertAdminBridgeConnect();
     const token = await getBridgeToken();
-    const connectUrl = await createConnectUrl(token);
+    const connectUrl = await createConnectUrl(token, userEmail);
     return NextResponse.json({ url: connectUrl });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Erreur Bridge";
@@ -41,6 +52,15 @@ export async function GET() {
       return NextResponse.json(
         { error: "Accès réservé aux administrateurs." },
         { status: 403 }
+      );
+    }
+    if (msg === "MISSING_BRIDGE_EMAIL") {
+      return NextResponse.json(
+        {
+          error:
+            "Aucune adresse email sur le compte admin. Définissez BRIDGE_FALLBACK_CONNECT_EMAIL dans l’environnement ou ajoutez un email au compte utilisateur.",
+        },
+        { status: 400 }
       );
     }
     return NextResponse.json({ error: msg }, { status: 500 });

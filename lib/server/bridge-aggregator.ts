@@ -43,13 +43,29 @@ export type BridgeTransactionResource = {
   account_id?: number;
 };
 
-function bridgeHeaders(accessToken: string): Record<string, string> {
+/** GET / autres appels Bearer : v3 impose Client-Id, Client-Secret, Bridge-Version, Accept. */
+export function bridgeAggregationRequestHeaders(accessToken: string): Record<string, string> {
   return {
     Authorization: `Bearer ${accessToken}`,
     "Client-Id": requireEnv("BRIDGE_CLIENT_ID"),
     "Client-Secret": requireEnv("BRIDGE_CLIENT_SECRET"),
     "Bridge-Version": bridgeApiVersion(),
+    Accept: "application/json",
   };
+}
+
+/** POST JSON vers l’API d’agrégation (avec ou sans Bearer). */
+export function bridgeAggregationJsonPostHeaders(accessToken?: string): Record<string, string> {
+  const h: Record<string, string> = {
+    "Client-Id": requireEnv("BRIDGE_CLIENT_ID"),
+    "Client-Secret": requireEnv("BRIDGE_CLIENT_SECRET"),
+    "Bridge-Version": bridgeApiVersion(),
+    Accept: "application/json",
+    "Content-Type": "application/json",
+  };
+  const t = accessToken?.trim();
+  if (t) h.Authorization = `Bearer ${t}`;
+  return h;
 }
 
 async function parseJsonSafely(res: Response): Promise<unknown> {
@@ -72,7 +88,7 @@ export async function fetchBridgeAccounts(
 
   const res = await fetch(`${root}/accounts?${qs}`, {
     method: "GET",
-    headers: bridgeHeaders(accessToken),
+    headers: bridgeAggregationRequestHeaders(accessToken),
     cache: "no-store",
   });
 
@@ -102,7 +118,7 @@ export async function fetchBridgeTransactionsPage(
 
   const res = await fetch(`${root}/transactions?${qs}`, {
     method: "GET",
-    headers: bridgeHeaders(accessToken),
+    headers: bridgeAggregationRequestHeaders(accessToken),
     cache: "no-store",
   });
 
