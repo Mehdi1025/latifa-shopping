@@ -1,8 +1,5 @@
 import { createSupabaseServerClient } from "@/utils/supabase/server";
 
-const SYSTEM_PROMPT =
-  "Tu es un directeur financier expert. Analyse ce JSON de transactions bancaires récentes. Fais un résumé hyper concis en français en 3 points : 1/ 🟢 Un point positif. 2/ 🔴 Une alerte ou dépense anormale. 3/ 💡 Un conseil stratégique. Ne fais aucune introduction ni conclusion, donne uniquement les 3 points formatés.";
-
 export type FinanceTransactionAiInput = {
   id: string;
   dateISO: string;
@@ -58,20 +55,25 @@ export async function generateFinancialInsightsGroq(
     throw new FinanceAiError("GROQ_API_KEY manquante côté serveur.", 500);
   }
 
+  /** Max 40 dernières (déjà triées du plus récent au plus ancien côté appel). */
+  const recentTx = transactions.slice(0, 40);
+  /** Clés courtes pour limiter les tokens envoyés au modèle (évite 413 côté Groq). */
+  const cleanData = recentTx.map((t) => ({
+    d: t.dateISO.slice(0, 10),
+    l: t.libelle.length > 160 ? t.libelle.slice(0, 160).trimEnd() : t.libelle,
+    m: Math.round(t.montantEUR * 100) / 100,
+  }));
+
   const { default: Groq } = await import("groq-sdk");
   const model =
-    process.env.GROQ_MODEL?.trim() || "llama-3.3-70b-versatile";
+    process.env.GROQ_MODEL?.trim() || "llama-3.1-8b-instant";
+
+  const systemPrompt = `Analyse ces 40 dernières transactions: ${JSON.stringify(cleanData)}. Donne 3 bullet points ultra-courts: 1/ 🟢 Point fort. 2/ 🔴 Alerte. 3/ 💡 Conseil.`;
 
   const client = new Groq({ apiKey: key });
   const chatCompletion = await client.chat.completions.create({
     model,
-    messages: [
-      { role: "system", content: SYSTEM_PROMPT },
-      {
-        role: "user",
-        content: JSON.stringify(transactions, null, 2),
-      },
-    ],
+    messages: [{ role: "system", content: systemPrompt }],
     temperature: 0.35,
     max_tokens: 512,
   });
