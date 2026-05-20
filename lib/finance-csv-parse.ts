@@ -2,6 +2,7 @@ import type { CsvImportRow } from "@/lib/server/finance-csv-map";
 
 function normalizeKey(key: string): string {
   return key
+    .replace(/^\ufeff/, "")
     .trim()
     .toLowerCase()
     .normalize("NFD")
@@ -18,6 +19,7 @@ function pickField(row: Record<string, string>, candidates: string[]): string {
   return "";
 }
 
+/** Montant FR : virgule décimale, signe éventuel (ex. -3,50). */
 function parseFrenchAmount(raw: string): number | null {
   const cleaned = raw
     .trim()
@@ -25,57 +27,51 @@ function parseFrenchAmount(raw: string): number | null {
     .replace(/\u00a0/g, "")
     .replace(/€/g, "")
     .replace(",", ".");
+
   if (!cleaned) return null;
+
   const n = Number.parseFloat(cleaned);
   return Number.isFinite(n) ? n : null;
 }
 
-function parseCsvDate(raw: string): string | null {
+/** Date FR DD/MM/YYYY → YYYY-MM-DD pour Supabase. */
+function parseFrenchDate(raw: string): string | null {
   const value = raw.trim();
   if (!value) return null;
 
-  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
-
-  const fr = value.match(/^(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})$/);
+  const fr = value.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
   if (fr) {
     const dd = fr[1].padStart(2, "0");
     const mm = fr[2].padStart(2, "0");
     return `${fr[3]}-${mm}-${dd}`;
   }
 
-  const parsed = new Date(value);
-  if (!Number.isNaN(parsed.getTime())) {
-    const y = parsed.getFullYear();
-    const m = String(parsed.getMonth() + 1).padStart(2, "0");
-    const d = String(parsed.getDate()).padStart(2, "0");
-    return `${y}-${m}-${d}`;
-  }
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
 
   return null;
 }
 
 export function mapCsvRowToImport(row: Record<string, string>): CsvImportRow | null {
-  const dateRaw = pickField(row, ["Date", "date", "DATE", "Date operation", "Date opération"]);
-  const description = pickField(row, [
-    "Libellé",
-    "Libelle",
-    "Description",
-    "label",
-    "Libellé opération",
-  ]);
-  const amountRaw = pickField(row, ["Montant", "Amount", "montant", "Debit", "Crédit", "Credit"]);
+  const dateRaw = pickField(row, ["Date transaction"]);
+  const description =
+    pickField(row, ["Libellé opération", "Libelle operation"]) ||
+    pickField(row, ["Libellé complet", "Libelle complet"]);
+  const amountRaw = pickField(row, ["Montant"]);
 
-  const date = parseCsvDate(dateRaw);
+  const date = parseFrenchDate(dateRaw);
   const signedAmount = parseFrenchAmount(amountRaw);
 
-  if (!date || !description || signedAmount === null || signedAmount === 0) return null;
+  if (!date || signedAmount === null || !Number.isFinite(signedAmount)) return null;
 
   const abs = Math.round(Math.abs(signedAmount) * 100) / 100;
+  if (abs === 0) return null;
+
   const type: "income" | "expense" = signedAmount >= 0 ? "income" : "expense";
+  const finalDescription = description.trim() || "Opération";
 
   return {
     date,
-    description,
+    description: finalDescription,
     amount: abs,
     type,
   };
@@ -84,3 +80,10 @@ export function mapCsvRowToImport(row: Record<string, string>): CsvImportRow | n
 export function mapCsvRows(rows: Record<string, string>[]): CsvImportRow[] {
   return rows.map(mapCsvRowToImport).filter((row): row is CsvImportRow => row !== null);
 }
+
+/** Options PapaParse pour les exports bancaires français (point-virgule). */
+export const FRENCH_BANK_CSV_PARSE_OPTIONS = {
+  header: true as const,
+  delimiter: ";" as const,
+  skipEmptyLines: true as const,
+};

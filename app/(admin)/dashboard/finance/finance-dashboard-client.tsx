@@ -24,7 +24,7 @@ import {
   Zap,
 } from "lucide-react";
 
-import { mapCsvRows } from "@/lib/finance-csv-parse";
+import { FRENCH_BANK_CSV_PARSE_OPTIONS, mapCsvRows } from "@/lib/finance-csv-parse";
 
 type TxCategory = "Fournisseur" | "Salaire" | "Taxes" | "Recette" | "Autre";
 
@@ -170,14 +170,13 @@ export default function FinanceDashboardClient() {
       setImportLoading(true);
 
       Papa.parse<Record<string, string>>(file, {
-        header: true,
-        skipEmptyLines: true,
+        ...FRENCH_BANK_CSV_PARSE_OPTIONS,
         complete: async (results) => {
           try {
             const mapped = mapCsvRows(results.data);
             if (mapped.length === 0) {
               toast.error(
-                "Aucune ligne valide trouvée. Vérifiez les colonnes Date, Libellé et Montant."
+                "Aucune ligne valide trouvée. Colonnes attendues : Date transaction, Libellé opération, Montant (séparateur ;)."
               );
               return;
             }
@@ -421,8 +420,10 @@ export default function FinanceDashboardClient() {
                 Glissez-déposez votre relevé CSV
               </h3>
               <p className="mt-2 max-w-md text-sm text-slate-600">
-                Colonnes attendues&nbsp;: <strong>Date</strong>, <strong>Libellé</strong>,{" "}
-                <strong>Montant</strong> (positif = entrée, négatif = sortie).
+                Export bancaire FR&nbsp;: <strong>Date transaction</strong>,{" "}
+                <strong>Libellé opération</strong>, <strong>Montant</strong> (séparateur{" "}
+                <code className="rounded bg-slate-100 px-1">;</code> — positif = entrée, négatif =
+                sortie).
               </p>
               <button
                 type="button"
