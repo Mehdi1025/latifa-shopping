@@ -33,8 +33,9 @@ import { localDateISO } from "@/hooks/useObjectifDuJour";
 import CrossSellInsights from "@/components/admin/CrossSellInsights";
 import KpiFinanceIntel from "@/components/admin/KpiFinanceIntel";
 import BusinessSimulator from "@/components/admin/kpi/BusinessSimulator";
+import AiKpiInsights from "@/components/kpi/AiKpiInsights";
 import { SalesHeatmap } from "@/components/admin/SalesHeatmap";
-import { MOCK_SOLDE_BANCAIRE } from "@/lib/finance-kpi";
+import { CHARGES_FIXES_MENSUELLES, MOCK_SOLDE_BANCAIRE } from "@/lib/finance-kpi";
 
 type Vente = {
   id: string;
@@ -637,6 +638,35 @@ export default function KPIPage() {
   const visiteursAffiche =
     nombreEntrees !== null ? nombreEntrees : "—";
 
+  const ventesSemaine = useMemo(() => {
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - 7);
+    const cutoffIso = cutoff.toISOString();
+    return ventes30j.filter((v) => v.created_at >= cutoffIso).length;
+  }, [ventes30j]);
+
+  const kpiAiPayload = useMemo(
+    () => ({
+      chiffreAffaires: caMois,
+      depenses: CHARGES_FIXES_MENSUELLES,
+      panierMoyen,
+      ventesSemaine,
+      caJour,
+      croissancePct,
+      nbVentesMois,
+      tauxConversionPct: tauxJour,
+    }),
+    [
+      caMois,
+      panierMoyen,
+      ventesSemaine,
+      caJour,
+      croissancePct,
+      nbVentesMois,
+      tauxJour,
+    ]
+  );
+
   return (
     <div className="admin-container min-h-dvh bg-gradient-to-br from-slate-50 via-white to-slate-100/90 p-4 md:p-6 lg:p-10">
       <header className="mb-8 lg:mb-10">
@@ -663,6 +693,10 @@ export default function KPIPage() {
           initial="hidden"
           animate="show"
         >
+          <motion.div variants={itemVariants}>
+            <AiKpiInsights kpis={kpiAiPayload} />
+          </motion.div>
+
           {/* Bento : graphique + pilotage jour (4 blocs en cascade) */}
           <motion.div
             className="grid grid-cols-1 gap-4 lg:grid-cols-12 lg:grid-rows-3 lg:gap-5"
