@@ -1,18 +1,17 @@
 import { NextResponse } from "next/server";
-import { createSupabaseServerClient } from "@/utils/supabase/server";
-import { getBridgeToken } from "@/lib/bridgeApi";
+
 import {
-  accountIdsEligibleForTxSync,
   computeLiquidEURBalance,
-  fetchBridgeAccounts,
-  fetchBridgeTransactionsPage,
+  fetchPlaidAccounts,
+  fetchPlaidTransactions,
   primaryLiquidityPresentation,
-} from "@/lib/server/bridge-aggregator";
+} from "@/lib/server/plaid-aggregator";
 import {
   buildChartRolling7Days,
-  mapBridgeTransactionToSerializable,
+  mapPlaidTransactionToSerializable,
   type SerializableBankTx,
-} from "@/lib/server/bridge-finance-map";
+} from "@/lib/server/plaid-finance-map";
+import { createSupabaseServerClient } from "@/utils/supabase/server";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -21,11 +20,11 @@ function isAdminRole(role: string | null | undefined): boolean {
   return (role ?? "").trim().toLowerCase() === "admin";
 }
 
-export type BridgeFinancePayload =
+export type PlaidFinancePayload =
   | { connected: false }
   | {
       connected: true;
-      bridgeItemId: string;
+      plaidItemId: string;
       balanceEUR: number;
       primaryAccountLabel: string;
       ibanMasked: string | null;
@@ -57,12 +56,12 @@ export async function GET() {
 
     const { data: settings, error: settingsError } = await supabase
       .from("shop_settings")
-      .select("bridge_item_id")
+      .select("plaid_item_id, plaid_access_token")
       .eq("id", 1)
       .maybeSingle();
 
     if (settingsError) {
-      const body: BridgeFinancePayload & { diagnostics?: string } = {
+      const body: PlaidFinancePayload & { diagnostics?: string } = {
         connected: false,
       };
       if (process.env.NODE_ENV === "development") {
@@ -71,31 +70,29 @@ export async function GET() {
       return NextResponse.json(body, { status: 200 });
     }
 
-    const bridgeItemId =
-      typeof settings?.bridge_item_id === "string"
-        ? settings.bridge_item_id.trim()
+    const plaidItemId =
+      typeof settings?.plaid_item_id === "string" ? settings.plaid_item_id.trim() : "";
+    const accessToken =
+      typeof settings?.plaid_access_token === "string"
+        ? settings.plaid_access_token.trim()
         : "";
 
-    if (!bridgeItemId) {
-      return NextResponse.json({ connected: false } satisfies BridgeFinancePayload);
+    if (!plaidItemId || !accessToken) {
+      return NextResponse.json({ connected: false } satisfies PlaidFinancePayload);
     }
 
-    const token = await getBridgeToken();
     try {
-      const accounts = await fetchBridgeAccounts(token, bridgeItemId);
+      const accounts = await fetchPlaidAccounts(accessToken);
       const balanceEUR = computeLiquidEURBalance(accounts);
       const { label: primaryAccountLabel, ibanMasked: rawIbanMask } =
         primaryLiquidityPresentation(accounts);
 
-      const accountIds = accountIdsEligibleForTxSync(accounts);
+      const rawTxs = await fetchPlaidTransactions(accessToken);
       const merged = new Map<string, SerializableBankTx>();
 
-      for (const aid of accountIds) {
-        const slice = await fetchBridgeTransactionsPage(token, aid);
-        for (const raw of slice) {
-          const row = mapBridgeTransactionToSerializable(raw);
-          if (row) merged.set(row.id, row);
-        }
+      for (const raw of rawTxs) {
+        const row = mapPlaidTransactionToSerializable(raw);
+        if (row) merged.set(row.id, row);
       }
 
       const transactions = [...merged.values()].sort((a, b) => {
@@ -109,25 +106,25 @@ export async function GET() {
 
       return NextResponse.json({
         connected: true,
-        bridgeItemId,
+        plaidItemId,
         balanceEUR,
         primaryAccountLabel,
         ibanMasked: rawIbanMask ?? null,
         transactions: capped,
         chartData7j,
-      } satisfies BridgeFinancePayload);
+      } satisfies PlaidFinancePayload);
     } catch (e) {
-      const msg = e instanceof Error ? e.message : "Erreur Bridge";
+      const msg = e instanceof Error ? e.message : "Erreur Plaid";
       return NextResponse.json({
         connected: true,
-        bridgeItemId,
+        plaidItemId,
         balanceEUR: 0,
         primaryAccountLabel: "Compte connecté",
         ibanMasked: null,
         transactions: [],
         chartData7j: buildChartRolling7Days([], new Date()),
         upstreamError: msg,
-      } satisfies BridgeFinancePayload);
+      } satisfies PlaidFinancePayload);
     }
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Erreur serveur";

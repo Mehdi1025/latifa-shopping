@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { usePlaidLink } from "react-plaid-link";
 import { toast } from "sonner";
 import {
   Bar,
@@ -30,11 +31,11 @@ const FALLBACK_IBAN_DISPLAY = "FR** **** **** **** ****";
 
 type TxCategory = "Fournisseur" | "Salaire" | "Taxes" | "Recette" | "Autre";
 
-type BridgeFinancePayload =
+type PlaidFinancePayload =
   | { connected: false; diagnostics?: string }
   | {
       connected: true;
-      bridgeItemId: string;
+      plaidItemId: string;
       balanceEUR: number;
       primaryAccountLabel: string;
       ibanMasked: string | null;
@@ -113,12 +114,13 @@ export default function FinanceDashboardClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const [payload, setPayload] = useState<BridgeFinancePayload | null>(null);
+  const [payload, setPayload] = useState<PlaidFinancePayload | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [openBankingModal, setOpenBankingModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [filterOpen, setFilterOpen] = useState(false);
-  const [connectLoading, setConnectLoading] = useState(false);
+  const [linkToken, setLinkToken] = useState<string | null>(null);
+  const [exchangeLoading, setExchangeLoading] = useState(false);
   const [aiInsights, setAiInsights] = useState<string | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
@@ -142,48 +144,98 @@ export default function FinanceDashboardClient() {
     router.replace("/dashboard/finance", { scroll: false });
   }, [searchParams, router]);
 
+  const loadFinanceData = useCallback(async () => {
+    setLoadError(null);
+    try {
+      const res = await fetch("/api/finance/plaid-data", {
+        credentials: "same-origin",
+        cache: "no-store",
+      });
+      if (res.status === 401) {
+        router.push(`/login?next=${encodeURIComponent("/dashboard/finance")}`);
+        return;
+      }
+      const body = (await res.json()) as PlaidFinancePayload | { error?: string };
+
+      if (!res.ok && "error" in body && typeof body.error === "string") {
+        setLoadError(body.error);
+        setPayload({ connected: false });
+        return;
+      }
+      if ("connected" in body) setPayload(body);
+      else {
+        setLoadError("Réponse Plaid inattendue.");
+        setPayload({ connected: false });
+      }
+    } catch {
+      setLoadError("Impossible de charger les données de trésorerie.");
+      setPayload({ connected: false });
+    }
+  }, [router]);
+
+  useEffect(() => {
+    void loadFinanceData();
+  }, [loadFinanceData]);
+
   useEffect(() => {
     let cancelled = false;
 
     (async () => {
-      setLoadError(null);
       try {
-        const res = await fetch("/api/finance/bridge-data", {
+        const res = await fetch("/api/plaid/create-link-token", {
+          method: "POST",
           credentials: "same-origin",
-          cache: "no-store",
         });
-        if (res.status === 401) {
-          if (!cancelled) {
-            router.push(`/login?next=${encodeURIComponent("/dashboard/finance")}`);
-          }
-          return;
-        }
-        const body = (await res.json()) as BridgeFinancePayload | { error?: string };
-
-        if (!cancelled) {
-          if (!res.ok && "error" in body && typeof body.error === "string") {
-            setLoadError(body.error);
-            setPayload({ connected: false });
-            return;
-          }
-          if ("connected" in body) setPayload(body);
-          else {
-            setLoadError("Réponse Bridge inattendue.");
-            setPayload({ connected: false });
-          }
+        if (!res.ok) return;
+        const body = (await res.json()) as { link_token?: unknown };
+        if (!cancelled && typeof body.link_token === "string" && body.link_token.trim()) {
+          setLinkToken(body.link_token.trim());
         }
       } catch {
-        if (!cancelled) {
-          setLoadError("Impossible de charger les données de trésorerie.");
-          setPayload({ connected: false });
-        }
+        if (!cancelled) setLinkToken(null);
       }
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [router]);
+  }, []);
+
+  const onPlaidSuccess = useCallback(
+    async (publicToken: string) => {
+      setExchangeLoading(true);
+      try {
+        const res = await fetch("/api/plaid/exchange-public-token", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify({ public_token: publicToken }),
+        });
+        const body = (await res.json()) as { success?: boolean; error?: string };
+        if (!res.ok || !body.success) {
+          toast.error(typeof body.error === "string" ? body.error : "Échange Plaid impossible.");
+          return;
+        }
+        toast.success("Banque connectée avec succès via Plaid.");
+        setOpenBankingModal(false);
+        await loadFinanceData();
+      } catch {
+        toast.error("Impossible de finaliser la connexion Plaid.");
+      } finally {
+        setExchangeLoading(false);
+      }
+    },
+    [loadFinanceData]
+  );
+
+  const { open, ready } = usePlaidLink({
+    token: linkToken,
+    onSuccess: (publicToken) => {
+      void onPlaidSuccess(publicToken);
+    },
+  });
+
+  const plaidLinkReady = ready && Boolean(linkToken);
 
   const iaPayload = useMemo(
     () =>
@@ -285,34 +337,10 @@ export default function FinanceDashboardClient() {
     );
   }, [searchQuery, transactions]);
 
-  const handleConnect = useCallback(async () => {
-    setConnectLoading(true);
-    try {
-      const res = await fetch("/api/bridge/connect", { credentials: "same-origin" });
-      let body: { url?: unknown; error?: unknown };
-      try {
-        body = (await res.json()) as { url?: unknown; error?: unknown };
-      } catch {
-        toast.error("Réponse invalide pour la connexion Bridge.");
-        setConnectLoading(false);
-        return;
-      }
-      if (!res.ok) {
-        toast.error(typeof body.error === "string" ? body.error : "Connexion Bridge impossible.");
-        setConnectLoading(false);
-        return;
-      }
-      if (typeof body.url === "string" && body.url.trim()) {
-        window.location.href = body.url.trim();
-        return;
-      }
-      toast.error("URL de connexion manquante.");
-    } catch {
-      toast.error("Impossible de lancer Bridge.");
-    } finally {
-      setConnectLoading(false);
-    }
-  }, []);
+  const handleConnect = useCallback(() => {
+    if (!plaidLinkReady || exchangeLoading) return;
+    open();
+  }, [exchangeLoading, open, plaidLinkReady]);
 
   const bankModal = openBankingModal && (
     <div
@@ -324,7 +352,7 @@ export default function FinanceDashboardClient() {
       <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-2xl">
         <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
           <h3 id="modal-bank-title" className="text-lg font-semibold text-slate-900">
-            Connexion sécurisée (Bridge)
+            Connexion sécurisée (Plaid)
           </h3>
           <button
             type="button"
@@ -337,23 +365,23 @@ export default function FinanceDashboardClient() {
         </div>
         <div className="space-y-5 px-6 py-6 text-sm leading-relaxed text-slate-600">
           <p>
-            Connectez votre compte via <strong>Open Banking</strong> (DSP2). Vous êtes redirigé
-            vers l’interface Bridge ; au retour, la boutique enregistrera automatiquement le lien
-            bancaire.
+            Connectez votre compte via <strong>Open Banking</strong> (DSP2). Plaid Link s’ouvre
+            directement dans cette fenêtre ; une fois la banque reliée, vos soldes et opérations
+            seront synchronisés automatiquement.
           </p>
           <button
             type="button"
-            disabled={connectLoading}
-            onClick={() => void handleConnect()}
+            disabled={!plaidLinkReady || exchangeLoading}
+            onClick={handleConnect}
             className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-indigo-600 py-3.5 text-sm font-semibold text-white shadow-md transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {connectLoading ? (
+            {exchangeLoading || !linkToken ? (
               <>
                 <Loader2 className="h-5 w-5 animate-spin shrink-0" />
-                Ouverture de Bridge…
+                {exchangeLoading ? "Finalisation…" : "Préparation de Plaid Link…"}
               </>
             ) : (
-              "Continuer avec Bridge"
+              "Continuer avec Plaid"
             )}
           </button>
           <button
@@ -394,7 +422,7 @@ export default function FinanceDashboardClient() {
               </h1>
               <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-600">
                 Connectez votre banque une première fois pour afficher vos soldes et vos opérations
-                Bridge côté admin.
+                Plaid côté admin.
               </p>
               {payload.diagnostics && process.env.NODE_ENV === "development" ? (
                 <p className="mt-3 text-xs text-amber-800">{payload.diagnostics}</p>
@@ -428,11 +456,18 @@ export default function FinanceDashboardClient() {
           </p>
           <button
             type="button"
-            onClick={() => setOpenBankingModal(true)}
-            className="mt-10 inline-flex items-center gap-2 rounded-xl bg-gradient-to-br from-[#4338CA] via-[#4F46E5] to-[#6366F1] px-8 py-3.5 text-sm font-semibold text-white shadow-xl shadow-indigo-500/30 transition hover:brightness-[1.05]"
+            disabled={!plaidLinkReady || exchangeLoading}
+            onClick={() => {
+              if (plaidLinkReady) {
+                open();
+                return;
+              }
+              setOpenBankingModal(true);
+            }}
+            className="mt-10 inline-flex items-center gap-2 rounded-xl bg-gradient-to-br from-[#4338CA] via-[#4F46E5] to-[#6366F1] px-8 py-3.5 text-sm font-semibold text-white shadow-xl shadow-indigo-500/30 transition hover:brightness-[1.05] disabled:cursor-not-allowed disabled:opacity-60"
           >
             <Wifi className="h-5 w-5 shrink-0" strokeWidth={1.75} />
-            Connecter ma banque (Bridge)
+            Connecter ma banque
           </button>
         </div>
 
@@ -446,7 +481,7 @@ export default function FinanceDashboardClient() {
   const chartData = conn.chartData7j;
   const ibanDisplay = conn.ibanMasked?.trim() ? conn.ibanMasked.trim() : FALLBACK_IBAN_DISPLAY;
 
-  /** Connecté — dashboard complet avec données Bridge */
+  /** Connecté — dashboard complet avec données Plaid */
   return (
     <div className="min-h-0 pb-16">
       <header className="mb-10 border-b border-slate-200/80 pb-8">
@@ -459,13 +494,13 @@ export default function FinanceDashboardClient() {
               Trésorerie &amp; synchronisation bancaire
             </h1>
             <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-600">
-              Soldes et opérations issus de Bridge (Open Banking) — mise à jour à chaque visite de
+              Soldes et opérations issus de Plaid (Open Banking) — mise à jour à chaque visite de
               cette page.
             </p>
           </div>
           <span className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50/90 px-3 py-1.5 text-xs font-medium text-emerald-900 shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
             <ShieldCheck className="h-3.5 w-3.5 text-emerald-600" />
-            Banque reliée • données Bridge
+            Banque reliée • données Plaid
           </span>
         </div>
       </header>
@@ -477,7 +512,7 @@ export default function FinanceDashboardClient() {
         >
           <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" strokeWidth={1.75} />
           <div>
-            <p className="font-semibold text-amber-950">Synchronisation Bridge partielle</p>
+            <p className="font-semibold text-amber-950">Synchronisation Plaid partielle</p>
             <p className="mt-1 leading-relaxed">{conn.upstreamError}</p>
           </div>
         </div>
@@ -501,7 +536,7 @@ export default function FinanceDashboardClient() {
               </h2>
               <p className="mt-0.5 text-xs text-slate-500 md:text-[13px]">
                 Basée sur vos{" "}
-                <strong className="font-semibold text-slate-700">transactions Bridge réelles</strong>{" "}
+                <strong className="font-semibold text-slate-700">transactions Plaid réelles</strong>{" "}
                 ({transactions.length} opération
                 {transactions.length > 1 ? "s" : ""} analysée
                 {transactions.length > 1 ? "s" : ""}, échantillon max. 500).
@@ -595,7 +630,7 @@ export default function FinanceDashboardClient() {
               <div className="relative mt-6 flex flex-wrap items-center gap-2">
                 <span className="inline-flex items-center gap-1.5 rounded-lg bg-black/25 px-2.5 py-1 text-[11px] font-medium ring-1 ring-white/15">
                   <span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.7)]" />
-                  Pont Bridge actif • item relié à la boutique
+                  Lien Plaid actif • item relié à la boutique
                 </span>
               </div>
             </div>
@@ -603,16 +638,20 @@ export default function FinanceDashboardClient() {
 
           <button
             type="button"
-            onClick={() => setOpenBankingModal(true)}
-            className="group flex min-h-[220px] flex-col items-center justify-center rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50/80 px-6 py-10 text-center shadow-[inset_0_1px_0_0_rgba(255,255,255,0.8)] transition-all hover:border-indigo-300 hover:bg-white hover:shadow-[0_12px_32px_-12px_rgba(79,70,229,0.15)] md:col-span-1"
+            disabled={!plaidLinkReady || exchangeLoading}
+            onClick={() => {
+              if (plaidLinkReady) open();
+              else setOpenBankingModal(true);
+            }}
+            className="group flex min-h-[220px] flex-col items-center justify-center rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50/80 px-6 py-10 text-center shadow-[inset_0_1px_0_0_rgba(255,255,255,0.8)] transition-all hover:border-indigo-300 hover:bg-white hover:shadow-[0_12px_32px_-12px_rgba(79,70,229,0.15)] disabled:cursor-not-allowed disabled:opacity-60 md:col-span-1"
           >
             <span className="flex h-14 w-14 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 shadow-sm transition-colors group-hover:border-indigo-200 group-hover:bg-indigo-50 group-hover:text-indigo-600">
               <Plus className="h-7 w-7" strokeWidth={1.5} />
             </span>
             <span className="mt-4 text-sm font-semibold text-slate-800">Relier ou renouveler</span>
             <span className="mt-2 max-w-[260px] text-xs leading-snug text-slate-500">
-              Si Bridge vous demande une nouvelle authentification, ouvrez de nouveau cette étape —
-              nous mettons à jour l’item automatiquement au retour.
+              Si Plaid vous demande une nouvelle authentification, ouvrez de nouveau cette étape —
+              nous mettons à jour l’item automatiquement.
             </span>
           </button>
 
@@ -626,8 +665,8 @@ export default function FinanceDashboardClient() {
                   Agrégateur &amp; conformité PSD2
                 </p>
                 <p className="mt-2 text-xs leading-relaxed text-slate-600">
-                  Les transactions affichées proviennent de l’API Bridge (agrégation v3). Un second
-                  compte peut être relié depuis le tableau Bridge si votre offre le permet.
+                  Les transactions affichées proviennent de l’API Plaid. Un second compte peut être
+                  relié depuis le flux Link si votre banque le permet.
                 </p>
               </div>
             </div>
@@ -648,7 +687,7 @@ export default function FinanceDashboardClient() {
               Flux de trésorerie
             </h2>
             <p className="mt-1 text-sm text-slate-600">
-              Agrégés sur les transactions Bridge des 7 derniers jours (entrées positives / sorties
+              Agrégés sur les transactions Plaid des 7 derniers jours (entrées positives / sorties
               débitées).
             </p>
           </div>
@@ -721,7 +760,7 @@ export default function FinanceDashboardClient() {
               Dernières opérations bancaires
             </h2>
             <p className="mt-1 text-sm text-slate-600">
-              Flux synchronisés via Bridge • tri par date récente
+              Flux synchronisés via Plaid • tri par date récente
             </p>
           </div>
           <div className="flex flex-wrap gap-3">

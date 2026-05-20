@@ -1,5 +1,3 @@
-import type { BridgeTransactionResource } from "@/lib/server/bridge-aggregator";
-
 /** Types alignés avec l’API Groq et la page finance. */
 export type SerializableBankTx = {
   id: string;
@@ -10,17 +8,30 @@ export type SerializableBankTx = {
   montantEUR: number;
 };
 
-export function categorizeFromBridgeOperation(
-  operationType: string | undefined,
+export type PlaidTransactionLike = {
+  transaction_id: string;
+  name?: string | null;
+  merchant_name?: string | null;
+  amount: number;
+  date: string;
+  iso_currency_code?: string | null;
+  payment_channel?: string | null;
+  personal_finance_category?: { primary?: string | null; detailed?: string | null } | null;
+};
+
+export function categorizeFromPlaidTransaction(
   amount: number,
-  providerDescription?: string | null
+  libelle: string,
+  paymentChannel?: string | null,
+  pfCategory?: string | null
 ): string {
-  const op = String(operationType || "unknown").toLowerCase();
-  const desc = (providerDescription || "").toLowerCase();
+  const desc = libelle.toLowerCase();
+  const channel = (paymentChannel || "").toLowerCase();
+  const category = (pfCategory || "").toLowerCase();
 
   if (amount >= 0) return "Recette";
 
-  if (/urssaf|impôt|impot|cfe|cfe|dgfip|tva\b|tax/.test(desc)) return "Taxes";
+  if (/urssaf|impôt|impot|cfe|dgfip|tva\b|tax/.test(desc)) return "Taxes";
   if (
     (/virement\s+salaire/.test(desc) ||
       /\bsalaire\b/.test(desc) ||
@@ -30,52 +41,50 @@ export function categorizeFromBridgeOperation(
     return "Salaire";
   }
 
-  switch (op) {
-    case "direct_debit":
-      return /impot|cfe|social|pole emploi|caf/.test(desc) ? "Taxes" : "Fournisseur";
-    case "card":
-      return amount <= -3500 ? "Fournisseur" : "Fournisseur";
-    case "transfer":
-    case "open_banking":
-      return amount <= -800 ? "Fournisseur" : "Autre";
-    case "check":
-    case "withdrawal":
-    case "deposit":
-      return amount >= 0 ? "Recette" : "Fournisseur";
-    default:
-      return "Autre";
+  if (category.includes("income") || category.includes("payroll")) {
+    return amount <= -400 ? "Salaire" : "Recette";
   }
+  if (category.includes("tax")) return "Taxes";
+  if (category.includes("food") || category.includes("shops") || category.includes("service")) {
+    return "Fournisseur";
+  }
+
+  if (channel === "online" || channel === "in store") return "Fournisseur";
+  if (channel === "transfer") return amount <= -800 ? "Fournisseur" : "Autre";
+
+  return "Autre";
 }
 
-export function mapBridgeTransactionToSerializable(
-  t: BridgeTransactionResource
+export function mapPlaidTransactionToSerializable(
+  t: PlaidTransactionLike
 ): SerializableBankTx | null {
-  if (t.deleted) return null;
-  if (t.id === undefined || t.id === null) return null;
+  if (!t.transaction_id) return null;
   if (typeof t.amount !== "number" || !Number.isFinite(t.amount)) return null;
-  const currency = (t.currency_code || "EUR").toUpperCase();
+
+  const currency = (t.iso_currency_code || "EUR").toUpperCase();
   if (currency !== "EUR") return null;
 
   const dateISO = String(t.date || "").slice(0, 10);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dateISO)) return null;
 
   const libelle = (
-    typeof t.clean_description === "string" && t.clean_description.trim()
-      ? t.clean_description
-      : typeof t.provider_description === "string" && t.provider_description.trim()
-        ? t.provider_description
+    typeof t.merchant_name === "string" && t.merchant_name.trim()
+      ? t.merchant_name
+      : typeof t.name === "string" && t.name.trim()
+        ? t.name
         : "Opération"
   ).trim();
 
-  const montantEUR = Math.round(t.amount * 100) / 100;
-  const categorie = categorizeFromBridgeOperation(
-    t.operation_type,
+  const montantEUR = Math.round(-t.amount * 100) / 100;
+  const categorie = categorizeFromPlaidTransaction(
     montantEUR,
-    typeof t.provider_description === "string" ? t.provider_description : null
+    libelle,
+    t.payment_channel,
+    t.personal_finance_category?.primary
   );
 
   return {
-    id: String(t.id),
+    id: t.transaction_id,
     dateISO,
     libelle,
     categorie,
