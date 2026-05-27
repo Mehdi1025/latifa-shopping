@@ -82,7 +82,9 @@ export default function KpiHistoryArchives() {
 
         const mapped = mapKpiHistoryCsvRows(parsed.data);
         if (mapped.length === 0) {
-          toast.error("Aucune ligne valide (vérifiez Date, Chiffre d'affaire, Panier moyen).");
+          toast.error(
+            "Aucune ligne valide — vérifiez la colonne Date (JJ/MM/AAAA). Les jours fermés (CA vide) sont acceptés."
+          );
           return;
         }
 

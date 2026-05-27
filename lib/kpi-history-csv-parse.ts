@@ -14,18 +14,16 @@ function normalizeKey(key: string): string {
     .replace(/[\u0300-\u036f]/g, "");
 }
 
-/** Montant FR type « 1 248,66 € » → nombre. */
-export function cleanFrenchCurrency(value: string): number {
-  const cleaned = String(value ?? "")
-    .replace(/€/g, "")
-    .replace(/[\s\u00a0\u202f]/g, "")
-    .replace(",", ".")
-    .trim();
-
-  if (!cleaned) return 0;
-
-  const n = Number.parseFloat(cleaned);
-  return Number.isFinite(n) ? n : 0;
+/** Montant FR tolérant — cellules vides, espaces, €, apostrophes dans les en-têtes. */
+export function cleanFrenchCurrency(val: unknown): number {
+  if (val == null || val === "") return 0;
+  if (typeof val !== "string") {
+    if (typeof val === "number" && Number.isFinite(val)) return val;
+    return 0;
+  }
+  const cleaned = val.replace(/[^0-9,-]/g, "").replace(",", ".");
+  const num = Number.parseFloat(cleaned);
+  return Number.isNaN(num) ? 0 : num;
 }
 
 function parseFrenchDate(raw: string): string | null {
@@ -44,35 +42,32 @@ function parseFrenchDate(raw: string): string | null {
   return null;
 }
 
-function pickColumnValue(row: Record<string, string>, matcher: (normalizedKey: string) => boolean): string {
-  for (const [key, value] of Object.entries(row)) {
-    if (matcher(normalizeKey(key)) && value?.trim()) {
-      return value.trim();
-    }
-  }
-  return "";
-}
-
 function round2(n: number): number {
   return Math.round(n * 100) / 100;
 }
 
+function findColumnKey(
+  row: Record<string, string>,
+  matcher: (normalizedKey: string) => boolean
+): string | undefined {
+  return Object.keys(row).find((k) => matcher(normalizeKey(k)));
+}
+
 export function mapKpiHistoryCsvRow(row: Record<string, string>): HistoricalKpiImportRow | null {
-  const dateRaw = pickColumnValue(row, (k) => k.includes("date"));
-  const revenueRaw = pickColumnValue(
+  const dateKey = findColumnKey(row, (k) => k.includes("date"));
+  const caKey = findColumnKey(
     row,
-    (k) => k.includes("chiffre") && k.includes("affaire")
+    (k) => k.includes("chiffre") || k.includes("ca ")
   );
-  const basketRaw = pickColumnValue(row, (k) => k.includes("panier") && k.includes("moyen"));
+  const panierKey = findColumnKey(row, (k) => k.includes("panier"));
 
+  const dateRaw = dateKey ? String(row[dateKey] ?? "").trim() : "";
   const date = parseFrenchDate(dateRaw);
-  const revenue = round2(cleanFrenchCurrency(revenueRaw));
+  if (!date) return null;
 
-  if (!date || revenue <= 0) return null;
-
-  const average_basket = round2(cleanFrenchCurrency(basketRaw));
-  const sales_count =
-    average_basket > 0 ? Math.round(revenue / average_basket) : 0;
+  const revenue = round2(cleanFrenchCurrency(caKey ? row[caKey] : ""));
+  const average_basket = round2(cleanFrenchCurrency(panierKey ? row[panierKey] : ""));
+  const sales_count = average_basket > 0 ? Math.round(revenue / average_basket) : 0;
 
   return {
     date,
