@@ -18,14 +18,18 @@ function normalizeRole(role: string | null | undefined): "admin" | "vendeuse" {
   return r === "admin" ? "admin" : "vendeuse";
 }
 
+/** Espace admin sensible : trésorerie, historique/logs, etc. */
+function isAdminDashboardPath(pathname: string): boolean {
+  return pathname === "/dashboard" || pathname.startsWith("/dashboard/");
+}
+
 /**
  * Next.js 16 : le fichier attendu à la racine est `proxy.ts` (équivalent du middleware).
  * Ne pas ajouter `middleware.ts` en parallèle : le build échoue si les deux existent.
  *
- * Session : tout utilisateur authentifié peut ouvrir les pages du dashboard (/, /produits,
- * /import, /vendeuse, etc.). On ne force plus la redirection « vendeuse → caisse » sur les
- * routes hors /vendeuse : accès métier (import, stock, objectifs…) et contrôle d’accès
- * données côté Supabase (RLS).
+ * Session : utilisateurs authentifiés accèdent aux pages métier selon leur rôle.
+ * Les routes /dashboard/* exigent le rôle admin (sinon redirection /vendeuse).
+ * Les routes /api/* ne sont pas filtrées ici : chaque handler applique ses propres règles.
  */
 export async function proxy(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
@@ -97,6 +101,13 @@ export async function proxy(request: NextRequest) {
     if (pathname === LOGIN_PATH) {
       const url = request.nextUrl.clone();
       url.pathname = role === "admin" ? "/" : VENDEUSE_HOME;
+      url.searchParams.delete("next");
+      return NextResponse.redirect(url);
+    }
+
+    if (isAdminDashboardPath(pathname) && role !== "admin") {
+      const url = request.nextUrl.clone();
+      url.pathname = VENDEUSE_HOME;
       url.searchParams.delete("next");
       return NextResponse.redirect(url);
     }
