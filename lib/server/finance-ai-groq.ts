@@ -68,13 +68,22 @@ export async function generateFinancialInsightsGroq(
   const model =
     process.env.GROQ_MODEL?.trim() || "llama-3.1-8b-instant";
 
-  const systemPrompt = `Analyse ces 40 dernières transactions: ${JSON.stringify(cleanData)}. Donne 3 bullet points ultra-courts: 1/ 🟢 Point fort. 2/ 🔴 Alerte. 3/ 💡 Conseil.`;
+  const systemPrompt = `Tu es le DAF (Directeur Administratif et Financier) de la boutique Latifa B. (commerce de détail d'habillement). On te fournit un extrait de transactions récentes (qui peuvent inclure des dépenses courantes). Analyse ces données froidement et professionnellement. Ne sois jamais alarmiste. Concentre-toi sur les flux majeurs (principales rentrées d'argent, principaux postes de dépenses).
+Fournis exactement 3 puces (bullet points) au format Markdown :
+- 🟢 Rentrées majeures : [Analyse des revenus/virements reçus].
+- 🔴 Postes de dépenses : [Analyse des dépenses principales].
+- 💡 Recommandation DAF : [Une action concrète et mesurée pour optimiser la trésorerie].`;
+
+  const userContent = `Extrait des transactions récentes (JSON — d=date, l=libellé, m=montant signé EUR) :\n${JSON.stringify(cleanData)}`;
 
   const client = new Groq({ apiKey: key });
   const chatCompletion = await client.chat.completions.create({
     model,
-    messages: [{ role: "system", content: systemPrompt }],
-    temperature: 0.35,
+    messages: [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userContent },
+    ],
+    temperature: 0.3,
     max_tokens: 512,
   });
 

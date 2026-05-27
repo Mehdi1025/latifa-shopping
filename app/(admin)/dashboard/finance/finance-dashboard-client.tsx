@@ -25,6 +25,10 @@ import {
 } from "lucide-react";
 
 import { FRENCH_BANK_CSV_PARSE_OPTIONS, mapCsvRows } from "@/lib/finance-csv-parse";
+import {
+  formatVariationEUR,
+  GroqAnalysisMarkdown,
+} from "@/components/GroqAnalysisMarkdown";
 
 type TxCategory = "Fournisseur" | "Salaire" | "Taxes" | "Recette" | "Autre";
 
@@ -333,6 +337,7 @@ export default function FinanceDashboardClient() {
 
   const balanceEUR = payload.balanceEUR;
   const chartData = payload.chartData7j;
+  const variation = formatVariationEUR(balanceEUR);
 
   return (
     <div className="min-h-0 pb-16">
@@ -490,16 +495,16 @@ export default function FinanceDashboardClient() {
       <section className="mb-10 grid grid-cols-1 gap-5 md:grid-cols-3">
         <div className="rounded-2xl border border-slate-200/70 bg-gradient-to-br from-[#122234] via-[#1c3550] to-[#0f1b2b] p-6 text-white shadow-[0_20px_48px_-16px_rgba(17,42,68,0.45)] md:col-span-1">
           <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-white/65">
-            Solde calculé
+            Variation sur la période
           </p>
-          <p className="mt-4 text-4xl font-semibold tracking-tight tabular-nums">
-            {new Intl.NumberFormat("fr-FR", {
-              style: "currency",
-              currency: "EUR",
-              minimumFractionDigits: 2,
-            }).format(balanceEUR)}
+          <p
+            className={`mt-4 text-4xl font-semibold tracking-tight tabular-nums ${variation.toneClass}`}
+          >
+            {variation.formatted}
           </p>
-          <p className="mt-2 text-xs text-white/55">Somme des entrées et sorties importées</p>
+          <p className="mt-2 text-xs text-white/55">
+            Net des entrées et sorties sur les opérations importées
+          </p>
         </div>
       </section>
 
@@ -550,8 +555,11 @@ export default function FinanceDashboardClient() {
             </div>
           ) : (
             aiInsights && (
-              <div className="text-[15px] leading-relaxed text-slate-800" aria-live="polite">
-                <p className="whitespace-pre-line">{aiInsights}</p>
+              <div
+                className="rounded-xl border border-slate-100/90 bg-slate-50/50 px-4 py-3"
+                aria-live="polite"
+              >
+                <GroqAnalysisMarkdown content={aiInsights} />
               </div>
             )
           )}

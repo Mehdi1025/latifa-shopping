@@ -1,11 +1,11 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import ReactMarkdown from "react-markdown";
 import { Loader2, Sparkles, Wand2 } from "lucide-react";
 import { toast } from "sonner";
 
 import type { KpiAiPayload } from "@/app/api/ai/analyze-kpis/route";
+import { GroqAnalysisMarkdown } from "@/components/GroqAnalysisMarkdown";
 
 type Props = {
   kpis: KpiAiPayload;
@@ -132,40 +132,7 @@ export default function AiKpiInsights({ kpis, disabled = false }: Props) {
           </p>
         ) : analysis ? (
           <div className="rounded-2xl border border-slate-200/80 bg-white/80 px-5 py-4 shadow-inner">
-            <ReactMarkdown
-              components={{
-                p: ({ children }) => (
-                  <p className="mb-3 text-[15px] leading-relaxed text-slate-800 last:mb-0">
-                    {children}
-                  </p>
-                ),
-                ul: ({ children }) => (
-                  <ul className="my-3 space-y-2.5 pl-1">{children}</ul>
-                ),
-                ol: ({ children }) => (
-                  <ol className="my-3 list-decimal space-y-2.5 pl-5">{children}</ol>
-                ),
-                li: ({ children }) => (
-                  <li className="flex gap-2.5 text-[15px] leading-relaxed text-slate-800">
-                    <span
-                      className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-gradient-to-br from-indigo-500 to-violet-500"
-                      aria-hidden
-                    />
-                    <span className="min-w-0 flex-1">{children}</span>
-                  </li>
-                ),
-                strong: ({ children }) => (
-                  <strong className="font-semibold text-slate-900">{children}</strong>
-                ),
-                h3: ({ children }) => (
-                  <h3 className="mb-2 mt-4 text-sm font-semibold uppercase tracking-wide text-indigo-700">
-                    {children}
-                  </h3>
-                ),
-              }}
-            >
-              {analysis}
-            </ReactMarkdown>
+            <GroqAnalysisMarkdown content={analysis} />
           </div>
         ) : (
           <p className="text-sm text-slate-500">
