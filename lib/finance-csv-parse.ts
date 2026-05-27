@@ -64,12 +64,15 @@ function pickFieldBySubstring(row: Record<string, string>, patterns: string[]): 
 function pickDescriptionField(row: Record<string, string>): string {
   const descKey = Object.keys(row).find((k) => {
     const normalized = normalizeKey(k);
-    return normalized.includes("libell") || normalized.includes("description");
+    return (
+      (normalized.includes("libell") || normalized.includes("description")) &&
+      !normalized.includes("compte")
+    );
   });
   if (descKey && row[descKey]?.trim()) {
     return row[descKey].trim();
   }
-  return pickFieldBySubstring(row, ["libell", "description"]);
+  return "";
 }
 
 export function mapCsvRowToImport(row: Record<string, string>): CsvImportRow | null {
