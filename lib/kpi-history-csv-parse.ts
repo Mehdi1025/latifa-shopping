@@ -26,24 +26,35 @@ export function cleanFrenchCurrency(val: unknown): number {
   return Number.isNaN(num) ? 0 : num;
 }
 
-function parseFrenchDate(raw: string): string | null {
-  const value = raw.trim();
-  if (!value) return null;
-
-  const fr = value.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-  if (fr) {
-    const dd = fr[1].padStart(2, "0");
-    const mm = fr[2].padStart(2, "0");
-    return `${fr[3]}-${mm}-${dd}`;
-  }
-
-  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
-
-  return null;
-}
-
 function round2(n: number): number {
   return Math.round(n * 100) / 100;
+}
+
+/**
+ * DD/MM/YYYY → YYYY-MM-DD. Tolère le BOM sur l'en-tête de colonne Date.
+ */
+export function formatKpiHistoryDate(
+  row: Record<string, string>,
+  keys: string[] = Object.keys(row)
+): string | null {
+  const dateKey = keys.find((k) =>
+    k.toLowerCase().replace(/[^a-z]/g, "").includes("date")
+  );
+
+  let formattedDate: string | null = null;
+  if (dateKey && row[dateKey]) {
+    const rawDate = String(row[dateKey]).trim();
+    const parts = rawDate.split("/");
+    if (parts.length === 3) {
+      formattedDate = `${parts[2]}-${parts[1].padStart(2, "0")}-${parts[0].padStart(2, "0")}`;
+    }
+  }
+
+  if (!formattedDate || formattedDate.length !== 10) {
+    return null;
+  }
+
+  return formattedDate;
 }
 
 function findColumnKey(
@@ -54,23 +65,22 @@ function findColumnKey(
 }
 
 export function mapKpiHistoryCsvRow(row: Record<string, string>): HistoricalKpiImportRow | null {
-  const dateKey = findColumnKey(row, (k) => k.includes("date"));
+  const keys = Object.keys(row);
+  const formattedDate = formatKpiHistoryDate(row, keys);
+  if (!formattedDate) return null;
+
   const caKey = findColumnKey(
     row,
     (k) => k.includes("chiffre") || k.includes("ca ")
   );
   const panierKey = findColumnKey(row, (k) => k.includes("panier"));
 
-  const dateRaw = dateKey ? String(row[dateKey] ?? "").trim() : "";
-  const date = parseFrenchDate(dateRaw);
-  if (!date) return null;
-
   const revenue = round2(cleanFrenchCurrency(caKey ? row[caKey] : ""));
   const average_basket = round2(cleanFrenchCurrency(panierKey ? row[panierKey] : ""));
   const sales_count = average_basket > 0 ? Math.round(revenue / average_basket) : 0;
 
   return {
-    date,
+    date: formattedDate,
     revenue,
     sales_count: Math.max(0, sales_count),
     average_basket,
@@ -81,8 +91,9 @@ export function mapKpiHistoryCsvRows(rows: Record<string, string>[]): Historical
   return rows.map(mapKpiHistoryCsvRow).filter((row): row is HistoricalKpiImportRow => row !== null);
 }
 
+/** Virgule (export Excel EN) — Papa détecte aussi le BOM UTF-8 sur la 1re colonne. */
 export const KPI_HISTORY_PARSE_OPTIONS = {
   header: true as const,
   skipEmptyLines: true as const,
-  delimiter: ";" as const,
+  delimiter: "," as const,
 };

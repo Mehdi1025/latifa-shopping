@@ -127,8 +127,8 @@ export default function KpiHistoryArchives() {
           Historique &amp; Archives (Fichiers Excel)
         </h2>
         <p className="mt-1 max-w-2xl text-sm text-neutral-500">
-          Importez vos archives CSV (Date, Chiffre d&apos;affaire, Panier moyen). Les doublons de
-          date sont mis à jour automatiquement.
+          Importez vos archives CSV (Date, Chiffre d&apos;affaire, Panier moyen). Format attendu :
+        dates JJ/MM/AAAA, séparateur virgule. Les jours fermés (CA vide) sont acceptés.
         </p>
       </div>
 
