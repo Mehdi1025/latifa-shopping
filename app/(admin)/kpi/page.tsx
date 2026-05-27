@@ -34,6 +34,7 @@ import CrossSellInsights from "@/components/admin/CrossSellInsights";
 import KpiFinanceIntel from "@/components/admin/KpiFinanceIntel";
 import BusinessSimulator from "@/components/admin/kpi/BusinessSimulator";
 import AiKpiInsights from "@/components/kpi/AiKpiInsights";
+import KpiHistoryArchives from "@/components/kpi/KpiHistoryArchives";
 import { SalesHeatmap } from "@/components/admin/SalesHeatmap";
 import { CHARGES_FIXES_MENSUELLES, MOCK_SOLDE_BANCAIRE } from "@/lib/finance-kpi";
 
@@ -1249,6 +1250,8 @@ export default function KPIPage() {
           </div>
         </motion.div>
       )}
+
+      <KpiHistoryArchives />
     </div>
   );
 }
