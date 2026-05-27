@@ -80,6 +80,19 @@ export async function POST(request: Request) {
       type: row.type,
     }));
 
+    const { error: deleteError } = await supabase
+      .from("bank_transactions")
+      .delete()
+      .neq("id", "00000000-0000-0000-0000-000000000000");
+
+    if (deleteError) {
+      console.error("bank_transactions wipe error:", deleteError.message);
+      return NextResponse.json(
+        { error: "Impossible de remplacer les transactions existantes." },
+        { status: 500 }
+      );
+    }
+
     const { data, error } = await supabase.from("bank_transactions").insert(payload).select("id");
 
     if (error) {

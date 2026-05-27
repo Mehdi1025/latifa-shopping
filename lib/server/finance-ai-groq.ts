@@ -42,6 +42,63 @@ export class FinanceAiError extends Error {
   }
 }
 
+function roundEUR(n: number): number {
+  return Math.round(n * 100) / 100;
+}
+
+type FinanceAiSummary = {
+  totalEntrees: number;
+  totalSorties: number;
+  variationNette: number;
+  nbOperations: number;
+  top5Rentrees: { d: string; l: string; m: number }[];
+  top5Depenses: { d: string; l: string; m: number }[];
+};
+
+function buildFinanceAiSummary(
+  transactions: FinanceTransactionAiInput[]
+): FinanceAiSummary {
+  let totalEntrees = 0;
+  let totalSorties = 0;
+  const rentrees: FinanceTransactionAiInput[] = [];
+  const depenses: FinanceTransactionAiInput[] = [];
+
+  for (const t of transactions) {
+    if (t.montantEUR >= 0) {
+      totalEntrees += t.montantEUR;
+      rentrees.push(t);
+    } else {
+      totalSorties += Math.abs(t.montantEUR);
+      depenses.push(t);
+    }
+  }
+
+  const toCompact = (t: FinanceTransactionAiInput) => ({
+    d: t.dateISO.slice(0, 10),
+    l: t.libelle.length > 120 ? `${t.libelle.slice(0, 120).trimEnd()}…` : t.libelle,
+    m: roundEUR(t.montantEUR),
+  });
+
+  const top5Rentrees = [...rentrees]
+    .sort((a, b) => b.montantEUR - a.montantEUR)
+    .slice(0, 5)
+    .map(toCompact);
+
+  const top5Depenses = [...depenses]
+    .sort((a, b) => Math.abs(b.montantEUR) - Math.abs(a.montantEUR))
+    .slice(0, 5)
+    .map(toCompact);
+
+  return {
+    totalEntrees: roundEUR(totalEntrees),
+    totalSorties: roundEUR(totalSorties),
+    variationNette: roundEUR(totalEntrees - totalSorties),
+    nbOperations: transactions.length,
+    top5Rentrees,
+    top5Depenses,
+  };
+}
+
 /**
  * Appel Groq (Node uniquement). Pas d’import statique de groq-sdk.
  */
@@ -57,24 +114,33 @@ export async function generateFinancialInsightsGroq(
 
   /** Max 40 dernières (déjà triées du plus récent au plus ancien côté appel). */
   const recentTx = transactions.slice(0, 40);
+  const summary = buildFinanceAiSummary(transactions);
   /** Clés courtes pour limiter les tokens envoyés au modèle (évite 413 côté Groq). */
   const cleanData = recentTx.map((t) => ({
     d: t.dateISO.slice(0, 10),
     l: t.libelle.length > 160 ? t.libelle.slice(0, 160).trimEnd() : t.libelle,
-    m: Math.round(t.montantEUR * 100) / 100,
+    m: roundEUR(t.montantEUR),
   }));
 
   const { default: Groq } = await import("groq-sdk");
   const model =
     process.env.GROQ_MODEL?.trim() || "llama-3.1-8b-instant";
 
-  const systemPrompt = `Tu es le DAF (Directeur Administratif et Financier) de la boutique Latifa B. (commerce de détail d'habillement). On te fournit un extrait de transactions récentes (qui peuvent inclure des dépenses courantes). Analyse ces données froidement et professionnellement. Ne sois jamais alarmiste. Concentre-toi sur les flux majeurs (principales rentrées d'argent, principaux postes de dépenses).
+  const systemPrompt = `Tu es le DAF (Directeur Administratif et Financier) de la boutique Latifa B. (commerce de détail d'habillement). On te fournit un résumé analytique complet du fichier importé ainsi qu'un extrait des transactions récentes. Analyse ces données froidement et professionnellement. Ne sois jamais alarmiste. Concentre-toi sur les flux majeurs (principales rentrées d'argent, principaux postes de dépenses).
 Fournis exactement 3 puces (bullet points) au format Markdown :
 - 🟢 Rentrées majeures : [Analyse des revenus/virements reçus].
 - 🔴 Postes de dépenses : [Analyse des dépenses principales].
 - 💡 Recommandation DAF : [Une action concrète et mesurée pour optimiser la trésorerie].`;
 
-  const userContent = `Extrait des transactions récentes (JSON — d=date, l=libellé, m=montant signé EUR) :\n${JSON.stringify(cleanData)}`;
+  const userContent = `Résumé analytique du fichier importé (${summary.nbOperations} opérations) :
+- Total des entrées : ${summary.totalEntrees} EUR
+- Total des sorties : ${summary.totalSorties} EUR
+- Variation nette sur la période : ${summary.variationNette} EUR
+- Top 5 des plus grosses rentrées : ${JSON.stringify(summary.top5Rentrees)}
+- Top 5 des plus grosses dépenses : ${JSON.stringify(summary.top5Depenses)}
+
+Extrait des 40 transactions les plus récentes (JSON — d=date, l=libellé, m=montant signé EUR) :
+${JSON.stringify(cleanData)}`;
 
   const client = new Groq({ apiKey: key });
   const chatCompletion = await client.chat.completions.create({

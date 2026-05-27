@@ -51,12 +51,31 @@ function parseFrenchDate(raw: string): string | null {
   return null;
 }
 
+function pickFieldBySubstring(row: Record<string, string>, patterns: string[]): string {
+  const entries = Object.entries(row);
+  for (const pattern of patterns) {
+    const normalizedPattern = normalizeKey(pattern);
+    const hit = entries.find(([k]) => normalizeKey(k).includes(normalizedPattern));
+    if (hit && hit[1]?.trim()) return hit[1].trim();
+  }
+  return "";
+}
+
+function pickDescriptionField(row: Record<string, string>): string {
+  const descKey = Object.keys(row).find((k) => {
+    const normalized = normalizeKey(k);
+    return normalized.includes("libell") || normalized.includes("description");
+  });
+  if (descKey && row[descKey]?.trim()) {
+    return row[descKey].trim();
+  }
+  return pickFieldBySubstring(row, ["libell", "description"]);
+}
+
 export function mapCsvRowToImport(row: Record<string, string>): CsvImportRow | null {
-  const dateRaw = pickField(row, ["Date transaction"]);
-  const description =
-    pickField(row, ["Libellé opération", "Libelle operation"]) ||
-    pickField(row, ["Libellé complet", "Libelle complet"]);
-  const amountRaw = pickField(row, ["Montant"]);
+  const dateRaw = pickField(row, ["Date transaction"]) || pickFieldBySubstring(row, ["date"]);
+  const description = pickDescriptionField(row);
+  const amountRaw = pickField(row, ["Montant"]) || pickFieldBySubstring(row, ["montant"]);
 
   const date = parseFrenchDate(dateRaw);
   const signedAmount = parseFrenchAmount(amountRaw);
