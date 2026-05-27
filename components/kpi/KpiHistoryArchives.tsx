@@ -2,9 +2,10 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Papa from "papaparse";
-import { FileSpreadsheet, Loader2, Upload } from "lucide-react";
+import { FileSpreadsheet, Loader2, Sparkles, Upload } from "lucide-react";
 import { toast } from "sonner";
 
+import { GroqAnalysisMarkdown } from "@/components/GroqAnalysisMarkdown";
 import {
   KPI_HISTORY_PARSE_OPTIONS,
   mapKpiHistoryCsvRows,
@@ -32,12 +33,28 @@ function formatEUR(n: number): string {
   }).format(n);
 }
 
+function HistoryAnalysisSkeleton() {
+  return (
+    <div className="space-y-3" aria-busy aria-live="polite">
+      <p className="text-sm font-medium text-neutral-600">Le DAF analyse vos archives…</p>
+      <div className="space-y-2.5 pt-1">
+        <div className="h-3 max-w-[92%] animate-pulse rounded-full bg-gradient-to-r from-slate-200 via-slate-100 to-slate-200" />
+        <div className="h-3 max-w-[78%] animate-pulse rounded-full bg-gradient-to-r from-slate-200 via-slate-100 to-slate-200 [animation-delay:120ms]" />
+        <div className="h-3 max-w-[85%] animate-pulse rounded-full bg-gradient-to-r from-slate-200 via-slate-100 to-slate-200 [animation-delay:240ms]" />
+      </div>
+    </div>
+  );
+}
+
 export default function KpiHistoryArchives() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [rows, setRows] = useState<HistoricalKpiRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [importing, setImporting] = useState(false);
   const [dragActive, setDragActive] = useState(false);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiAnalysis, setAiAnalysis] = useState<string | null>(null);
+  const [aiError, setAiError] = useState<string | null>(null);
 
   const loadHistory = useCallback(async () => {
     setLoading(true);
@@ -113,6 +130,50 @@ export default function KpiHistoryArchives() {
     },
     [loadHistory]
   );
+
+  const analyzeHistory = useCallback(async () => {
+    if (rows.length === 0) {
+      toast.error("Importez d'abord un historique CSV.");
+      return;
+    }
+
+    setAiLoading(true);
+    setAiError(null);
+    setAiAnalysis(null);
+
+    try {
+      const res = await fetch("/api/ai/analyze-history", {
+        method: "POST",
+        credentials: "same-origin",
+        cache: "no-store",
+      });
+
+      const body = (await res.json()) as { analysis?: string; error?: string };
+
+      if (!res.ok) {
+        const msg = typeof body.error === "string" ? body.error : "Analyse impossible.";
+        setAiError(msg);
+        toast.error(msg);
+        return;
+      }
+
+      const text = typeof body.analysis === "string" ? body.analysis.trim() : "";
+      if (!text) {
+        setAiError("Réponse vide du modèle.");
+        toast.error("Réponse vide du modèle.");
+        return;
+      }
+
+      setAiAnalysis(text);
+      toast.success("Analyse comparative générée.");
+    } catch {
+      const msg = "Impossible de contacter le service IA.";
+      setAiError(msg);
+      toast.error(msg);
+    } finally {
+      setAiLoading(false);
+    }
+  }, [rows.length]);
 
   return (
     <section
@@ -204,7 +265,49 @@ export default function KpiHistoryArchives() {
           Aucune archive importée pour l&apos;instant.
         </p>
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-neutral-100">
+        <>
+          <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+            <p className="text-sm text-neutral-600">
+              {rows.length} jour{rows.length > 1 ? "s" : ""} archivé{rows.length > 1 ? "s" : ""}
+            </p>
+            <button
+              type="button"
+              disabled={aiLoading}
+              onClick={() => void analyzeHistory()}
+              className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 px-4 py-2.5 text-sm font-semibold text-white shadow-md shadow-indigo-500/20 transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {aiLoading ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                  Analyse en cours…
+                </>
+              ) : (
+                <>
+                  <Sparkles className="h-4 w-4" aria-hidden />
+                  Analyser l&apos;historique avec l&apos;IA
+                </>
+              )}
+            </button>
+          </div>
+
+          {(aiLoading || aiError || aiAnalysis) && (
+            <div className="mb-6 rounded-2xl border border-white/60 bg-white/50 p-5 shadow-[0_4px_24px_rgba(0,0,0,0.06)] ring-1 ring-neutral-200/80 backdrop-blur-sm md:p-6">
+              <h3 className="mb-3 text-sm font-semibold tracking-tight text-neutral-900">
+                Analyse comparative DAF
+              </h3>
+              {aiLoading ? (
+                <HistoryAnalysisSkeleton />
+              ) : aiError ? (
+                <p className="rounded-xl border border-red-200/80 bg-red-50/80 px-4 py-3 text-sm text-red-800">
+                  {aiError}
+                </p>
+              ) : aiAnalysis ? (
+                <GroqAnalysisMarkdown content={aiAnalysis} />
+              ) : null}
+            </div>
+          )}
+
+          <div className="overflow-x-auto rounded-xl border border-neutral-100">
           <table className="min-w-full text-sm">
             <thead>
               <tr className="border-b border-neutral-100 bg-neutral-50/80 text-left text-[11px] font-semibold uppercase tracking-wide text-neutral-500">
@@ -236,6 +339,7 @@ export default function KpiHistoryArchives() {
             (120 max.)
           </p>
         </div>
+        </>
       )}
     </section>
   );
