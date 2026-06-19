@@ -1,10 +1,6 @@
-import { Users, Target, Link2, Smartphone } from "lucide-react";
+import { Target, Link2, Smartphone } from "lucide-react";
 
-const utilisateurs = [
-  { nom: "Latifa", email: "latifa@latifashop.com", role: "Admin", roleClass: "bg-violet-100 text-violet-700" },
-  { nom: "Amina", email: "amina@latifashop.com", role: "Vendeuse", roleClass: "bg-slate-100 text-slate-600" },
-  { nom: "Sonia", email: "sonia@latifashop.com", role: "Vendeuse", roleClass: "bg-slate-100 text-slate-600" },
-];
+import TeamManagement from "@/components/admin/TeamManagement";
 
 const connexions = [
   { nom: "Shopify", connecte: true },
@@ -20,38 +16,7 @@ export default function ParametresPage() {
       </h1>
 
       <div className="grid grid-cols-1 gap-8 md:grid-cols-2">
-        <section className="rounded-xl border border-slate-200 bg-white p-6">
-          <div className="mb-6 flex items-center justify-between">
-            <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-              <Users className="h-5 w-5 text-slate-500" />
-              Utilisateurs
-            </h2>
-            <button
-              type="button"
-              className="flex h-12 min-h-12 items-center rounded-md border border-slate-200 bg-white px-4 text-sm font-medium text-slate-600 transition-all duration-300 ease-in-out hover:bg-slate-50 md:text-base"
-            >
-              + Inviter
-            </button>
-          </div>
-          <ul>
-            {utilisateurs.map((user, index) => (
-              <li
-                key={user.email}
-                className={`flex items-center justify-between py-5 ${index < utilisateurs.length - 1 ? "border-b border-slate-100" : ""}`}
-              >
-                <div>
-                  <p className="font-medium text-slate-900">{user.nom}</p>
-                  <p className="mt-0.5 text-sm text-slate-500">{user.email}</p>
-                </div>
-                <span
-                  className={`rounded-full px-2.5 py-1 text-xs font-medium ${user.roleClass}`}
-                >
-                  {user.role}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </section>
+        <TeamManagement />
 
         <div className="flex flex-col gap-8">
           <section className="rounded-xl border border-slate-200 bg-white p-6">

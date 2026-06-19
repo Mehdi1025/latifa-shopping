@@ -47,6 +47,9 @@ import { useWedgeEan13Listener } from "@/hooks/useWedgeEan13Listener";
 import { useScreenRecorder } from "@/hooks/useScreenRecorder";
 import { logActivite } from "@/lib/logActivite";
 import type { ShadowManifest } from "@/lib/shadowStore";
+import { buildClientReceipt } from "@/lib/ticket/format";
+import type { ClientReceipt } from "@/lib/ticket/receipt-types";
+import TicketClientModal from "@/components/vendeur/TicketClientModal";
 
 type LignePanier = {
   /** Clé stable par ligne (plusieurs lots Coffre = même produit_id) */
@@ -152,13 +155,15 @@ function normalizePhoneForDb(input: string): string {
   return d;
 }
 
-type ResolvedClient = { id: string; nom: string };
+type ResolvedClient = { id: string; nom: string; email?: string | null };
 
 function ClientCaisseSection({
   clientPhone,
   onClientPhoneChange,
   clientNom,
   onClientNomChange,
+  clientEmail,
+  onClientEmailChange,
   resolvedClient,
   lookupLoading,
 }: {
@@ -166,6 +171,8 @@ function ClientCaisseSection({
   onClientPhoneChange: (v: string) => void;
   clientNom: string;
   onClientNomChange: (v: string) => void;
+  clientEmail: string;
+  onClientEmailChange: (v: string) => void;
   resolvedClient: ResolvedClient | null;
   lookupLoading: boolean;
 }) {
@@ -220,6 +227,19 @@ function ClientCaisseSection({
           </p>
         </>
       )}
+      <label className="mt-3 block text-xs font-medium text-gray-500" htmlFor="client-email-caisse">
+        E-mail (ticket PDF)
+      </label>
+      <input
+        id="client-email-caisse"
+        type="email"
+        inputMode="email"
+        autoComplete="email"
+        value={clientEmail}
+        onChange={(e) => onClientEmailChange(e.target.value)}
+        placeholder="client@exemple.com (optionnel)"
+        className="mt-1 w-full select-text rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-gray-900 placeholder:text-gray-400 focus:border-violet-400 focus:outline-none focus:ring-2 focus:ring-violet-100"
+      />
     </div>
   );
 }
@@ -269,7 +289,12 @@ export default function VendeusePage() {
   const [montantEspecesMixte, setMontantEspecesMixte] = useState("");
   const [clientPhone, setClientPhone] = useState("");
   const [clientNom, setClientNom] = useState("");
+  const [clientEmail, setClientEmail] = useState("");
   const [resolvedClient, setResolvedClient] = useState<ResolvedClient | null>(null);
+  const [ticketModalOpen, setTicketModalOpen] = useState(false);
+  const [lastTicketReceipt, setLastTicketReceipt] = useState<ClientReceipt | null>(
+    null
+  );
   const [clientLookupLoading, setClientLookupLoading] = useState(false);
   const [clientelingOpen, setClientelingOpen] = useState(false);
   const [gamificationRefreshKey, setGamificationRefreshKey] = useState(0);
@@ -391,6 +416,7 @@ export default function VendeusePage() {
     const digits = normalizePhoneForDb(clientPhone);
     if (digits.length < 8) {
       setResolvedClient(null);
+      setClientEmail("");
       return;
     }
     const t = setTimeout(async () => {
@@ -398,12 +424,22 @@ export default function VendeusePage() {
       try {
         const { data } = await supabase
           .from("clients")
-          .select("id, nom")
+          .select("id, nom, email")
           .eq("telephone", digits)
           .maybeSingle();
-        setResolvedClient(
-          data ? { id: data.id, nom: data.nom } : null
-        );
+        if (data) {
+          setResolvedClient({
+            id: data.id,
+            nom: data.nom,
+            email: (data as { email?: string | null }).email,
+          });
+          const savedEmail = (data as { email?: string | null }).email;
+          if (typeof savedEmail === "string" && savedEmail.trim()) {
+            setClientEmail(savedEmail.trim());
+          }
+        } else {
+          setResolvedClient(null);
+        }
       } catch {
         setResolvedClient(null);
       } finally {
@@ -645,6 +681,7 @@ export default function VendeusePage() {
     setMontantEspecesMixte("");
     setClientPhone("");
     setClientNom("");
+    setClientEmail("");
     setResolvedClient(null);
   };
 
@@ -809,9 +846,14 @@ export default function VendeusePage() {
             );
             return;
           }
+          const emailTrim = clientEmail.trim();
           const { data: newClient, error: clientErr } = await supabase
             .from("clients")
-            .insert({ nom, telephone: digits })
+            .insert({
+              nom,
+              telephone: digits,
+              ...(emailTrim ? { email: emailTrim } : {}),
+            })
             .select("id")
             .single();
           if (clientErr || !newClient) {
@@ -823,6 +865,13 @@ export default function VendeusePage() {
           }
           clientId = (newClient as { id: string }).id;
         }
+      }
+
+      if (clientId && clientEmail.trim()) {
+        await supabase
+          .from("clients")
+          .update({ email: clientEmail.trim() })
+          .eq("id", clientId);
       }
 
       const venteInsert: Record<string, unknown> = {
@@ -900,6 +949,32 @@ export default function VendeusePage() {
         replayPayload != null ? { enregistrement_ecran: replayPayload } : undefined
       );
 
+      const receiptLines = panier.map((ligne) => ({
+        label: ligne.libelleOverride || ligne.produit.nom,
+        subtitle: ligne.libelleOverride
+          ? undefined
+          : formatVariantSubtitle(ligne.produit) ?? undefined,
+        quantity: ligne.quantite,
+        unitPrice: ligne.produit.prix,
+        lineTotal: Math.round(ligne.produit.prix * ligne.quantite * 100) / 100,
+      }));
+
+      setLastTicketReceipt(
+        buildClientReceipt({
+          venteId: vente.id,
+          createdAt: new Date().toISOString(),
+          total,
+          remise: remiseAmount,
+          methodePaiement,
+          vendeuseName: nomVendeuseLog,
+          clientName: resolvedClient?.nom || clientNom.trim() || undefined,
+          clientEmail: clientEmail.trim() || undefined,
+          clientPhone: digits.length >= 8 ? digits : undefined,
+          lines: receiptLines,
+        })
+      );
+      setTicketModalOpen(true);
+
       setPanier([]);
       setRemiseValue(0);
       setRemiseType("percent");
@@ -908,6 +983,7 @@ export default function VendeusePage() {
       setMontantEspecesMixte("");
       setClientPhone("");
       setClientNom("");
+      setClientEmail("");
       setResolvedClient(null);
       setDrawerOpen(false);
       setRemiseModalOpen(false);
@@ -1446,6 +1522,8 @@ export default function VendeusePage() {
                       onClientPhoneChange={setClientPhone}
                       clientNom={clientNom}
                       onClientNomChange={setClientNom}
+                      clientEmail={clientEmail}
+                      onClientEmailChange={setClientEmail}
                       resolvedClient={resolvedClient}
                       lookupLoading={clientLookupLoading}
                     />
@@ -1645,6 +1723,13 @@ export default function VendeusePage() {
           }}
         />
       )}
+
+      <TicketClientModal
+        open={ticketModalOpen}
+        onClose={() => setTicketModalOpen(false)}
+        receipt={lastTicketReceipt}
+        defaultEmail={lastTicketReceipt?.clientEmail ?? ""}
+      />
     </div>
   );
 }

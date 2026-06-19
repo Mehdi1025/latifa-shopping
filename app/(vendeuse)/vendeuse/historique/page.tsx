@@ -2,9 +2,10 @@
 
 import { useState, useEffect } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { RotateCcw, CheckCircle, AlertCircle } from "lucide-react";
+import { RotateCcw, CheckCircle, AlertCircle, FileText } from "lucide-react";
 import { createSupabaseBrowserClient } from "@/utils/supabase/client";
 import { logStockMovement } from "@/lib/stock/mouvements-stock";
+import TicketClientModal from "@/components/vendeur/TicketClientModal";
 
 type VenteItem = {
   produit_id: string;
@@ -48,6 +49,7 @@ export default function HistoriquePage() {
   const [ventes, setVentes] = useState<VenteHistorique[]>([]);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState<{ type: "success" | "error"; message: string } | null>(null);
+  const [ticketVenteId, setTicketVenteId] = useState<string | null>(null);
 
   const supabase = createSupabaseBrowserClient();
 
@@ -199,6 +201,15 @@ export default function HistoriquePage() {
                 <span className="text-base font-bold text-slate-900">{formatPrix(v.total)}</span>
                 <button
                   type="button"
+                  onClick={() => setTicketVenteId(v.id)}
+                  className="flex items-center gap-1.5 rounded-2xl bg-indigo-50 px-3 py-2 text-xs font-semibold text-indigo-700 transition-all hover:bg-indigo-100 active:scale-95"
+                  title="Ticket client PDF / e-mail"
+                >
+                  <FileText className="h-3.5 w-3.5" />
+                  Ticket
+                </button>
+                <button
+                  type="button"
                   onClick={() => handleAnnuler(v)}
                   className="flex items-center gap-1.5 rounded-2xl bg-red-50 px-3 py-2 text-xs font-semibold text-red-600 transition-all hover:bg-red-100 active:scale-95"
                   title="Annuler cette vente"
@@ -211,6 +222,12 @@ export default function HistoriquePage() {
           </AnimatePresence>
         </div>
       )}
+
+      <TicketClientModal
+        open={ticketVenteId != null}
+        onClose={() => setTicketVenteId(null)}
+        venteId={ticketVenteId}
+      />
     </div>
   );
 }
