@@ -1,6 +1,19 @@
 import type { ClientReceipt } from "@/lib/ticket/receipt-types";
-import { formatMoneyFr, formatReceiptDate } from "@/lib/ticket/format";
+import { formatMoneyFr, formatReceiptDate, getShopName } from "@/lib/ticket/format";
 import { receiptPdfToBase64 } from "@/lib/ticket/generate-pdf";
+
+/** Expéditeur Resend de test (uniquement vers l'e-mail du compte Resend). */
+const RESEND_TEST_FROM = "onboarding@resend.dev";
+
+function resolveTicketFromEmail(): string {
+  const explicit =
+    process.env.TICKET_FROM_EMAIL?.trim() ||
+    process.env.RESEND_FROM_EMAIL?.trim();
+  if (explicit) return explicit;
+
+  // Secours : permet de tester sur Vercel avec seulement RESEND_API_KEY
+  return `${getShopName()} <${RESEND_TEST_FROM}>`;
+}
 
 export class TicketEmailError extends Error {
   constructor(
@@ -52,19 +65,11 @@ export async function sendTicketEmail(
   toEmail: string
 ): Promise<void> {
   const apiKey = process.env.RESEND_API_KEY?.trim();
-  const from =
-    process.env.TICKET_FROM_EMAIL?.trim() ||
-    process.env.RESEND_FROM_EMAIL?.trim();
+  const from = resolveTicketFromEmail();
 
   if (!apiKey) {
     throw new TicketEmailError(
-      "RESEND_API_KEY non configurée — impossible d'envoyer l'e-mail.",
-      503
-    );
-  }
-  if (!from) {
-    throw new TicketEmailError(
-      "TICKET_FROM_EMAIL non configurée — définissez l'adresse expéditeur.",
+      "RESEND_API_KEY non configurée — ajoutez-la dans Vercel (Settings → Environment Variables) puis redéployez.",
       503
     );
   }
