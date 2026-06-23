@@ -66,7 +66,7 @@ type Props = {
   onRecrueChange: (v: boolean) => void;
   onReset: () => void;
   caProjeteFinMois: number;
-  soldeBancaire: number;
+  soldeBancaire: number | null;
 };
 
 function SimSlider({
@@ -127,19 +127,25 @@ export default function BusinessSimulator({
     [varPrix, varTrafic]
   );
 
+  const soldeEffectif = soldeBancaire ?? 0;
+  const hasSolde = soldeBancaire !== null;
+
   const nouveauCA = caProjeteFinMois * mult;
   const chargesRunwayDenom =
     CHARGES_FIXES_MENSUELLES + (recrue ? CHARGE_RECRUE_MENSUELLE : 0);
-  const runway = chargesRunwayDenom > 0 ? soldeBancaire / chargesRunwayDenom : 0;
-  const budgetReassort =
-    soldeBancaire - nouveauCA * 0.2 - CHARGES_FIXES_MENSUELLES;
+  const runway =
+    hasSolde && chargesRunwayDenom > 0 ? soldeEffectif / chargesRunwayDenom : 0;
+  const budgetReassort = hasSolde
+    ? soldeEffectif - nouveauCA * 0.2 - CHARGES_FIXES_MENSUELLES
+    : 0;
 
   const animCA = useAnimatedNumber(nouveauCA);
   const animRunway = useAnimatedNumber(runway);
   const animBudget = useAnimatedNumber(budgetReassort);
 
-  const isRisky = !Number.isFinite(runway) || runway < 2;
-  const isExcellent = Number.isFinite(runway) && runway >= 6 && budgetReassort > 3000;
+  const isRisky = hasSolde && (!Number.isFinite(runway) || runway < 2);
+  const isExcellent =
+    hasSolde && Number.isFinite(runway) && runway >= 6 && budgetReassort > 3000;
 
   const hasStrategyChanges =
     varPrix !== 0 || varTrafic !== 0 || recrue === true;
@@ -372,15 +378,22 @@ export default function BusinessSimulator({
                 Runway (trésorerie)
               </p>
               <p className="mt-2 text-2xl font-semibold tabular-nums tracking-tight text-white md:text-3xl">
-                {animRunway.toLocaleString("fr-FR", {
-                  minimumFractionDigits: 1,
-                  maximumFractionDigits: 1,
-                })}{" "}
-                <span className="text-lg font-medium text-white/50">mois</span>
+                {hasSolde ? (
+                  <>
+                    {animRunway.toLocaleString("fr-FR", {
+                      minimumFractionDigits: 1,
+                      maximumFractionDigits: 1,
+                    })}{" "}
+                    <span className="text-lg font-medium text-white/50">mois</span>
+                  </>
+                ) : (
+                  <span className="text-white/40">—</span>
+                )}
               </p>
               <p className="mt-2 text-[11px] leading-snug text-white/45">
-                Solde ÷ charges fixes
-                {recrue ? " (recrue incluse)" : ""}
+                {hasSolde
+                  ? `Solde ÷ charges fixes${recrue ? " (recrue incluse)" : ""}`
+                  : "Import CSV sur Trésorerie & Banque"}
               </p>
             </div>
             <div className="rounded-2xl border border-amber-400/25 bg-gradient-to-br from-amber-500/15 to-orange-600/10 p-4 backdrop-blur-md ring-1 ring-amber-400/20">
@@ -389,10 +402,12 @@ export default function BusinessSimulator({
                 Budget réassort
               </p>
               <p className="mt-2 text-2xl font-bold tabular-nums tracking-tight text-amber-50 md:text-3xl">
-                {formatPrix(animBudget)}
+                {hasSolde ? formatPrix(animBudget) : "—"}
               </p>
               <p className="mt-2 text-[11px] text-amber-100/55">
-                Après TVA 20 % sur CA simulé et charges fixes
+                {hasSolde
+                  ? "Après TVA 20 % sur CA simulé et charges fixes"
+                  : "Solde bancaire requis (import CSV)"}
               </p>
             </div>
           </div>

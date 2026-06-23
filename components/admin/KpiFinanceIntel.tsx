@@ -1,11 +1,9 @@
 "use client";
 
+import Link from "next/link";
 import { motion } from "framer-motion";
-import { Shield, Landmark, ShoppingBag } from "lucide-react";
-import {
-  CHARGES_FIXES_MENSUELLES,
-  MOCK_SOLDE_BANCAIRE,
-} from "@/lib/finance-kpi";
+import { Shield, Landmark, ShoppingBag, Upload } from "lucide-react";
+import { CHARGES_FIXES_MENSUELLES } from "@/lib/finance-kpi";
 
 const itemVariants = {
   hidden: { opacity: 0, y: 24 },
@@ -47,7 +45,8 @@ function formatPrixFull(prix: number): string {
 
 type Props = {
   caMois: number;
-  soldeBancaire?: number;
+  /** Solde réel (import CSV bancaire). `null` = aucun relevé importé. */
+  soldeBancaire: number | null;
 };
 
 /** Jauge circulaire 0–100 % (référence 12 mois de runway = plein cercle) */
@@ -116,12 +115,36 @@ function RunwayGauge({ months }: { months: number }) {
   );
 }
 
+function BankImportPrompt({ className = "" }: { className?: string }) {
+  return (
+    <div className={`rounded-xl bg-white/60 px-4 py-3 text-center ring-1 ring-sky-200/60 ${className}`}>
+      <p className="text-sm font-medium text-sky-950">Solde bancaire indisponible</p>
+      <p className="mt-1 text-xs leading-relaxed text-sky-900/70">
+        Importez un relevé CSV sur la page Trésorerie pour activer le runway et le budget
+        réassort.
+      </p>
+      <Link
+        href="/dashboard/finance"
+        className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-sky-600 px-3 py-2 text-xs font-semibold text-white hover:bg-sky-700"
+      >
+        <Upload className="h-3.5 w-3.5" />
+        Importer un CSV bancaire
+      </Link>
+    </div>
+  );
+}
+
 export default function KpiFinanceIntel({ caMois, soldeBancaire }: Props) {
-  const solde = soldeBancaire ?? MOCK_SOLDE_BANCAIRE;
-  const runwayMonths = solde / CHARGES_FIXES_MENSUELLES;
+  const hasSolde = soldeBancaire !== null;
+  const solde = soldeBancaire ?? 0;
+  const runwayMonths =
+    hasSolde && CHARGES_FIXES_MENSUELLES > 0
+      ? solde / CHARGES_FIXES_MENSUELLES
+      : 0;
   const provisionTVA = caMois * 0.2;
-  const budgetSafe =
-    solde - CHARGES_FIXES_MENSUELLES - provisionTVA;
+  const budgetSafe = hasSolde
+    ? solde - CHARGES_FIXES_MENSUELLES - provisionTVA
+    : null;
 
   return (
     <motion.div
@@ -140,7 +163,13 @@ export default function KpiFinanceIntel({ caMois, soldeBancaire }: Props) {
           aria-hidden
         />
         <div className="relative flex flex-col items-center text-center lg:flex-row lg:items-start lg:gap-5 lg:text-left">
-          <RunwayGauge months={runwayMonths} />
+          {hasSolde ? (
+            <RunwayGauge months={runwayMonths} />
+          ) : (
+            <div className="flex h-[132px] w-[132px] shrink-0 items-center justify-center rounded-full bg-sky-100/80 ring-1 ring-sky-200/80">
+              <Shield className="h-10 w-10 text-sky-400" strokeWidth={1.5} />
+            </div>
+          )}
           <div className="mt-5 min-w-0 flex-1 lg:mt-0">
             <div className="mb-2 flex items-center justify-center gap-2 lg:justify-start">
               <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-sky-500/15 text-sky-700 ring-1 ring-sky-500/20">
@@ -153,21 +182,27 @@ export default function KpiFinanceIntel({ caMois, soldeBancaire }: Props) {
             <h3 className="text-base font-semibold tracking-tight text-sky-950">
               Runway
             </h3>
-            <p className="mt-2 text-sm leading-relaxed text-sky-900/75">
-              Votre trésorerie couvre vos charges fixes pendant{" "}
-              <strong className="font-semibold text-sky-950">
-                {runwayMonths.toLocaleString("fr-FR", {
-                  minimumFractionDigits: 1,
-                  maximumFractionDigits: 1,
-                })}{" "}
-                mois
-              </strong>{" "}
-              de sécurité.
-            </p>
-            <p className="mt-3 text-[11px] text-sky-800/60">
-              Basé sur {formatPrixFull(solde)} en banque et{" "}
-              {formatPrixFull(CHARGES_FIXES_MENSUELLES)} de charges fixes / mois.
-            </p>
+            {hasSolde ? (
+              <>
+                <p className="mt-2 text-sm leading-relaxed text-sky-900/75">
+                  Votre trésorerie couvre vos charges fixes pendant{" "}
+                  <strong className="font-semibold text-sky-950">
+                    {runwayMonths.toLocaleString("fr-FR", {
+                      minimumFractionDigits: 1,
+                      maximumFractionDigits: 1,
+                    })}{" "}
+                    mois
+                  </strong>{" "}
+                  de sécurité.
+                </p>
+                <p className="mt-3 text-[11px] text-sky-800/60">
+                  Solde bancaire importé : {formatPrixFull(solde)} — charges fixes{" "}
+                  {formatPrixFull(CHARGES_FIXES_MENSUELLES)} / mois.
+                </p>
+              </>
+            ) : (
+              <BankImportPrompt className="mt-4 lg:text-left" />
+            )}
           </div>
         </div>
       </motion.article>
@@ -246,20 +281,38 @@ export default function KpiFinanceIntel({ caMois, soldeBancaire }: Props) {
             Ce que vous pouvez investir chez vos fournisseurs sans mettre la
             trésorerie en danger (après charges fixes et TVA).
           </p>
-          <motion.p
-            className={`mt-6 text-4xl font-semibold tabular-nums tracking-tight text-white md:text-5xl ${
-              budgetSafe < 0 ? "text-amber-200" : ""
-            }`}
-            initial={{ opacity: 0, scale: 0.96 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: 0.3, type: "spring", stiffness: 120, damping: 18 }}
-          >
-            {formatPrixFull(budgetSafe)}
-          </motion.p>
-          {budgetSafe < 0 && (
-            <p className="mt-2 text-xs font-medium text-amber-100">
-              Solde insuffisant pour couvrir charges + TVA — prioriser l&apos;encaissement.
-            </p>
+          {budgetSafe !== null ? (
+            <>
+              <motion.p
+                className={`mt-6 text-4xl font-semibold tabular-nums tracking-tight text-white md:text-5xl ${
+                  budgetSafe < 0 ? "text-amber-200" : ""
+                }`}
+                initial={{ opacity: 0, scale: 0.96 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: 0.3, type: "spring", stiffness: 120, damping: 18 }}
+              >
+                {formatPrixFull(budgetSafe)}
+              </motion.p>
+              {budgetSafe < 0 && (
+                <p className="mt-2 text-xs font-medium text-amber-100">
+                  Solde insuffisant pour couvrir charges + TVA — prioriser
+                  l&apos;encaissement.
+                </p>
+              )}
+              <p className="mt-3 text-[11px] text-white/60">
+                Basé sur {formatPrix(solde)} en banque (import CSV).
+              </p>
+            </>
+          ) : (
+            <div className="mt-6 rounded-xl bg-white/10 px-4 py-4 ring-1 ring-white/20">
+              <p className="text-sm text-white/90">En attente du solde bancaire</p>
+              <Link
+                href="/dashboard/finance"
+                className="mt-2 inline-flex text-xs font-semibold text-white underline underline-offset-2 hover:text-white/90"
+              >
+                Importer un relevé →
+              </Link>
+            </div>
           )}
         </div>
       </motion.article>

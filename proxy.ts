@@ -18,17 +18,35 @@ function normalizeRole(role: string | null | undefined): "admin" | "vendeuse" {
   return r === "admin" ? "admin" : "vendeuse";
 }
 
-/** Espace admin sensible : trésorerie, historique/logs, etc. */
-function isAdminDashboardPath(pathname: string): boolean {
-  return pathname === "/dashboard" || pathname.startsWith("/dashboard/");
+/** Espace caisse vendeuse (POS, stock, historique du jour, etc.). */
+function isVendeusePath(pathname: string): boolean {
+  return (
+    pathname === VENDEUSE_HOME || pathname.startsWith(`${VENDEUSE_HOME}/`)
+  );
+}
+
+/** Routes API : chaque handler applique sa propre auth / rôle. */
+function isApiPath(pathname: string): boolean {
+  return pathname.startsWith("/api/");
+}
+
+/**
+ * Back-office admin : accueil, KPI, produits, clients, paramètres,
+ * /dashboard/*, routes internes, etc.
+ */
+function isAdminOnlyPath(pathname: string): boolean {
+  if (isPublicPath(pathname) || isVendeusePath(pathname) || isApiPath(pathname)) {
+    return false;
+  }
+  return true;
 }
 
 /**
  * Next.js 16 : le fichier attendu à la racine est `proxy.ts` (équivalent du middleware).
  * Ne pas ajouter `middleware.ts` en parallèle : le build échoue si les deux existent.
  *
- * Session : utilisateurs authentifiés accèdent aux pages métier selon leur rôle.
- * Les routes /dashboard/* exigent le rôle admin (sinon redirection /vendeuse).
+ * Session : utilisateurs authentifiés accèdent aux pages selon leur rôle.
+ * Toutes les pages hors /vendeuse/* et /login exigent le rôle admin.
  * Les routes /api/* ne sont pas filtrées ici : chaque handler applique ses propres règles.
  */
 export async function proxy(request: NextRequest) {
@@ -105,7 +123,7 @@ export async function proxy(request: NextRequest) {
       return NextResponse.redirect(url);
     }
 
-    if (isAdminDashboardPath(pathname) && role !== "admin") {
+    if (isAdminOnlyPath(pathname) && role !== "admin") {
       const url = request.nextUrl.clone();
       url.pathname = VENDEUSE_HOME;
       url.searchParams.delete("next");

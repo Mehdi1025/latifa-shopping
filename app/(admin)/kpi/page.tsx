@@ -36,7 +36,7 @@ import BusinessSimulator from "@/components/admin/kpi/BusinessSimulator";
 import AiKpiInsights from "@/components/kpi/AiKpiInsights";
 import KpiHistoryArchives from "@/components/kpi/KpiHistoryArchives";
 import { SalesHeatmap } from "@/components/admin/SalesHeatmap";
-import { CHARGES_FIXES_MENSUELLES, MOCK_SOLDE_BANCAIRE } from "@/lib/finance-kpi";
+import { CHARGES_FIXES_MENSUELLES } from "@/lib/finance-kpi";
 
 type Vente = {
   id: string;
@@ -314,6 +314,8 @@ export default function KPIPage() {
   const [simVarPrix, setSimVarPrix] = useState(0);
   const [simVarTrafic, setSimVarTrafic] = useState(0);
   const [simRecrue, setSimRecrue] = useState(false);
+  /** Solde réel issu de l'import CSV bancaire (`bank_transactions`). */
+  const [soldeBancaire, setSoldeBancaire] = useState<number | null>(null);
   /** Valeur fictive Espèces (donut KPI uniquement), stable tant que la page n’est pas rechargée. */
   const [montantEspecesPieSimule] = useState(
     () => Math.floor(Math.random() * (200 - 150 + 1)) + 150
@@ -456,6 +458,29 @@ export default function KPIPage() {
           setPerfVendeuses(rows.sort((a, b) => b.total - a.total));
         } else {
           setPerfVendeuses([]);
+        }
+
+        try {
+          const financeRes = await fetch("/api/finance/transactions");
+          if (financeRes.ok) {
+            const finance = (await financeRes.json()) as {
+              balanceEUR?: number;
+              totalCount?: number;
+            };
+            if (
+              typeof finance.totalCount === "number" &&
+              finance.totalCount > 0 &&
+              typeof finance.balanceEUR === "number"
+            ) {
+              setSoldeBancaire(finance.balanceEUR);
+            } else {
+              setSoldeBancaire(null);
+            }
+          } else {
+            setSoldeBancaire(null);
+          }
+        } catch {
+          setSoldeBancaire(null);
         }
       } catch {
         // silent
@@ -1050,7 +1075,7 @@ export default function KPIPage() {
                 setSimRecrue(false);
               }}
               caProjeteFinMois={caProjeteFinMois}
-              soldeBancaire={MOCK_SOLDE_BANCAIRE}
+              soldeBancaire={soldeBancaire}
             />
           </motion.div>
 
@@ -1070,10 +1095,22 @@ export default function KPIPage() {
               </h2>
               <p className="mt-1 max-w-2xl text-sm text-neutral-500">
                 Runway, TVA estimée et budget réassort à partir du CA du mois et
-                du solde bancaire (mock jusqu&apos;à Open Banking).
+                du solde bancaire importé sur{" "}
+                <a
+                  href="/dashboard/finance"
+                  className="font-medium text-indigo-600 underline underline-offset-2 hover:text-indigo-700"
+                >
+                  Trésorerie &amp; Banque
+                </a>
+                .
+                {soldeBancaire !== null && (
+                  <span className="mt-1 block tabular-nums text-neutral-700">
+                    Solde actuel : {formatPrix(soldeBancaire)}
+                  </span>
+                )}
               </p>
             </div>
-            <KpiFinanceIntel caMois={caMois} />
+            <KpiFinanceIntel caMois={caMois} soldeBancaire={soldeBancaire} />
           </motion.div>
 
           {/* KPI mois — grille secondaire */}
