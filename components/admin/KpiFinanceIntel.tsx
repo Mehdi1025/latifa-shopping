@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { Shield, Landmark, ShoppingBag, Upload } from "lucide-react";
-import { CHARGES_FIXES_MENSUELLES } from "@/lib/finance-kpi";
+import { DEFAULT_CHARGES_FIXES_MENSUELLES } from "@/lib/shop-settings";
 
 const itemVariants = {
   hidden: { opacity: 0, y: 24 },
@@ -47,6 +47,7 @@ type Props = {
   caMois: number;
   /** Solde réel (import CSV bancaire). `null` = aucun relevé importé. */
   soldeBancaire: number | null;
+  chargesFixesMensuelles?: number;
 };
 
 /** Jauge circulaire 0–100 % (référence 12 mois de runway = plein cercle) */
@@ -134,16 +135,20 @@ function BankImportPrompt({ className = "" }: { className?: string }) {
   );
 }
 
-export default function KpiFinanceIntel({ caMois, soldeBancaire }: Props) {
+export default function KpiFinanceIntel({
+  caMois,
+  soldeBancaire,
+  chargesFixesMensuelles = DEFAULT_CHARGES_FIXES_MENSUELLES,
+}: Props) {
   const hasSolde = soldeBancaire !== null;
   const solde = soldeBancaire ?? 0;
   const runwayMonths =
-    hasSolde && CHARGES_FIXES_MENSUELLES > 0
-      ? solde / CHARGES_FIXES_MENSUELLES
+    hasSolde && chargesFixesMensuelles > 0
+      ? solde / chargesFixesMensuelles
       : 0;
   const provisionTVA = caMois * 0.2;
   const budgetSafe = hasSolde
-    ? solde - CHARGES_FIXES_MENSUELLES - provisionTVA
+    ? solde - chargesFixesMensuelles - provisionTVA
     : null;
 
   return (
@@ -197,7 +202,7 @@ export default function KpiFinanceIntel({ caMois, soldeBancaire }: Props) {
                 </p>
                 <p className="mt-3 text-[11px] text-sky-800/60">
                   Solde bancaire importé : {formatPrixFull(solde)} — charges fixes{" "}
-                  {formatPrixFull(CHARGES_FIXES_MENSUELLES)} / mois.
+                  {formatPrixFull(chargesFixesMensuelles)} / mois.
                 </p>
               </>
             ) : (

@@ -4,9 +4,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { animate, motion } from "framer-motion";
 import { toast } from "sonner";
 import {
-  CHARGES_FIXES_MENSUELLES,
   CHARGE_RECRUE_MENSUELLE,
 } from "@/lib/finance-kpi";
+import { DEFAULT_CHARGES_FIXES_MENSUELLES } from "@/lib/shop-settings";
 import {
   Loader2,
   Orbit,
@@ -67,6 +67,7 @@ type Props = {
   onReset: () => void;
   caProjeteFinMois: number;
   soldeBancaire: number | null;
+  chargesFixesMensuelles?: number;
 };
 
 function SimSlider({
@@ -119,6 +120,7 @@ export default function BusinessSimulator({
   onReset,
   caProjeteFinMois,
   soldeBancaire,
+  chargesFixesMensuelles = DEFAULT_CHARGES_FIXES_MENSUELLES,
 }: Props) {
   const [applying, setApplying] = useState(false);
 
@@ -132,11 +134,11 @@ export default function BusinessSimulator({
 
   const nouveauCA = caProjeteFinMois * mult;
   const chargesRunwayDenom =
-    CHARGES_FIXES_MENSUELLES + (recrue ? CHARGE_RECRUE_MENSUELLE : 0);
+    chargesFixesMensuelles + (recrue ? CHARGE_RECRUE_MENSUELLE : 0);
   const runway =
     hasSolde && chargesRunwayDenom > 0 ? soldeEffectif / chargesRunwayDenom : 0;
   const budgetReassort = hasSolde
-    ? soldeEffectif - nouveauCA * 0.2 - CHARGES_FIXES_MENSUELLES
+    ? soldeEffectif - nouveauCA * 0.2 - chargesFixesMensuelles
     : 0;
 
   const animCA = useAnimatedNumber(nouveauCA);

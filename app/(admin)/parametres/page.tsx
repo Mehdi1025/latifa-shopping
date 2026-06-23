@@ -1,5 +1,6 @@
-import { Target, Link2, Smartphone } from "lucide-react";
+import { Link2, Smartphone } from "lucide-react";
 
+import ShopSettingsForm from "@/components/admin/ShopSettingsForm";
 import TeamManagement from "@/components/admin/TeamManagement";
 
 const connexions = [
@@ -19,48 +20,7 @@ export default function ParametresPage() {
         <TeamManagement />
 
         <div className="flex flex-col gap-8">
-          <section className="rounded-xl border border-slate-200 bg-white p-6">
-            <h2 className="mb-6 flex items-center gap-2 text-lg font-semibold text-slate-900">
-              <Target className="h-5 w-5 text-slate-500" />
-              Objectifs Mensuels
-            </h2>
-            <form className="space-y-4">
-              <div>
-                <label
-                  htmlFor="objectif-ca"
-                  className="mb-1.5 block text-sm font-medium text-slate-700"
-                >
-                  Objectif CA (€)
-                </label>
-                <input
-                  id="objectif-ca"
-                  type="number"
-                  defaultValue="15000"
-                  className="w-full rounded-lg border border-slate-200 px-4 py-2.5 text-slate-900 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                />
-              </div>
-              <div>
-                <label
-                  htmlFor="objectif-commandes"
-                  className="mb-1.5 block text-sm font-medium text-slate-700"
-                >
-                  Objectif Commandes
-                </label>
-                <input
-                  id="objectif-commandes"
-                  type="number"
-                  defaultValue="400"
-                  className="w-full rounded-lg border border-slate-200 px-4 py-2.5 text-slate-900 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                />
-              </div>
-              <button
-                type="submit"
-                className="mt-2 w-full rounded-md bg-indigo-600 py-2.5 text-sm font-medium text-white transition-all duration-300 ease-in-out hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 sm:w-auto sm:px-6"
-              >
-                Sauvegarder
-              </button>
-            </form>
-          </section>
+          <ShopSettingsForm />
 
           <section className="rounded-xl border border-slate-200 bg-white p-6">
             <h2 className="mb-6 flex items-center gap-2 text-lg font-semibold text-slate-900">

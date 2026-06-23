@@ -36,7 +36,10 @@ import BusinessSimulator from "@/components/admin/kpi/BusinessSimulator";
 import AiKpiInsights from "@/components/kpi/AiKpiInsights";
 import KpiHistoryArchives from "@/components/kpi/KpiHistoryArchives";
 import { SalesHeatmap } from "@/components/admin/SalesHeatmap";
-import { CHARGES_FIXES_MENSUELLES } from "@/lib/finance-kpi";
+import {
+  DEFAULT_SHOP_SETTINGS_BUSINESS,
+  type ShopSettingsBusiness,
+} from "@/lib/shop-settings";
 
 type Vente = {
   id: string;
@@ -58,7 +61,6 @@ type Produit = {
 };
 
 const ACCENT = "#c9a98c";
-const MONTHLY_GOAL_EUR = 15000;
 
 const FRAIS_CB_RATE = 0.015;
 
@@ -316,6 +318,9 @@ export default function KPIPage() {
   const [simRecrue, setSimRecrue] = useState(false);
   /** Solde réel issu de l'import CSV bancaire (`bank_transactions`). */
   const [soldeBancaire, setSoldeBancaire] = useState<number | null>(null);
+  const [shopSettings, setShopSettings] = useState<ShopSettingsBusiness>(
+    DEFAULT_SHOP_SETTINGS_BUSINESS
+  );
   /** Valeur fictive Espèces (donut KPI uniquement), stable tant que la page n’est pas rechargée. */
   const [montantEspecesPieSimule] = useState(
     () => Math.floor(Math.random() * (200 - 150 + 1)) + 150
@@ -461,7 +466,11 @@ export default function KPIPage() {
         }
 
         try {
-          const financeRes = await fetch("/api/finance/transactions");
+          const [financeRes, settingsRes] = await Promise.all([
+            fetch("/api/finance/transactions"),
+            fetch("/api/shop-settings"),
+          ]);
+
           if (financeRes.ok) {
             const finance = (await financeRes.json()) as {
               balanceEUR?: number;
@@ -479,6 +488,15 @@ export default function KPIPage() {
           } else {
             setSoldeBancaire(null);
           }
+
+          if (settingsRes.ok) {
+            const settingsPayload = (await settingsRes.json()) as {
+              settings?: ShopSettingsBusiness;
+            };
+            if (settingsPayload.settings) {
+              setShopSettings(settingsPayload.settings);
+            }
+          }
         } catch {
           setSoldeBancaire(null);
         }
@@ -495,6 +513,9 @@ export default function KPIPage() {
     () => ventesMois.reduce((s, v) => s + (v.total ?? 0), 0),
     [ventesMois]
   );
+
+  const chargesFixesMensuelles = shopSettings.charges_fixes_mensuelles;
+  const objectifCaMensuel = shopSettings.objectif_ca_mensuel;
 
   /** Liquide attendu en caisse (espèces du jour uniquement). */
   const tiroirCaisseJour = useMemo(
@@ -597,12 +618,12 @@ export default function KPIPage() {
     jourDuMois > 0 ? (caMois / jourDuMois) * joursDansMois : 0;
   const progressionVersObjectif = Math.min(
     100,
-    MONTHLY_GOAL_EUR > 0 ? (caProjeteFinMois / MONTHLY_GOAL_EUR) * 100 : 0
+    objectifCaMensuel > 0 ? (caProjeteFinMois / objectifCaMensuel) * 100 : 0
   );
 
   const trendProjectionPct =
-    MONTHLY_GOAL_EUR > 0
-      ? ((caProjeteFinMois - MONTHLY_GOAL_EUR) / MONTHLY_GOAL_EUR) * 100
+    objectifCaMensuel > 0
+      ? ((caProjeteFinMois - objectifCaMensuel) / objectifCaMensuel) * 100
       : null;
 
   const evolutionCA = useMemo(() => {
@@ -674,7 +695,7 @@ export default function KPIPage() {
   const kpiAiPayload = useMemo(
     () => ({
       chiffreAffaires: caMois,
-      depenses: CHARGES_FIXES_MENSUELLES,
+      depenses: chargesFixesMensuelles,
       panierMoyen,
       ventesSemaine,
       caJour,
@@ -690,6 +711,7 @@ export default function KPIPage() {
       croissancePct,
       nbVentesMois,
       tauxJour,
+      chargesFixesMensuelles,
     ]
   );
 
@@ -869,12 +891,12 @@ export default function KPIPage() {
                   {trendProjectionPct !== null && (
                     <span
                       className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold ${
-                        caProjeteFinMois >= MONTHLY_GOAL_EUR
+                        caProjeteFinMois >= objectifCaMensuel
                           ? "bg-emerald-500/15 text-emerald-700"
                           : "bg-amber-500/12 text-amber-800"
                       }`}
                     >
-                      {caProjeteFinMois >= MONTHLY_GOAL_EUR ? "Au-dessus" : "Sous"} objectif
+                      {caProjeteFinMois >= objectifCaMensuel ? "Au-dessus" : "Sous"} objectif
                     </span>
                   )}
                 </div>
@@ -885,7 +907,7 @@ export default function KPIPage() {
                   {formatPrix(caProjeteFinMois)}
                 </p>
                 <p className="mt-1 text-xs text-neutral-500">
-                  CA cumulé mois : {formatPrix(caMois)} · Objectif {formatPrix(MONTHLY_GOAL_EUR)}
+                  CA cumulé mois : {formatPrix(caMois)} · Objectif {formatPrix(objectifCaMensuel)}
                 </p>
                 <div className="mt-4">
                   <div className="mb-1 flex justify-between text-[10px] font-medium uppercase tracking-wider text-neutral-400">
@@ -1076,6 +1098,7 @@ export default function KPIPage() {
               }}
               caProjeteFinMois={caProjeteFinMois}
               soldeBancaire={soldeBancaire}
+              chargesFixesMensuelles={chargesFixesMensuelles}
             />
           </motion.div>
 
@@ -1094,15 +1117,16 @@ export default function KPIPage() {
                 Intelligence financière
               </h2>
               <p className="mt-1 max-w-2xl text-sm text-neutral-500">
-                Runway, TVA estimée et budget réassort à partir du CA du mois et
-                du solde bancaire importé sur{" "}
+                Runway, TVA estimée et budget réassort à partir du CA du mois, du solde
+                bancaire importé et des charges fixes (
+                {formatPrix(chargesFixesMensuelles)}/mois — modifiables dans{" "}
                 <a
-                  href="/dashboard/finance"
+                  href="/parametres"
                   className="font-medium text-indigo-600 underline underline-offset-2 hover:text-indigo-700"
                 >
-                  Trésorerie &amp; Banque
+                  Paramètres
                 </a>
-                .
+                ).
                 {soldeBancaire !== null && (
                   <span className="mt-1 block tabular-nums text-neutral-700">
                     Solde actuel : {formatPrix(soldeBancaire)}
@@ -1110,7 +1134,11 @@ export default function KPIPage() {
                 )}
               </p>
             </div>
-            <KpiFinanceIntel caMois={caMois} soldeBancaire={soldeBancaire} />
+            <KpiFinanceIntel
+              caMois={caMois}
+              soldeBancaire={soldeBancaire}
+              chargesFixesMensuelles={chargesFixesMensuelles}
+            />
           </motion.div>
 
           {/* KPI mois — grille secondaire */}
